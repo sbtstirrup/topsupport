@@ -51,6 +51,13 @@ public interface ITicketService
 
     Task<TicketDto> ChangeTopicAsync(string ticketId, string topic, TicketActorRef changedBy, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The agent "Change" modal (ACT['change-go']): applies whichever of priority/topic/status
+    /// differ (status quietly), each with its own timeline event, then writes ONE
+    /// "Changed ticket properties" audit entry if anything changed.
+    /// </summary>
+    Task<TicketDto> ChangePropertiesAsync(string ticketId, string status, string priority, string topic, TicketActorRef changedBy, CancellationToken cancellationToken = default);
+
     /// <summary>Defaults the ticket's team to the agent's first team if it has none yet (assignTicket's un-claim-safe default).</summary>
     Task<TicketDto> AssignToAgentAsync(string ticketId, string agentId, TicketActorRef assignedBy, CancellationToken cancellationToken = default);
 

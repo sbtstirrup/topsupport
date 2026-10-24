@@ -3,6 +3,7 @@
 @implements IAsyncDisposable
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
+@inject SessionState Session
 @inject IJSRuntime JS
 
 <RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
@@ -275,7 +276,7 @@
         {
             if (_isNew)
             {
-                var created = await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body });
+                var created = await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body }, Session.AccountId);
                 await LoadAsync();
                 var match = _responses.FirstOrDefault(c => c.Id == created.Id);
                 if (match is not null) Pick(match);
@@ -283,7 +284,7 @@
             else
             {
                 var updated = new CannedResponseDto { Id = _selectedId, Title = title, Body = _body, SortOrder = _responses.FirstOrDefault(c => c.Id == _selectedId)?.SortOrder ?? 0 };
-                await Api.UpdateCannedResponseAsync(updated);
+                await Api.UpdateCannedResponseAsync(updated, Session.AccountId);
                 await LoadAsync();
                 var match = _responses.FirstOrDefault(c => c.Id == _selectedId);
                 if (match is not null) Pick(match);
@@ -298,7 +299,7 @@
     private async Task DeleteAsync()
     {
         _confirmingDelete = false;
-        await Api.DeleteCannedResponseAsync(_selectedId);
+        await Api.DeleteCannedResponseAsync(_selectedId, Session.AccountId);
         await LoadAsync();
     }
 

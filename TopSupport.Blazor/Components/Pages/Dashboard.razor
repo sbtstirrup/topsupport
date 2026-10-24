@@ -1,10 +1,237 @@
 @page "/dashboard"
+@using System.Globalization
+@using System.Net
+@using System.Text
+@using TopSupport.Models.Admin
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject NavigationManager Nav
 
+@* Port of PAGES.dashboard in topsupport-app.js. All figures come pre-computed from
+   GET api/dashboard (DashboardService); this page only renders them with the demo's markup:
+   .stats tiles, the lineChart() SVG, hbars() rows, the By Agent table and "Overdue Now". *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="Dashboard" Icon="chart" Message="Ticket volume, response time and overdue charts (see PAGES.dashboard in the original demo) will be built out in a later pass." />
+    @if (_data is { } d)
+    {
+        <div class="stack">
+            <div class="stats">
+                @Stat("Active tickets", d.ActiveCount.ToString(), "Open, in progress or awaiting user")
+                @Stat("Overdue", d.OverdueCount.ToString(), "No response within target", d.OverdueCount > 0)
+                @Stat("Opened, last 30 days", d.OpenedLast30Days.ToString(), "New tickets")
+                @Stat("Closed, last 30 days", d.ClosedLast30Days.ToString(), "Resolved or closed")
+                @Stat("Avg first response", DurationFormat.Hours(d.AvgFirstResponseHours), "Across all responded tickets")
+                @Stat("Response target met",
+                      d.RespondedCount > 0 ? Math.Round(d.ResponseTargetMetCount * 100.0 / d.RespondedCount, MidpointRounding.AwayFromZero) + "%" : "—",
+                      $"{d.ResponseTargetMetCount} of {d.RespondedCount} responded tickets")
+            </div>
+
+            <section class="card pad chart" aria-labelledby="ch1">
+                <div class="card-head">
+                    <h2 id="ch1" class="card-title">Tickets Opened and Closed per Week</h2>
+                    <div class="legend"><span><i style="background:var(--green)"></i>Opened</span><span><i style="background:var(--slate)"></i>Closed (dashed)</span></div>
+                </div>
+                @((MarkupString)LineChart(d.Weeks))
+                <p class="hint">Last @d.Weeks.Count weeks. Week labels show the first day of each week.</p>
+            </section>
+
+            <div class="chart-grid">
+                <section class="card pad" aria-labelledby="ch2">
+                    <h2 id="ch2" class="card-title">By Department</h2>
+                    <p class="lede">Active tickets, with overdue counts and average first response.</p>
+                    @((MarkupString)HBars(d.Departments.Select(x => (x.Department, x.Active))))
+                    <div style="margin-top:12px">
+                        @foreach (var dept in d.Departments)
+                        {
+                            <div class="kv"><span>@dept.Department</span><strong>@dept.Overdue overdue · avg response @DurationFormat.Hours(dept.AvgFirstResponseHours)</strong></div>
+                        }
+                    </div>
+                </section>
+                <section class="card pad" aria-labelledby="ch3">
+                    <h2 id="ch3" class="card-title">By Help Topic</h2>
+                    <p class="lede">All tickets in the last 90 days.</p>
+                    @((MarkupString)HBars(d.Topics.Select(x => (x.Label, x.Count))))
+                </section>
+            </div>
+
+            <section class="card" aria-labelledby="ch4">
+                <div class="pad-sm"><h2 id="ch4" class="card-title" style="margin:0">By Agent</h2></div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead>
+                            <tr>
+                                <th><span>Agent</span></th>
+                                <th><span>Active</span></th>
+                                <th><span>Resolved or closed</span></th>
+                                <th><span>Avg first response</span></th>
+                                <th><span>Overdue</span></th>
+                                <th style="min-width:180px"><span>Active workload</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ var maxActive = Math.Max(1, d.Agents.Select(a => a.Active).DefaultIfEmpty(0).Max()); }
+                            @foreach (var a in d.Agents)
+                            {
+                                <tr>
+                                    <td class="who"><strong>@a.Name</strong><span class="cell-sub">@a.TeamNames</span></td>
+                                    <td class="num-tab">@a.Active</td>
+                                    <td class="num-tab">@a.ResolvedOrClosed</td>
+                                    <td class="num-tab">@DurationFormat.Hours(a.AvgFirstResponseHours)</td>
+                                    <td>
+                                        @if (a.Overdue > 0)
+                                        {
+                                            <span class="tag overdue">@a.Overdue</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">0</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="hbar" style="grid-template-columns:minmax(0,1fr);padding:0">
+                                            <span class="track"><span class="fill" style="display:block;width:@Pct(a.Active, maxActive)%"></span></span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                            <tr>
+                                <td class="who"><strong>Unassigned (team queue)</strong></td>
+                                <td class="num-tab">@d.UnassignedActive</td>
+                                <td>—</td>
+                                <td>—</td>
+                                <td>
+                                    @if (d.UnassignedOverdue > 0)
+                                    {
+                                        <span class="tag overdue">@d.UnassignedOverdue</span>
+                                    }
+                                    else
+                                    {
+                                        @("0")
+                                    }
+                                </td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            @if (d.OverdueTickets.Count > 0)
+            {
+                <section class="card pad-sm" aria-labelledby="ch5">
+                    <h2 id="ch5" class="card-title">Overdue Now</h2>
+                    @foreach (var t in d.OverdueTickets)
+                    {
+                        <button type="button" class="list-item" @onclick="@(() => Nav.NavigateTo($"/agent-tickets/{t.Id}"))">
+                            <PriorityBadge Priority="@t.Priority" />
+                            <span style="flex:1;min-width:0">
+                                <strong style="font-size:14px">#@t.Number @t.Subject</strong>
+                                <span class="cell-sub">@t.RequesterName · @t.AssigneeLabel</span>
+                            </span>
+                            <span class="tag overdue">@((MarkupString)IconLibrary.Render("clock", 13)) Overdue @DurationFormat.Duration(DateTimeOffset.UtcNow - t.SlaDue)</span>
+                        </button>
+                    }
+                </section>
+            }
+        </div>
+    }
 </RoleGate>
 
 @code {
+    private DashboardDto? _data;
+
     protected override void OnInitialized() => Heading.SetHeading("Dashboard", "Ticket volumes, response times and overdue work across IT.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _data = await Api.GetDashboardAsync();
+    }
+
+    private static RenderFragment Stat(string label, string value, string sub, bool alert = false) =>
+        @<div class="card stat"><span class="stat-label">@label</span><span class="stat-val @(alert ? "alert" : "")">@value</span><span class="stat-sub">@sub</span></div>;
+
+    private static string Pct(int value, int max) => (value * 100.0 / max).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static string Esc(string s) => WebUtility.HtmlEncode(s);
+
+    private static string N(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
+
+    /// <summary>hbars(rows, unit): label / track+fill bar scaled to the largest value / value.</summary>
+    private static string HBars(IEnumerable<(string Label, int Value)> rows)
+    {
+        var list = rows.ToList();
+        var max = Math.Max(1, list.Select(r => r.Value).DefaultIfEmpty(0).Max());
+        var sb = new StringBuilder();
+        foreach (var (label, value) in list)
+        {
+            sb.Append($"<div class=\"hbar\"><span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap\" title=\"{Esc(label)}\">{Esc(label)}</span>")
+              .Append($"<span class=\"track\" role=\"img\" aria-label=\"{Esc(label)}: {value}\"><span class=\"fill\" style=\"display:block;width:{Pct(value, max)}%\"></span></span>")
+              .Append($"<span class=\"val\">{value}</span></div>");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>niceMax(v): rounds the y-axis top up to 1/2/2.5/5/10 x a power of ten (minimum 4).</summary>
+    private static double NiceMax(double v)
+    {
+        if (v <= 4) return 4;
+        var p = Math.Pow(10, Math.Floor(Math.Log10(v)));
+        var m = new[] { 1, 2, 2.5, 5, 10 }.First(x => x * p >= v);
+        return m * p;
+    }
+
+    /// <summary>lineChart(labels, series): the demo's hand-drawn SVG, Opened (green, shaded area)
+    /// and Closed (slate, dashed), with a 5-line grid and every other week labelled.</summary>
+    private static string LineChart(IReadOnlyList<DashboardWeekDto> weeks)
+    {
+        const double W = 640, Hh = 250, L = 36, R = 16, T = 16, B = 40;
+        const double w = W - L - R, h = Hh - T - B;
+
+        var labels = weeks.Select(x => DurationFormat.DayMonth(x.Start.AddHours(1))).ToList();
+        var series = new[]
+        {
+            (Name: "Opened", Values: weeks.Select(x => x.Opened).ToList(), Color: "var(--green)", Area: true, Dash: false),
+            (Name: "Closed", Values: weeks.Select(x => x.Closed).ToList(), Color: "var(--slate)", Area: false, Dash: true)
+        };
+        var max = NiceMax(Math.Max(1, series.SelectMany(s => s.Values).DefaultIfEmpty(0).Max()));
+        double X(int i) => L + (labels.Count == 1 ? w / 2 : i * w / (labels.Count - 1));
+        double Y(double v) => T + h - v / max * h;
+
+        var sb = new StringBuilder();
+        sb.Append($"<svg viewBox=\"0 0 {N(W)} {N(Hh)}\" role=\"img\" aria-label=\"Tickets opened and closed per week over the last {labels.Count} weeks\">");
+
+        for (var i = 0; i <= 4; i++)
+        {
+            var v = max * i / 4;
+            var tick = v % 1 != 0 ? v.ToString("0.0", CultureInfo.InvariantCulture) : N(v);
+            sb.Append($"<line x1=\"{N(L)}\" x2=\"{N(W - R)}\" y1=\"{N(Y(v))}\" y2=\"{N(Y(v))}\" stroke=\"var(--line)\" stroke-width=\"1\"></line>")
+              .Append($"<text x=\"{N(L - 8)}\" y=\"{N(Y(v) + 4)}\" text-anchor=\"end\" font-size=\"11\" fill=\"var(--ink-4)\">{tick}</text>");
+        }
+
+        for (var i = 0; i < labels.Count; i++)
+        {
+            if (i % 2 != 0 && i != labels.Count - 1) continue;
+            var anchor = i == 0 ? "start" : i == labels.Count - 1 ? "end" : "middle";
+            sb.Append($"<text x=\"{N(X(i))}\" y=\"{N(Hh - 14)}\" text-anchor=\"{anchor}\" font-size=\"11\" fill=\"var(--ink-4)\">{Esc(labels[i])}</text>");
+        }
+
+        foreach (var s in series)
+        {
+            var path = new StringBuilder($"M{N(X(0))} {N(Y(0))} ");
+            for (var i = 0; i < s.Values.Count; i++) path.Append($"L{N(X(i))} {N(Y(s.Values[i]))} ");
+            path.Append($"L{N(X(labels.Count - 1))} {N(Y(0))}Z");
+            sb.Append($"<path d=\"{path}\" fill=\"{s.Color}\" opacity=\"{(s.Area ? "0.1" : "0")}\"></path>");
+
+            var points = string.Join(' ', s.Values.Select((v, i) => $"{N(X(i))},{N(Y(v))}"));
+            sb.Append($"<polyline points=\"{points}\" fill=\"none\" stroke=\"{s.Color}\" stroke-width=\"2.5\" {(s.Dash ? "stroke-dasharray=\"6 4\"" : "")} stroke-linejoin=\"round\" stroke-linecap=\"round\"></polyline>");
+
+            for (var i = 0; i < s.Values.Count; i++)
+            {
+                var last = i == s.Values.Count - 1;
+                sb.Append($"<circle cx=\"{N(X(i))}\" cy=\"{N(Y(s.Values[i]))}\" r=\"{(last ? 5 : 3)}\" fill=\"{(last ? s.Color : "var(--white)")}\" stroke=\"{s.Color}\" stroke-width=\"2\"><title>{Esc(s.Name)}, week of {Esc(labels[i])}: {s.Values[i]}</title></circle>");
+            }
+        }
+
+        sb.Append("</svg>");
+        return sb.ToString();
+    }
 }

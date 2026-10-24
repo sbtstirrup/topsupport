@@ -155,6 +155,21 @@ public class TicketsController : ControllerBase
         }
     }
 
+    public record ChangePropertiesRequest(string Status, string Priority, string Topic, TicketActorRef ChangedBy);
+
+    [HttpPut("{id}/properties")]
+    public async Task<ActionResult<TicketDto>> ChangeProperties(string id, ChangePropertiesRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Ok(await _ticketService.ChangePropertiesAsync(id, request.Status, request.Priority, request.Topic, request.ChangedBy, cancellationToken));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
     public record AssignRequest(AssignTicketRequest Assignment, TicketActorRef AssignedBy);
 
     [HttpPut("{id}/assign")]

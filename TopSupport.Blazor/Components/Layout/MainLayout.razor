@@ -3,6 +3,8 @@
 @inject NavProvider NavProvider
 @inject PageHeadingState Heading
 @inject NavigationManager Nav
+@inject TopSupportApiClient Api
+@using TopSupport.Models.Admin
 
 <a class="skip" href="#main">Skip to content</a>
 <div class="app">
@@ -133,26 +135,41 @@
 
     private bool IsActive(string route) => Nav.Uri.EndsWith(route, StringComparison.OrdinalIgnoreCase);
 
-    private void OnRoleChanged(ChangeEventArgs e)
+    private async Task OnRoleChanged(ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
         if (string.IsNullOrEmpty(value))
         {
-            Session.SetRole(null);
-            Nav.NavigateTo("/");
+            await SignOut();
             return;
         }
 
         var role = Enum.Parse<AppRole>(value);
         Session.SetRole(role);
+        // setRole(role) in the demo: audited as the newly selected account.
+        await Api.LogAuditAsync(Session.AccountId, $"Switched role to {RoleLabel(role)} (demo override)", "Role switcher", AuditCategories.SignIn);
         Nav.NavigateTo(Session.HomeRoute());
     }
 
-    private void SignOut()
+    private async Task SignOut()
     {
+        // ACT.signout: audited before the session is cleared, as the account signing out.
+        if (Session.Role is { } role)
+        {
+            await Api.LogAuditAsync(Session.AccountId, "Signed out", role == AppRole.User ? "User portal" : "Agent portal", AuditCategories.SignIn);
+        }
+
         Session.SetRole(null);
         Nav.NavigateTo("/");
     }
+
+    /// <summary>ROLE_LABEL in topsupport-app.js.</summary>
+    private static string RoleLabel(AppRole role) => role switch
+    {
+        AppRole.User => "End user",
+        AppRole.Agent => "Agent",
+        _ => "Admin"
+    };
 
     private static string Initials(string name)
     {

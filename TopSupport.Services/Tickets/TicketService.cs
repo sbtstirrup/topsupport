@@ -1,7 +1,9 @@
+using TopSupport.Models.Admin;
 using TopSupport.Models.Enums;
 using TopSupport.Models.Tickets;
 using TopSupport.Models.Tickets.FieldSchema;
 using TopSupport.Services.Abstractions;
+using TopSupport.Services.Admin;
 
 namespace TopSupport.Services.Tickets;
 
@@ -10,6 +12,8 @@ namespace TopSupport.Services.Tickets;
 /// addEntry/addEvent and the ACT['user-reply']/ACT['agent-reply'] handlers from
 /// topsupport-app.js (lines ~404-439, ~1343-1352, ~1591-1600) one layer above raw data
 /// access. No merge method anywhere — ticket merge is explicitly out of scope.
+/// Each mutation also writes the same audit(...) entry the demo does (category Ticket),
+/// attributed to the acting account on the request.
 /// </summary>
 public class TicketService : ITicketService
 {
@@ -32,6 +36,7 @@ public class TicketService : ITicketService
     private readonly IUserRepository _userRepository;
     private readonly ITicketAttachmentRepository _attachmentRepository;
     private readonly ITicketFormValidator _validator;
+    private readonly IAuditService _audit;
 
     public TicketService(
         ITicketRepository ticketRepository,
@@ -39,7 +44,8 @@ public class TicketService : ITicketService
         IAgentRepository agentRepository,
         IUserRepository userRepository,
         ITicketAttachmentRepository attachmentRepository,
-        ITicketFormValidator validator)
+        ITicketFormValidator validator,
+        IAuditService audit)
     {
         _ticketRepository = ticketRepository;
         _teamRepository = teamRepository;
@@ -47,6 +53,7 @@ public class TicketService : ITicketService
         _userRepository = userRepository;
         _attachmentRepository = attachmentRepository;
         _validator = validator;
+        _audit = audit;
     }
 
     public Task<TicketDto?> GetTicketAsync(string ticketId, CancellationToken cancellationToken = default)
@@ -139,6 +146,7 @@ public class TicketService : ITicketService
             await AppendEventAsync(ticket, TicketActorRef_System, "Leaver checklist added (4 tasks)", now, cancellationToken);
         }
 
+        await AuditAsync(createdBy, "Created ticket", ticket, cancellationToken);
         return ticket;
     }
 
@@ -169,6 +177,7 @@ public class TicketService : ITicketService
             await AppendEventAsync(ticket, by, $"Status changed from Awaiting User to Open by {shortName}", now, cancellationToken);
         }
 
+        await AuditAsync(by, "Replied to ticket", ticket, cancellationToken);
         return ticket;
     }
 
@@ -182,16 +191,17 @@ public class TicketService : ITicketService
 
         if (!request.IsNote && !string.IsNullOrEmpty(request.StatusAfterSending))
         {
-            await ChangeStatusInternalAsync(ticket, request.StatusAfterSending, by, now, cancellationToken);
+            await ChangeStatusInternalAsync(ticket, request.StatusAfterSending, by, now, quiet: true, cancellationToken);
         }
 
+        await AuditAsync(by, request.IsNote ? "Added internal note" : "Sent public reply", ticket, cancellationToken);
         return ticket;
     }
 
     public async Task<TicketDto> ChangeStatusAsync(string ticketId, string status, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
-        await ChangeStatusInternalAsync(ticket, status, changedBy, DateTimeOffset.UtcNow, cancellationToken);
+        await ChangeStatusInternalAsync(ticket, status, changedBy, DateTimeOffset.UtcNow, quiet: false, cancellationToken);
         return ticket;
     }
 
@@ -209,6 +219,7 @@ public class TicketService : ITicketService
         var shortName = await ShortNameForActorAsync(changedBy, cancellationToken);
         await AppendEventAsync(ticket, changedBy, $"Priority changed from {prev} to {next} by {shortName}", now, cancellationToken);
 
+        await AuditAsync(changedBy, $"Changed priority to {next}", ticket, cancellationToken);
         return ticket;
     }
 
@@ -221,6 +232,48 @@ public class TicketService : ITicketService
         ticket.Topic = topic;
         ticket.Department = topicDef.Department;
         await _ticketRepository.UpdateTopicAsync(ticketId, topic, topicDef.Department, now, cancellationToken);
+
+        return ticket;
+    }
+
+    public async Task<TicketDto> ChangePropertiesAsync(string ticketId, string status, string priority, string topic, TicketActorRef changedBy, CancellationToken cancellationToken = default)
+    {
+        var ticket = await RequireTicketAsync(ticketId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var shortName = await ShortNameForActorAsync(changedBy, cancellationToken);
+        var changed = 0;
+
+        var nextPriority = Enum.Parse<TicketPriority>(priority);
+        if (nextPriority != ticket.Priority)
+        {
+            var prev = ticket.Priority;
+            ticket.Priority = nextPriority;
+            await _ticketRepository.UpdatePriorityAsync(ticketId, priority, now, cancellationToken);
+            await AppendEventAsync(ticket, changedBy, $"Priority changed from {prev} to {nextPriority} by {shortName}", now, cancellationToken);
+            changed++;
+        }
+
+        if (topic != ticket.Topic)
+        {
+            var topicDef = TicketTopics.Find(topic) ?? throw new ArgumentException($"Unknown topic '{topic}'.", nameof(topic));
+            var prevLabel = TicketTopics.Find(ticket.Topic)?.Label ?? ticket.Topic;
+            ticket.Topic = topic;
+            ticket.Department = topicDef.Department;
+            await _ticketRepository.UpdateTopicAsync(ticketId, topic, topicDef.Department, now, cancellationToken);
+            await AppendEventAsync(ticket, changedBy, $"Help topic changed from {prevLabel} to {topicDef.Label} by {shortName}", now, cancellationToken);
+            changed++;
+        }
+
+        if (Enum.Parse<TicketStatus>(status) != ticket.Status)
+        {
+            await ChangeStatusInternalAsync(ticket, status, changedBy, now, quiet: true, cancellationToken);
+            changed++;
+        }
+
+        if (changed > 0)
+        {
+            await AuditAsync(changedBy, "Changed ticket properties", ticket, cancellationToken);
+        }
 
         return ticket;
     }
@@ -240,6 +293,7 @@ public class TicketService : ITicketService
 
         await _ticketRepository.AssignAsync(ticketId, ticket.AssignedAgentId, ticket.AssignedTeamId, now, cancellationToken);
         await AppendEventAsync(ticket, assignedBy, $"Assigned to {ShortName(agent.Name)}", now, cancellationToken);
+        await AuditAsync(assignedBy, $"Assigned ticket to {ShortName(agent.Name)}", ticket, cancellationToken);
 
         return ticket;
     }
@@ -256,6 +310,7 @@ public class TicketService : ITicketService
 
         await _ticketRepository.AssignAsync(ticketId, null, teamId, now, cancellationToken);
         await AppendEventAsync(ticket, assignedBy, $"Assigned to {team.Name}", now, cancellationToken);
+        await AuditAsync(assignedBy, $"Assigned ticket to {team.Name}", ticket, cancellationToken);
 
         return ticket;
     }
@@ -361,7 +416,9 @@ public class TicketService : ITicketService
         => await _ticketRepository.GetByIdAsync(ticketId, cancellationToken)
             ?? throw new KeyNotFoundException($"Ticket '{ticketId}' was not found.");
 
-    private async Task ChangeStatusInternalAsync(TicketDto ticket, string status, TicketActorRef changedBy, DateTimeOffset now, CancellationToken cancellationToken)
+    /// <summary>changeStatus(t, s, quiet): <paramref name="quiet"/> suppresses only the audit entry,
+    /// never the timeline event (used when the change is part of a larger audited action).</summary>
+    private async Task ChangeStatusInternalAsync(TicketDto ticket, string status, TicketActorRef changedBy, DateTimeOffset now, bool quiet, CancellationToken cancellationToken)
     {
         var next = Enum.Parse<TicketStatus>(status);
         if (ticket.Status == next) return;
@@ -386,7 +443,16 @@ public class TicketService : ITicketService
         }
 
         await AppendEventAsync(ticket, changedBy, text, now, cancellationToken);
+
+        if (!quiet)
+        {
+            await AuditAsync(changedBy, $"Changed status to {FormatStatus(next)}", ticket, cancellationToken);
+        }
     }
+
+    /// <summary>audit(action, '#' + t.num, 'Ticket'), attributed to the acting account ("system" when there is none).</summary>
+    private Task AuditAsync(TicketActorRef actor, string action, TicketDto ticket, CancellationToken cancellationToken)
+        => _audit.LogAsync(actor.Type == "system" || actor.Id == null ? "system" : actor.Id, action, "#" + ticket.Number, AuditCategories.Ticket, cancellationToken);
 
     private async Task AppendReplyAsync(TicketDto ticket, TicketActorRef by, string html, DateTimeOffset at, bool isNote, CancellationToken cancellationToken)
     {

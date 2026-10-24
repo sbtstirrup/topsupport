@@ -1,10 +1,192 @@
 @page "/audit"
+@using TopSupport.Models.Admin
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject LookupDataService Lookup
 
+@* Port of PAGES.audit in topsupport-app.js: free-text search plus category / who / when
+   filters over the full audit list (newest first), 20 rows per page with the demo's pager()
+   markup, category tags and actorName() resolution. Filtering is client-side over one fetch,
+   as in the demo. *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="Audit Trail" Icon="list" Message="The audit log table and filters (see PAGES.audit in the original demo) will be built out in a later pass." />
+    <section class="card" aria-label="Audit entries">
+        <div class="filters">
+            <div class="field grow">
+                <label class="field-label" for="au-q">Search</label>
+                <div class="search">
+                    @((MarkupString)IconLibrary.Render("search", 16))
+                    <input class="input" id="au-q" type="search" value="@_q" @oninput="@(e => { _q = e.Value?.ToString() ?? string.Empty; _page = 1; })" placeholder="Action, target or person" />
+                </div>
+            </div>
+            <div class="field">
+                <label class="field-label" for="au-cat">Category</label>
+                <select class="input" id="au-cat" value="@_cat" @onchange="@(e => SetFilter(() => _cat = e.Value?.ToString() ?? string.Empty))">
+                    <option value="">All categories</option>
+                    @foreach (var c in AuditCategories.All)
+                    {
+                        <option value="@c">@c</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label class="field-label" for="au-actor">Who</label>
+                <select class="input" id="au-actor" value="@_actor" @onchange="@(e => SetFilter(() => _actor = e.Value?.ToString() ?? string.Empty))">
+                    <option value="">Everyone</option>
+                    @foreach (var (id, name) in Actors)
+                    {
+                        <option value="@id">@name</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label class="field-label" for="au-range">When</label>
+                <select class="input" id="au-range" value="@_range" @onchange="@(e => SetFilter(() => _range = e.Value?.ToString() ?? string.Empty))">
+                    <option value="">Any time</option>
+                    <option value="day">Last 24 hours</option>
+                    <option value="week">Last 7 days</option>
+                    <option value="month">Last 30 days</option>
+                </select>
+            </div>
+            @if (HasActiveFilters)
+            {
+                <button type="button" class="btn btn-ghost" @onclick="ClearFilters">@((MarkupString)IconLibrary.Render("x", 16))Clear Filters</button>
+            }
+        </div>
+
+        @{
+            var rows = FilteredRows();
+            var pages = Math.Max(1, (int)Math.Ceiling(rows.Count / (double)PageSize));
+            if (_page > pages) _page = pages;
+        }
+        @if (rows.Count > 0)
+        {
+            var from = (_page - 1) * PageSize + 1;
+            var to = Math.Min(rows.Count, _page * PageSize);
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <caption class="sr-only">Audit trail, newest first</caption>
+                    <thead>
+                        <tr><th><span>When</span></th><th><span>Who</span></th><th><span>Action</span></th><th><span>Target</span></th><th><span>Category</span></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in rows.Skip((_page - 1) * PageSize).Take(PageSize))
+                        {
+                            <tr>
+                                <td class="nowrap num-tab">@DurationFormat.DateTime(a.At)<span class="cell-sub">@DurationFormat.Relative(a.At)</span></td>
+                                <td class="who">@ActorName(a.ActorId)</td>
+                                <td>@a.Action</td>
+                                <td>@a.Target</td>
+                                <td><span class="tag @CategoryClass(a.Category)">@a.Category</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="tbl-foot">
+                <span class="num-tab">Showing @from&ndash;@to of @rows.Count</span>
+                @if (pages > 1)
+                {
+                    <nav class="pagination" aria-label="Pages">
+                        <button type="button" class="opt" disabled="@(_page == 1)" aria-label="Previous page" @onclick="@(() => _page--)">@((MarkupString)IconLibrary.Render("back", 14, 2.5))</button>
+                        @for (var p = 1; p <= pages; p++)
+                        {
+                            var pageNum = p;
+                            <button type="button" class="opt @(pageNum == _page ? "on" : "")" aria-label="@($"Page {pageNum}")" aria-current="@(pageNum == _page ? "page" : null)" @onclick="@(() => _page = pageNum)">@pageNum</button>
+                        }
+                        <button type="button" class="opt" disabled="@(_page == pages)" aria-label="Next page" @onclick="@(() => _page++)">@((MarkupString)IconLibrary.Render("chevron", 14, 2.5))</button>
+                    </nav>
+                }
+            </div>
+        }
+        else if (_loaded)
+        {
+            <div class="empty">
+                <span class="empty-icon">@((MarkupString)IconLibrary.Render("list", 26))</span>
+                <h3>No audit entries match</h3>
+                <p>Change or clear the filters.</p>
+                <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
+            </div>
+        }
+    </section>
 </RoleGate>
 
 @code {
+    // APER in the demo.
+    private const int PageSize = 20;
+
+    private IReadOnlyList<AuditEntryDto> _entries = Array.Empty<AuditEntryDto>();
+    private bool _loaded;
+
+    private string _q = string.Empty;
+    private string _cat = string.Empty;
+    private string _actor = string.Empty;
+    private string _range = string.Empty;
+    private int _page = 1;
+
+    private bool HasActiveFilters => _q.Length > 0 || _cat.Length > 0 || _actor.Length > 0 || _range.Length > 0;
+
     protected override void OnInitialized() => Heading.SetHeading("Audit Trail", "Who did what and when: sign-ins, ticket changes, user and permission changes.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Prime the name lookups actorName() reads from before rendering any rows.
+        await Lookup.GetUsersAsync();
+        await Lookup.GetAgentsAsync();
+        _entries = await Api.GetAuditAsync();
+        _loaded = true;
+    }
+
+    /// <summary>Every distinct actor in the trail, sorted by display name (the "Who" options).</summary>
+    private IEnumerable<(string Id, string Name)> Actors =>
+        _entries.Select(a => a.ActorId).Distinct()
+            .Select(id => (id, ActorName(id)))
+            .OrderBy(x => x.Item2, StringComparer.CurrentCulture);
+
+    private List<AuditEntryDto> FilteredRows()
+    {
+        var q = _q.Trim().ToLowerInvariant();
+        TimeSpan? cutoff = _range switch
+        {
+            "day" => TimeSpan.FromHours(24),
+            "week" => TimeSpan.FromHours(168),
+            "month" => TimeSpan.FromHours(720),
+            _ => null
+        };
+        var now = DateTimeOffset.UtcNow;
+
+        return _entries.Where(a =>
+                (_cat.Length == 0 || a.Category == _cat) &&
+                (_actor.Length == 0 || a.ActorId == _actor) &&
+                (cutoff is null || now - a.At <= cutoff) &&
+                (q.Length == 0 || (a.Action + " " + a.Target + " " + ActorName(a.ActorId)).ToLowerInvariant().Contains(q)))
+            .ToList();
+    }
+
+    /// <summary>actorName(id): user or agent name, "System", or "Unknown (id)".</summary>
+    private string ActorName(string id)
+    {
+        var name = Lookup.FindUser(id)?.Name ?? Lookup.FindAgent(id)?.Name;
+        return name ?? (id == "system" ? "System" : $"Unknown ({id})");
+    }
+
+    private static string CategoryClass(string category) => category switch
+    {
+        AuditCategories.SignIn => "tag-grey",
+        AuditCategories.Ticket => "tag-green",
+        AuditCategories.User => "tag-amber",
+        AuditCategories.Permission => "tag-red",
+        _ => "tag-grey"
+    };
+
+    private void SetFilter(Action apply)
+    {
+        apply();
+        _page = 1;
+    }
+
+    private void ClearFilters()
+    {
+        _q = _cat = _actor = _range = string.Empty;
+        _page = 1;
+    }
 }
