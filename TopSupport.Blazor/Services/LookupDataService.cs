@@ -17,7 +17,10 @@ public class LookupDataService : IDisposable
     private readonly TopSupportApiClient _api;
     private readonly SessionState _session;
 
+    // Every user including deleted ones (so FindUser can still name a deleted requester on an old
+    // ticket); GetUsersAsync hands out only the non-deleted ones, for pickers.
     private IReadOnlyList<UserDto>? _users;
+    private IReadOnlyList<UserDto>? _activeUsers;
     private IReadOnlyList<AgentDto>? _agents;
     private IReadOnlyList<TeamDto>? _teams;
     private readonly Dictionary<string, IReadOnlyList<AssetDto>> _assetsByUser = new();
@@ -35,10 +38,11 @@ public class LookupDataService : IDisposable
 
     public async Task<IReadOnlyList<UserDto>> GetUsersAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
-        if (forceRefresh) { _users = null; _usersTask = null; }
-        if (_users is not null) return _users;
+        if (forceRefresh) { _users = null; _activeUsers = null; _usersTask = null; }
+        if (_activeUsers is not null) return _activeUsers;
         _usersTask ??= FetchUsersAsync(cancellationToken);
-        return _users = await _usersTask;
+        _users = await _usersTask;
+        return _activeUsers = _users.Where(u => !u.Deleted).ToList();
     }
 
     public async Task<IReadOnlyList<AgentDto>> GetAgentsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -71,13 +75,14 @@ public class LookupDataService : IDisposable
     public AgentDto? FindAgent(string? id) => id is null ? null : _agents?.FirstOrDefault(a => a.Id == id);
     public TeamDto? FindTeam(string? id) => id is null ? null : _teams?.FirstOrDefault(t => t.Id == id);
 
-    private async Task<IReadOnlyList<UserDto>> FetchUsersAsync(CancellationToken ct) => await _api.GetUsersAsync(ct);
+    private async Task<IReadOnlyList<UserDto>> FetchUsersAsync(CancellationToken ct) => await _api.GetAllUsersIncludingDeletedAsync(ct);
     private async Task<IReadOnlyList<AgentDto>> FetchAgentsAsync(CancellationToken ct) => await _api.GetAgentsAsync(ct);
     private async Task<IReadOnlyList<TeamDto>> FetchTeamsAsync(CancellationToken ct) => await _api.GetTeamsAsync(ct);
 
     private void ClearCache()
     {
         _users = null;
+        _activeUsers = null;
         _agents = null;
         _teams = null;
         _usersTask = null;

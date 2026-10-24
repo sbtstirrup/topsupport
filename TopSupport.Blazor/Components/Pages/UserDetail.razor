@@ -1,12 +1,186 @@
 @page "/users/{Id}"
+@using System.Globalization
+@using TopSupport.Models.Admin
+@using TopSupport.Models.People
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Tickets.FieldSchema
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject LookupDataService Lookup
+@inject NavigationManager Nav
 
+@* Port of PAGES.user in topsupport-app.js: user details, assigned equipment, ticket history
+   and the account actions (UserAccountActions). *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="User" Icon="user" Message="User details, ticket history and assigned equipment (see PAGES.user in the original demo) will be built out in a later pass." />
+    <UserAccountActions @ref="_actions" Orgs="_orgs" OnChanged="ReloadAsync" OnDeleted="@(() => Nav.NavigateTo("/users"))" />
+    @if (!_loaded)
+    {
+        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+    }
+    else if (_user is null || _user.Deleted)
+    {
+        <div class="card">
+            <div class="empty">
+                <span class="empty-icon">@((MarkupString)IconLibrary.Render("user", 26))</span>
+                <h3>User not found</h3>
+                <p>They may have been deleted.</p>
+                <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/users"))">Back to Users</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        var u = _user;
+        <div class="stack">
+            <div class="row">
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => Nav.NavigateTo("/users"))">@((MarkupString)IconLibrary.Render("back", 15))All Users</button>
+            </div>
+            <div class="stack">
+                <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+                    <div class="stack" style="flex:1 1 360px;min-width:0">
+                        <section class="card panel stack-8" aria-label="User details">
+                            <div class="row">
+                                <span class="avatar lg" aria-hidden="true">@Initials(u.Name)</span>
+                                <div><strong style="font-size:16px">@u.Name</strong><span class="cell-sub">@u.JobTitle</span></div>
+                            </div>
+                            @if (u.Locked)
+                            {
+                                <span class="tag tag-red" style="align-self:flex-start">@((MarkupString)IconLibrary.Render("lock", 12))Locked</span>
+                            }
+                            else
+                            {
+                                <span class="tag tag-green" style="align-self:flex-start">Active</span>
+                            }
+                            @foreach (var (label, value) in new[] { ("Email", u.Email), ("Username", u.Username), ("Phone", u.Phone), ("Organisation", OrgName(u.OrgId)), ("Office", u.Office), ("Department", u.Department) })
+                            {
+                                <div class="kv"><span>@label</span><strong>@value</strong></div>
+                            }
+                        </section>
+
+                        <section class="card pad-sm" aria-labelledby="ua-h">
+                            <h2 id="ua-h" class="card-title">Assigned Equipment (@_assets.Count)</h2>
+                            @if (_assets.Count > 0)
+                            {
+                                @foreach (var a in _assets)
+                                {
+                                    <div class="kv"><span>@a.Tag</span><strong>@a.Model</strong></div>
+                                }
+                            }
+                            else
+                            {
+                                <p class="hint">No equipment is assigned.</p>
+                            }
+                        </section>
+
+                        <section class="card" aria-labelledby="uh-h">
+                            <div class="pad-sm row between">
+                                <h2 id="uh-h" class="card-title" style="margin:0">Ticket History (@_tickets.Count)</h2>
+                                <span class="hint">@_tickets.Count(IsActive) active</span>
+                            </div>
+                            @if (_tickets.Count > 0)
+                            {
+                                <div class="tbl-wrap">
+                                    <table class="tbl">
+                                        <thead><tr><th><span>Ticket #</span></th><th><span>Subject</span></th><th><span>Role</span></th><th><span>Created</span></th><th><span>Status</span></th></tr></thead>
+                                        <tbody>
+                                            @foreach (var t in _tickets)
+                                            {
+                                                <tr>
+                                                    <td class="tnum">#@t.Number</td>
+                                                    <td class="subj">
+                                                        <a href="@($"/agent-tickets/{Uri.EscapeDataString(t.Id)}")">@t.Subject</a>
+                                                        <span class="cell-sub">@(TicketTopics.Find(t.Topic)?.Label ?? t.Topic)</span>
+                                                    </td>
+                                                    <td>@RoleOf(t, u.Id)</td>
+                                                    <td class="nowrap">@FormatDate(t.Created)</td>
+                                                    <td><StatusBadge Status="t.Status" /></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty">
+                                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("ticket", 26))</span>
+                                    <h3>No tickets</h3>
+                                    <p>@u.Name has not raised or been named on any tickets.</p>
+                                </div>
+                            }
+                        </section>
+                    </div>
+
+                    <section class="card panel stack-8" aria-labelledby="uac-h" style="flex:0 0 240px">
+                        <h2 id="uac-h" class="panel-title">Account Actions</h2>
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => _actions!.Edit(u))">@((MarkupString)IconLibrary.Render("edit", 14))Edit</button>
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => _actions!.ToggleLockAsync(u))">@((MarkupString)IconLibrary.Render(u.Locked ? "unlock" : "lock", 14))@(u.Locked ? "Unlock" : "Lock") Account</button>
+                        <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => _actions!.Reset(u))">@((MarkupString)IconLibrary.Render("key", 14))Reset Password</button>
+                        <button type="button" class="btn btn-ghost btn-sm" @onclick="@(() => _actions!.DeleteAsync(u))">@((MarkupString)IconLibrary.Render("trash", 14))Delete User</button>
+                    </section>
+                </div>
+            </div>
+        </div>
+    }
 </RoleGate>
 
 @code {
     [Parameter] public string Id { get; set; } = string.Empty;
 
-    protected override void OnParametersSet() => Heading.SetHeading("User", "User details, ticket history and equipment.");
+    private static readonly TicketStatus[] ActiveStatuses = { TicketStatus.Open, TicketStatus.InProgress, TicketStatus.AwaitingUser };
+
+    private UserAccountActions? _actions;
+    private bool _loaded;
+    private UserDto? _user;
+    private IReadOnlyList<OrgDto> _orgs = Array.Empty<OrgDto>();
+    private IReadOnlyList<AssetDto> _assets = Array.Empty<AssetDto>();
+    private List<TicketDto> _tickets = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        Heading.SetHeading("User", "User details, ticket history and equipment.");
+        _orgs = await Api.GetOrgListAsync();
+        await Lookup.GetUsersAsync();
+        await ReloadAsync();
+        _loaded = true;
+    }
+
+    private async Task ReloadAsync()
+    {
+        _user = await Api.GetUserAsync(Id);
+        if (_user is not null && !_user.Deleted)
+        {
+            _assets = await Api.GetAssetsByUserAsync(Id);
+            _tickets = (await Api.GetMyTicketsAsync(Id)).OrderByDescending(t => t.Created).ToList();
+        }
+
+        Heading.SetHeading(_user is null || _user.Deleted ? "User not found" : _user.Name, "User details, ticket history and equipment.");
+        StateHasChanged();
+    }
+
+    private static bool IsActive(TicketDto t) => ActiveStatuses.Contains(t.Status);
+
+    private string OrgName(string id) => _orgs.FirstOrDefault(o => o.Id == id)?.Name ?? string.Empty;
+
+    private string RoleOf(TicketDto t, string userId)
+        => t.RequesterUserId == userId && t.AffectedUserId == userId ? "Requester"
+            : t.RequesterUserId == userId ? "Requester for " + Short(Lookup.FindUser(t.AffectedUserId)?.Name)
+            : "Affected user";
+
+    /// <summary>short(n) in the demo: "Amira Patel" -> "A. Patel".</summary>
+    private static string Short(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? parts[0][0] + ". " + parts[^1] : parts[0];
+    }
+
+    /// <summary>initialsOf(n) in the demo.</summary>
+    private static string Initials(string name)
+        => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => w[0])).ToUpperInvariant();
+
+    /// <summary>fmtDate() in the demo: "05/Mar/2026".</summary>
+    private static string FormatDate(DateTimeOffset value)
+        => value.ToLocalTime().ToString("dd'/'MMM'/'yyyy", CultureInfo.InvariantCulture);
 }

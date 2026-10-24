@@ -1,10 +1,251 @@
 @page "/users"
+@using TopSupport.Models.Admin
+@using TopSupport.Models.People
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject NavigationManager Nav
 
+@* Port of PAGES.users in topsupport-app.js: search/filter/sort/page the end users, with
+   create/edit/lock/reset/delete actions (UserAccountActions). *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="Users" Icon="users" Message="The user list, search and filters (see PAGES.users in the original demo) will be built out in a later pass." />
+    <UserAccountActions @ref="_actions" Orgs="_orgs" OnChanged="ReloadAsync" />
+    @if (!_loaded)
+    {
+        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+    }
+    else
+    {
+        <div class="stack">
+            <div class="row between">
+                <span class="hint">@_users.Count users · @_users.Count(u => u.Locked) locked</span>
+                <div class="row">
+                    <button type="button" class="btn btn-primary" @onclick="@(() => _actions!.Edit(null))">@((MarkupString)IconLibrary.Render("plus", 16))Create User</button>
+                </div>
+            </div>
+            <section class="card" aria-label="Users">
+                <div class="filters">
+                    <div class="field grow">
+                        <label class="field-label" for="us-q">Search</label>
+                        <div class="search">
+                            @((MarkupString)IconLibrary.Render("search", 16))
+                            <input class="input" id="us-q" type="search" value="@_q" placeholder="Name, email, username or department" @oninput="OnSearch" />
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="us-org">Organisation</label>
+                        <select class="input" id="us-org" value="@_org" @onchange="@(e => _org = e.Value?.ToString() ?? string.Empty)">
+                            <option value="">All organisations</option>
+                            @foreach (var o in _orgs)
+                            {
+                                <option value="@o.Id">@o.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label class="field-label" for="us-status">Status</label>
+                        <select class="input" id="us-status" value="@_status" @onchange="@(e => _status = e.Value?.ToString() ?? string.Empty)">
+                            <option value="">Any status</option>
+                            <option value="active">Active</option>
+                            <option value="locked">Locked</option>
+                        </select>
+                    </div>
+                    @if (HasFilters)
+                    {
+                        <button type="button" class="btn btn-ghost" @onclick="ClearFilters">@((MarkupString)IconLibrary.Render("x", 16))Clear Filters</button>
+                    }
+                </div>
+
+                @{ var rows = SortedRows(); }
+                @if (rows.Count > 0)
+                {
+                    var pages = Math.Max(1, (int)Math.Ceiling(rows.Count / (double)PerPage));
+                    if (_page > pages) _page = pages;
+                    <div class="tbl-wrap">
+                        <table class="tbl">
+                            <caption class="sr-only">Users</caption>
+                            <thead>
+                                <tr>
+                                    @SortHeader("Name", "name")
+                                    <th scope="col"><span>Username</span></th>
+                                    @SortHeader("Organisation", "org")
+                                    @SortHeader("Department", "dept")
+                                    @SortHeader("Open tickets", "open")
+                                    @SortHeader("Status", "status")
+                                    <th scope="col"><span>Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var u in rows.Skip((_page - 1) * PerPage).Take(PerPage))
+                                {
+                                    <tr>
+                                        <td class="who">
+                                            <a href="@($"/users/{Uri.EscapeDataString(u.Id)}")" style="font-weight:700;color:var(--ink)">@u.Name</a>
+                                            <span class="cell-sub">@u.Email</span>
+                                        </td>
+                                        <td><code>@u.Username</code></td>
+                                        <td>@OrgName(u.OrgId)</td>
+                                        <td>@u.Department<span class="cell-sub">@u.JobTitle</span></td>
+                                        <td class="num-tab">@u.OpenTicketCount</td>
+                                        <td>
+                                            @if (u.Locked)
+                                            {
+                                                <span class="tag tag-red">@((MarkupString)IconLibrary.Render("lock", 12, 2.5))Locked</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="tag tag-green">Active</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <div class="row" style="flex-wrap:nowrap;gap:6px">
+                                                @ActionButton("edit", "Edit " + u.Name, () => { _actions!.Edit(u); return Task.CompletedTask; })
+                                                @ActionButton(u.Locked ? "unlock" : "lock", (u.Locked ? "Unlock " : "Lock ") + u.Name, () => _actions!.ToggleLockAsync(u))
+                                                @ActionButton("key", "Reset password for " + u.Name, () => { _actions!.Reset(u); return Task.CompletedTask; })
+                                                @ActionButton("trash", "Delete " + u.Name, () => _actions!.DeleteAsync(u))
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @Pager(rows.Count, pages)
+                }
+                else
+                {
+                    <div class="empty">
+                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("users", 26))</span>
+                        <h3>No users match</h3>
+                        <p>Try a different search or clear the filters.</p>
+                        <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
+                    </div>
+                }
+            </section>
+        </div>
+    }
 </RoleGate>
 
 @code {
+    private const int PerPage = 12; // UPER in the demo
+
+    private UserAccountActions? _actions;
+    private bool _loaded;
+    private IReadOnlyList<UserListItemDto> _users = Array.Empty<UserListItemDto>();
+    private IReadOnlyList<OrgDto> _orgs = Array.Empty<OrgDto>();
+
+    // S.forms.us in the demo.
+    private string _q = string.Empty;
+    private string _org = string.Empty;
+    private string _status = string.Empty;
+    private string _sort = "name";
+    private string _dir = "asc";
+    private int _page = 1;
+
     protected override void OnInitialized() => Heading.SetHeading("Users", "End users who can raise tickets.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _orgs = await Api.GetOrgListAsync();
+        await ReloadAsync();
+        _loaded = true;
+    }
+
+    private async Task ReloadAsync()
+    {
+        _users = await Api.GetUserListAsync();
+        StateHasChanged();
+    }
+
+    private bool HasFilters => _q.Length > 0 || _org.Length > 0 || _status.Length > 0;
+
+    private string OrgName(string id) => _orgs.FirstOrDefault(o => o.Id == id)?.Name ?? string.Empty;
+
+    private List<UserListItemDto> SortedRows()
+    {
+        var q = _q.Trim().ToLowerInvariant();
+        var rows = _users.Where(u => (_org.Length == 0 || u.OrgId == _org)
+            && (_status.Length == 0 || (_status == "locked") == u.Locked)
+            && (q.Length == 0 || $"{u.Name} {u.Email} {u.Username} {u.Department} {u.JobTitle}".ToLowerInvariant().Contains(q)));
+
+        // sortBy() compares with JS < / >, i.e. ordinal for strings.
+        IOrderedEnumerable<UserListItemDto> sorted = _sort switch
+        {
+            "org" => Order(rows, u => OrgName(u.OrgId)),
+            "dept" => Order(rows, u => u.Department),
+            "open" => Order(rows, u => u.OpenTicketCount),
+            "status" => Order(rows, u => u.Locked ? 1 : 0),
+            _ => Order(rows, u => u.Name)
+        };
+        return sorted.ToList();
+    }
+
+    private IOrderedEnumerable<UserListItemDto> Order<TKey>(IEnumerable<UserListItemDto> rows, Func<UserListItemDto, TKey> key)
+    {
+        var comparer = typeof(TKey) == typeof(string) ? (IComparer<TKey>)StringComparer.Ordinal : Comparer<TKey>.Default;
+        return _dir == "desc" ? rows.OrderByDescending(key, comparer) : rows.OrderBy(key, comparer);
+    }
+
+    private void OnSearch(ChangeEventArgs e)
+    {
+        _q = e.Value?.ToString() ?? string.Empty;
+        _page = 1;
+    }
+
+    private void ClearFilters()
+    {
+        _q = string.Empty;
+        _org = string.Empty;
+        _status = string.Empty;
+        _page = 1;
+    }
+
+    private void OnSort(string key)
+    {
+        if (_sort == key)
+        {
+            _dir = _dir == "asc" ? "desc" : "asc";
+        }
+        else
+        {
+            _sort = key;
+            _dir = "asc";
+        }
+    }
+
+    /// <summary>thSort(label, key, F, 'us-sort') from the demo.</summary>
+    private RenderFragment SortHeader(string label, string key)
+    {
+        var on = _sort == key;
+        return @<th scope="col">
+            <button type="button" class="th-btn" aria-sort="@(on ? (_dir == "asc" ? "ascending" : "descending") : null)" @onclick="@(() => OnSort(key))">
+                @label<span class="sort">@((MarkupString)IconLibrary.Render(on ? (_dir == "asc" ? "up" : "down") : "sort", 14, 2.5))</span>
+            </button>
+        </th>;
+    }
+
+    /// <summary>The demo's B(action, icon, label, id) row icon button.</summary>
+    private RenderFragment ActionButton(string icon, string label, Func<Task> onClick)
+        => @<button type="button" class="icon-btn" aria-label="@label" title="@label" @onclick="onClick">@((MarkupString)IconLibrary.Render(icon, 16))</button>;
+
+    /// <summary>pager(total, page, UPER, 'us-page') from the demo.</summary>
+    private RenderFragment Pager(int total, int pages)
+    {
+        var from = total > 0 ? (_page - 1) * PerPage + 1 : 0;
+        var to = Math.Min(total, _page * PerPage);
+        return @<div class="tbl-foot">
+            <span class="num-tab">Showing @from&ndash;@to of @total</span>
+            @if (pages > 1)
+            {
+                <nav class="pagination" aria-label="Pages">
+                    <button type="button" class="opt" disabled="@(_page == 1)" aria-label="Previous page" @onclick="@(() => _page--)">@((MarkupString)IconLibrary.Render("back", 14, 2.5))</button>
+                    @for (var i = 1; i <= pages; i++)
+                    {
+                        var p = i;
+                        <button type="button" class="opt @(p == _page ? "on" : "")" aria-label="Page @p" aria-current="@(p == _page ? "page" : null)" @onclick="@(() => _page = p)">@p</button>
+                    }
+                    <button type="button" class="opt" disabled="@(_page == pages)" aria-label="Next page" @onclick="@(() => _page++)">@((MarkupString)IconLibrary.Render("chevron", 14, 2.5))</button>
+                </nav>
+            }
+        </div>;
+    }
 }

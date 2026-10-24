@@ -1,0 +1,157 @@
+@* Port of ACT['user-edit'] / MODALS.useredit / ACT['user-save'] in topsupport-app.js: the
+   create/edit user form (wide modal). Validation runs in the Api (validateUser's messages come
+   back per field). Creating a user swaps this modal for TempPasswordModal. *@
+@using TopSupport.Models.Admin
+@using TopSupport.Models.People
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+@inject ToastState Toasts
+
+<div class="modal-head">
+    <h2>@(IsNew ? "Create User" : "Edit " + User!.Name)</h2>
+    <button type="button" class="icon-btn" aria-label="Close dialog" @onclick="Modal.Close">@((MarkupString)IconLibrary.Render("x", 18))</button>
+</div>
+<div class="modal-body">
+    <div class="field-grid">
+        @TextField("name", "Full Name")
+        @TextField("email", "Email", type: "email", placeholder: "name@topcashback.example")
+        @TextField("username", "Username", hintBelow: "Lower-case letters only, for example apatel.")
+        @TextField("phone", "Phone", required: false)
+        <div class="field">
+            <label class="field-label" for="f-ue-org">Organisation<span class="star" aria-hidden="true"> *</span></label>
+            <select class="input" id="f-ue-org" aria-required="true" value="@_f["org"]" @onchange="@(e => _f["org"] = e.Value?.ToString() ?? string.Empty)">
+                @foreach (var o in Orgs)
+                {
+                    <option value="@o.Id">@o.Name</option>
+                }
+            </select>
+            @if (Err("org") is { } orgErr)
+            {
+                <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@orgErr</span>
+            }
+        </div>
+        @TextField("office", "Office or Desk", placeholder: "For example Horwich · Unit 4, desk F-12")
+        <div class="field">
+            <label class="field-label" for="f-ue-department">Department<span class="star" aria-hidden="true"> *</span></label>
+            <select class="input @(Err("department") is null ? "" : "invalid")" id="f-ue-department" aria-required="true"
+                    aria-invalid="@(Err("department") is null ? null : "true")" aria-describedby="@(Err("department") is null ? null : "f-ue-department-e")"
+                    value="@_f["department"]" @onchange="@(e => _f["department"] = e.Value?.ToString() ?? string.Empty)">
+                <option value="">Choose…</option>
+                @foreach (var d in UserDepartments.All)
+                {
+                    <option value="@d">@d</option>
+                }
+            </select>
+            @if (Err("department") is { } deptErr)
+            {
+                <span class="field-err" id="f-ue-department-e">@((MarkupString)IconLibrary.Render("alert", 14))@deptErr</span>
+            }
+        </div>
+        @TextField("jobTitle", "Job Title")
+    </div>
+    @if (IsNew)
+    {
+        <p class="hint">A temporary password is generated when you create the user.</p>
+    }
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Modal.Close">Cancel</button>
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">@(IsNew ? "Create User" : "Save Changes")</button>
+</div>
+
+@code {
+    /// <summary>The user to edit, or null to create one.</summary>
+    [Parameter] public UserDto? User { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<OrgDto> Orgs { get; set; } = Array.Empty<OrgDto>();
+
+    /// <summary>Runs after a successful save, so the page can reload.</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private readonly Dictionary<string, string> _f = new();
+    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
+    private bool _saving;
+
+    private bool IsNew => User is null;
+
+    protected override void OnInitialized()
+    {
+        // S.forms.ue in the demo: a new user defaults to the first organisation (o1).
+        _f["name"] = User?.Name ?? string.Empty;
+        _f["email"] = User?.Email ?? string.Empty;
+        _f["username"] = User?.Username ?? string.Empty;
+        _f["phone"] = User?.Phone ?? string.Empty;
+        _f["org"] = User?.OrgId ?? Orgs.FirstOrDefault(o => o.Id == "o1")?.Id ?? Orgs.FirstOrDefault()?.Id ?? string.Empty;
+        _f["office"] = User?.Office ?? string.Empty;
+        _f["department"] = User?.Department ?? string.Empty;
+        _f["jobTitle"] = User?.JobTitle ?? string.Empty;
+    }
+
+    private string? Err(string key) => _errors.TryGetValue(key, out var e) ? e : null;
+
+    /// <summary>fInput({ path: 'ue.' + key, ... }) from the demo, ids from fid() ("f-ue-name").</summary>
+    private RenderFragment TextField(string key, string label, bool required = true, string type = "text", string? placeholder = null, string? hintBelow = null)
+    {
+        var id = "f-ue-" + key;
+        var err = Err(key);
+        return @<div class="field">
+            <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
+            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" value="@_f[key]" placeholder="@(placeholder ?? string.Empty)"
+                   aria-required="@(required ? "true" : null)" aria-invalid="@(err is null ? null : "true")" aria-describedby="@(err is null ? null : id + "-e")"
+                   @oninput="@(e => _f[key] = e.Value?.ToString() ?? string.Empty)" />
+            @if (hintBelow is not null)
+            {
+                <span class="hint" id="@(id)-hint">@hintBelow</span>
+            }
+            @if (err is not null)
+            {
+                <span class="field-err" id="@(id)-e">@((MarkupString)IconLibrary.Render("alert", 14))@err</span>
+            }
+        </div>;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var request = new SaveUserRequest
+            {
+                ActorId = Session.AccountId,
+                Name = _f["name"],
+                Email = _f["email"],
+                Username = _f["username"],
+                Phone = _f["phone"],
+                OrgId = _f["org"],
+                Office = _f["office"],
+                Department = _f["department"],
+                JobTitle = _f["jobTitle"]
+            };
+
+            var result = await Api.SaveUserAsync(User?.Id, request);
+            if (!result.Ok)
+            {
+                _errors = result.Errors;
+                return;
+            }
+
+            var saved = result.Value!;
+            if (saved.TemporaryPassword is not null)
+            {
+                Modal.Show(@<TempPasswordModal Password="saved.TemporaryPassword" />);
+                Toasts.Show(saved.User.Name + " created.");
+            }
+            else
+            {
+                Modal.Close();
+                Toasts.Show(saved.User.Name + " saved.");
+            }
+
+            await OnSaved.InvokeAsync();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

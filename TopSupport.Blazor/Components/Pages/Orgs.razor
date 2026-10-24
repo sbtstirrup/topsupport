@@ -1,10 +1,50 @@
 @page "/orgs"
+@using TopSupport.Models.Admin
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject ModalState Modal
+@inject NavigationManager Nav
 
+@* Port of PAGES.orgs in topsupport-app.js: one card per organisation with member and
+   open-ticket counts; Create Organisation opens OrgEditModal. *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="Organisations" Icon="building" Message="The organisation list (see PAGES.orgs in the original demo) will be built out in a later pass." />
+    @if (!_loaded)
+    {
+        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+    }
+    else
+    {
+        <div class="stack">
+            <div class="row between">
+                <span class="hint">@_orgs.Count organisations</span>
+                <button type="button" class="btn btn-primary" @onclick="CreateOrg">@((MarkupString)IconLibrary.Render("plus", 16))Create Organisation</button>
+            </div>
+            <div class="org-grid">
+                @foreach (var o in _orgs)
+                {
+                    <button type="button" class="org-card" @onclick="@(() => Nav.NavigateTo($"/orgs/{Uri.EscapeDataString(o.Id)}"))">
+                        <span class="row">@((MarkupString)IconLibrary.Render("building", 22))<h3>@o.Name</h3></span>
+                        <span class="hint">@o.Address</span>
+                        <span class="row"><span class="tag tag-green">@o.MemberCount members</span><span class="tag tag-grey">@o.OpenTicketCount open tickets</span></span>
+                        <span style="font-size:13px;color:var(--ink-3)">@o.Note</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
 </RoleGate>
 
 @code {
+    private bool _loaded;
+    private IReadOnlyList<OrgListItemDto> _orgs = Array.Empty<OrgListItemDto>();
+
     protected override void OnInitialized() => Heading.SetHeading("Organisations", "Where end users are based.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _orgs = await Api.GetOrgListAsync();
+        _loaded = true;
+    }
+
+    private void CreateOrg() => Modal.Show(@<OrgEditModal />);
 }
