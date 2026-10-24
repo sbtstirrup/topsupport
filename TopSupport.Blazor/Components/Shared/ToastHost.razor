@@ -1,0 +1,23 @@
+@* Renders ToastState.Toasts with the demo's .toasts/.toast markup (see renderToasts() in
+   topsupport-app.js). Mounted once in MainLayout.razor. *@
+@implements IDisposable
+@inject ToastState ToastState
+
+<div class="toasts" role="status" aria-live="polite">
+    @foreach (var t in ToastState.Toasts.ToList())
+    {
+        <div class="toast @(t.IsError ? "error" : "")" @key="t.Id">
+            @((MarkupString)IconLibrary.Render(t.IsError ? "alert" : "check", 18))
+            <span>@t.Message</span>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => ToastState.Changed += OnChanged;
+
+    // Toasts expire on a timer thread, so marshal back onto the renderer.
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose() => ToastState.Changed -= OnChanged;
+}
