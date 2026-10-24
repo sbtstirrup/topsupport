@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using TopSupport.Api.Data;
 using TopSupport.Api.Identity;
 using TopSupport.Services.Abstractions;
+using TopSupport.Services.Admin;
 using TopSupport.Services.Auth;
 using TopSupport.Services.Tickets;
 
@@ -23,6 +24,7 @@ builder.Services.AddScoped<ITeamRepository, TeamRepository>();
 builder.Services.AddScoped<IAssetRepository, AssetRepository>();
 builder.Services.AddScoped<ITicketAttachmentRepository, TicketAttachmentRepository>();
 builder.Services.AddScoped<ICannedResponseRepository, CannedResponseRepository>();
+builder.Services.AddScoped<IAuditRepository, AuditRepository>();
 
 // Business/service layer (Controller -> Service -> Repository).
 builder.Services.AddScoped<ITicketService, TicketService>();
@@ -31,6 +33,7 @@ builder.Services.AddScoped<ITicketFormValidator, TicketFormValidator>();
 builder.Services.AddScoped<ICannedResponseService, CannedResponseService>();
 builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
 
 // ASP.NET Core Identity, backed by the skeleton ADO.NET stores in TopSupport.Api/Identity.
 // AdoUserStore/AdoRoleStore are not implemented yet (every member throws) -- see their doc
