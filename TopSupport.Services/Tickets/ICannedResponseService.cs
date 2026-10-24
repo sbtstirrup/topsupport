@@ -10,11 +10,14 @@ public interface ICannedResponseService
 {
     Task<IReadOnlyList<CannedResponseDto>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    Task<CannedResponseDto> CreateAsync(CannedResponseDto response, CancellationToken cancellationToken = default);
+    // Create/Update/Delete audit as the demo's ACT['cn-save']/ACT['cn-del'] do ("Created/Edited/
+    // Deleted canned response", target = title), attributed to actorId ("system" when null).
 
-    Task UpdateAsync(CannedResponseDto response, CancellationToken cancellationToken = default);
+    Task<CannedResponseDto> CreateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default);
 
-    Task DeleteAsync(string id, CancellationToken cancellationToken = default);
+    Task UpdateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(string id, string? actorId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Substitutes the 11 {ticket.*}/{recipient.*}/{agent.*} tokens in <paramref name="body"/>.

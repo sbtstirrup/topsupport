@@ -2,6 +2,8 @@
 @layout Layout.PublicLayout
 @inject SessionState Session
 @inject NavigationManager Nav
+@inject TopSupportApiClient Api
+@using TopSupport.Models.Admin
 
 <PageTitle>Sign in - TopSupport</PageTitle>
 
@@ -25,9 +27,10 @@
 </div>
 
 @code {
-    private void SignInAs(AppRole role)
+    private async Task SignInAs(AppRole role)
     {
         Session.SetRole(role);
+        await Api.LogAuditAsync(Session.AccountId, "Signed in", role == AppRole.User ? "User portal" : "Agent portal", AuditCategories.SignIn);
         Nav.NavigateTo(Session.HomeRoute());
     }
 }
