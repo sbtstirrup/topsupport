@@ -337,7 +337,7 @@
     private void OpenChange()
     {
         if (_ticket is null) return;
-        ModalHost.Show(@<ChangeTicketPropertiesModal TicketId="_ticket.Id" Ticket="_ticket" OnSaved="@(() => HandleModalChanged("Ticket updated."))" />);
+        ModalHost.Show(@<ChangeTicketPropertiesModal TicketId="@_ticket.Id" Ticket="_ticket" OnSaved="@(() => HandleModalChanged("Ticket updated."))" />);
     }
 
     private void OpenClose()
