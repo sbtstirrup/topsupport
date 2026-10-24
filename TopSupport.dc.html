@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<title>TopSupport</title>
+<link rel="stylesheet" href="./topsupport.css">
+<style>html,body{margin:0;background:#e9eaec}a{color:#1b8463}a:hover{color:#0d5c43}</style>
+</helmet>
+<div id="root"></div>
+<div id="modal-root"></div>
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    if (window.__topsupportLoaded) { if (typeof window.render === 'function') window.render(); return; }
+    window.__topsupportLoaded = true;
+    const s = document.createElement('script');
+    s.src = './topsupport-app.js';
+    document.body.appendChild(s);
+  }
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
