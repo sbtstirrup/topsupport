@@ -1,0 +1,25 @@
+@using TopSupport.Models.Admin
+@inject TopSupportApiClient Api
+
+@* One piece of the admin-editable site text (the demo's DB.site.<key>, edited on /site), so the
+   public pages can drop it in as <SiteText Field="SiteText.Part.LandingTitle" /> without each
+   loading settings themselves. Renders plain text (Razor-encoded). *@
+@Value
+
+@code {
+    public enum Part { LandingTitle, LandingBody, SigninTitle, SigninBody }
+
+    [Parameter, EditorRequired] public Part Field { get; set; }
+
+    private SiteSettingsDto? _site;
+
+    private string Value => _site is null ? string.Empty : Field switch
+    {
+        Part.LandingTitle => _site.LandingTitle,
+        Part.LandingBody => _site.LandingBody,
+        Part.SigninTitle => _site.SigninTitle,
+        _ => _site.SigninBody
+    };
+
+    protected override async Task OnInitializedAsync() => _site = await Api.GetSiteSettingsAsync();
+}

@@ -37,6 +37,13 @@ public class SessionState
         Changed?.Invoke();
     }
 
+    /// <summary>After My Profile saves a new name, so the shell header (which listens to Changed) refreshes.</summary>
+    public void SetDisplayName(string name)
+    {
+        DisplayName = name;
+        Changed?.Invoke();
+    }
+
     public bool IsSignedIn => Role is not null;
 
     /// <summary>Mirrors homeOf(role) in topsupport-app.js. Agent's home is the "open" queue --

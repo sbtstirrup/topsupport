@@ -1,10 +1,167 @@
 @page "/profile"
+@using TopSupport.Models.Admin
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ToastState Toasts
 
+@* Port of PAGES.profile / ACT['pf-save'] / ACT['pf-pw'] / pwRules() in topsupport-app.js, for
+   whichever account is signed in (a Users row for the end user, an Agents row otherwise). *@
 <RoleGate AllowedRoles="new[] { AppRole.User, AppRole.Agent, AppRole.Admin }">
-    <ComingSoon Title="My Profile" Icon="user" Message="Contact details and password change (see PAGES.profile in the original demo) will be built out in a later pass." />
+    @if (_profile is not null && _security is not null)
+    {
+        var rules = ProfileRules.PasswordRules(_security, _nw, _cf, _nw != _cur);
+        var met = rules.Count(r => r.Met);
+
+        <div class="two-col">
+            <form class="card pad stack-16" novalidate aria-labelledby="pf-h" @onsubmit:preventDefault="true">
+                <div class="row">
+                    <span class="avatar@(_profile.IsAgent ? " agent" : "") lg" aria-hidden="true">@Initials(_profile.Name)</span>
+                    <div>
+                        <h2 id="pf-h" class="card-title" style="margin:0">Contact Details</h2>
+                        <span class="hint">@SubTitle()</span>
+                    </div>
+                </div>
+                <div class="field-grid">
+                    @Field("name", "Name", "text", true, true, "name", _errs, () => _name, v => _name = v)
+                    @Field("email", "Email", "email", true, true, "email", _errs, () => _email, v => _email = v)
+                    @Field("phone", "Phone", "tel", false, false, "tel", _errs, () => _phone, v => _phone = v)
+                </div>
+                <div class="row">
+                    <button type="button" class="btn btn-primary" @onclick="SaveDetailsAsync" disabled="@_saving">
+                        @((MarkupString)IconLibrary.Render("save", 16))Save Details
+                    </button>
+                </div>
+            </form>
+
+            <form class="card pad stack-16" novalidate aria-labelledby="pw-h" @onsubmit:preventDefault="true">
+                <h2 id="pw-h" class="card-title" style="margin:0">Change Password</h2>
+                @Field("cur", "Current Password", "password", true, true, "current-password", _pwErrs, () => _cur, v => _cur = v)
+                @Field("nw", "New Password", "password", true, true, "new-password", _pwErrs, () => _nw, v => _nw = v)
+                @Field("cf", "Confirm New Password", "password", true, true, "new-password", _pwErrs, () => _cf, v => _cf = v)
+                <div class="stack-8">
+                    <div class="row between">
+                        <span class="section-title">Password rules</span>
+                        <span class="hint num-tab" aria-live="polite">@met of @rules.Count met</span>
+                    </div>
+                    <div class="prog" aria-hidden="true"><div style="width:@((met * 100.0 / rules.Count).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div></div>
+                    <ul class="rules">
+                        @foreach (var r in rules)
+                        {
+                            <li class="@(r.Met ? "ok" : "")">
+                                <span class="dot">@if (r.Met) {@((MarkupString)IconLibrary.Render("check", 12, 3.5))}</span>@r.Label<span class="sr-only">@(r.Met ? " (met)" : " (not met)")</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+                <div class="row">
+                    <button type="button" class="btn btn-primary" @onclick="ChangePasswordAsync" disabled="@_saving">
+                        @((MarkupString)IconLibrary.Render("key", 16))Change Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    }
 </RoleGate>
 
 @code {
+    // S.forms.pf: contact details, the three password inputs, and per-form field errors.
+    private ProfileDto? _profile;
+    private SecuritySettingsDto? _security;
+    private string _name = string.Empty;
+    private string _email = string.Empty;
+    private string _phone = string.Empty;
+    private string _cur = string.Empty;
+    private string _nw = string.Empty;
+    private string _cf = string.Empty;
+    private Dictionary<string, string> _errs = new();
+    private Dictionary<string, string> _pwErrs = new();
+    private bool _saving;
+
     protected override void OnInitialized() => Heading.SetHeading("My Profile", "Your contact details and password.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(Session.AccountId)) return;
+
+        _security = await Api.GetSecuritySettingsAsync();
+        _profile = await Api.GetProfileAsync(Session.AccountId);
+        if (_profile is not null)
+        {
+            _name = _profile.Name;
+            _email = _profile.Email;
+            _phone = _profile.Phone ?? string.Empty;
+        }
+    }
+
+    // initialsOf(name) in the demo.
+    private static string Initials(string name)
+    {
+        var parts = name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 0 ? "?" : string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+
+    private string SubTitle() => _profile!.IsAgent
+        ? _profile.JobTitle + " · " + _profile.Departments
+        : _profile.JobTitle + " · " + _profile.Department + " · " + _profile.Office;
+
+    // fInput({ path: 'pf.<key>', ... }) with the demo's id scheme (fid) and error markup.
+    private RenderFragment Field(string key, string label, string type, bool required, bool full, string autocomplete,
+        Dictionary<string, string> errs, Func<string> get, Action<string> set) => __builder =>
+    {
+        var id = "f-pf-" + key;
+        errs.TryGetValue(key, out var err);
+        <div class="field @(full ? "full" : "")">
+            <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
+            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" autocomplete="@autocomplete"
+                   aria-required="@(required ? "true" : null)" aria-invalid="@(err is null ? null : "true")" aria-describedby="@(err is null ? null : id + "-e")"
+                   value="@get()" @oninput="@(e => set(e.Value?.ToString() ?? string.Empty))" />
+            @if (err is not null)
+            {
+                <span class="field-err" id="@(id)-e">@((MarkupString)IconLibrary.Render("alert", 14))@err</span>
+            }
+        </div>
+    };
+
+    private async Task SaveDetailsAsync()
+    {
+        _errs = ProfileRules.ValidateDetails(_name, _email, _phone);
+        if (_errs.Count > 0) return;
+
+        _saving = true;
+        try
+        {
+            var result = await Api.UpdateProfileAsync(new UpdateProfileRequest { ActorId = Session.AccountId, Name = _name, Email = _email, Phone = _phone });
+            _errs = result.Errors;
+            if (_errs.Count > 0) return;
+
+            _profile!.Name = _name.Trim();
+            _profile.Email = _email.Trim();
+            _profile.Phone = _phone.Trim();
+            Session.SetDisplayName(_profile.Name);
+            Toasts.Show("Your details are saved.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _saving = true;
+        try
+        {
+            var result = await Api.ChangePasswordAsync(new ChangePasswordRequest { ActorId = Session.AccountId, CurrentPassword = _cur, NewPassword = _nw, ConfirmPassword = _cf });
+            _pwErrs = result.Errors;
+            if (_pwErrs.Count > 0) return;
+
+            _cur = _nw = _cf = string.Empty;
+            Toasts.Show("Password changed. Use it next time you sign in.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
 }

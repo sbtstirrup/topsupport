@@ -1,10 +1,85 @@
 @page "/site"
+@using TopSupport.Models.Admin
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ToastState Toasts
+@inject NavigationManager Nav
 
+@* Port of PAGES.site / ACT['site-save'] in topsupport-app.js. Landing.razor and SignIn.razor read
+   the saved text through SiteText. *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="Site Pages" Icon="page" Message="Landing and sign-in page text editing (see PAGES.site in the original demo) will be built out in a later pass." />
+    @if (_form is not null)
+    {
+        <div class="two-col">
+            <section class="card pad stack-16" aria-labelledby="sl-h">
+                <h2 id="sl-h" class="card-title" style="margin:0">Landing Page</h2>
+                <div class="field">
+                    <label class="field-label" for="f-site-landingTitle">Welcome Heading</label>
+                    <input class="input" id="f-site-landingTitle" type="text" @bind="_form.LandingTitle" @bind:event="oninput" />
+                </div>
+                <div class="field full">
+                    <label class="field-label" for="f-site-landingBody">Welcome Message</label>
+                    <textarea class="input" id="f-site-landingBody" rows="4" @bind="_form.LandingBody" @bind:event="oninput"></textarea>
+                </div>
+                <p class="hint">The “Raise a ticket” button, sign-in button and login help line always appear.</p>
+            </section>
+            <section class="card pad stack-16" aria-labelledby="ssi-h">
+                <h2 id="ssi-h" class="card-title" style="margin:0">Sign-In Page</h2>
+                <div class="field">
+                    <label class="field-label" for="f-site-signinTitle">Heading</label>
+                    <input class="input" id="f-site-signinTitle" type="text" @bind="_form.SigninTitle" @bind:event="oninput" />
+                </div>
+                <div class="field full">
+                    <label class="field-label" for="f-site-signinBody">Instructions</label>
+                    <textarea class="input" id="f-site-signinBody" rows="3" @bind="_form.SigninBody" @bind:event="oninput"></textarea>
+                </div>
+            </section>
+            <div class="row full">
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @((MarkupString)IconLibrary.Render("save", 16))Save Pages
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/"))">
+                    @((MarkupString)IconLibrary.Render("eye", 16))View Landing Page
+                </button>
+            </div>
+        </div>
+    }
 </RoleGate>
 
 @code {
+    // S.forms.site: an editable copy of the saved text.
+    private SiteSettingsDto? _form;
+    private bool _saving;
+
     protected override void OnInitialized() => Heading.SetHeading("Site Pages", "Text on the public landing page and the sign-in page.");
+
+    protected override async Task OnInitializedAsync() => _form = await Api.GetSiteSettingsAsync();
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+
+        if (string.IsNullOrWhiteSpace(_form.LandingTitle) || string.IsNullOrWhiteSpace(_form.SigninTitle))
+        {
+            Toasts.Error("Headings cannot be empty.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var outcome = await Api.SaveSiteSettingsAsync(Session.AccountId, _form);
+            if (outcome.Error is not null)
+            {
+                Toasts.Error(outcome.Error);
+                return;
+            }
+            Toasts.Show("Site pages saved.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
 }
