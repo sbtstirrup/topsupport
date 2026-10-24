@@ -1,0 +1,71 @@
+@* The user account actions shared by the Users list and User detail pages: port of
+   ACT['user-edit'], ACT['user-lock'], ACT['user-reset'] and ACT['user-del'] in topsupport-app.js.
+   Renders nothing; a page mounts it once and calls its methods through a @ref:
+       <UserAccountActions @ref="_actions" Orgs="_orgs" OnChanged="ReloadAsync" />
+       _actions.Edit(user) / ToggleLockAsync(user) / Reset(user) / DeleteAsync(user) *@
+@using TopSupport.Models.Admin
+@using TopSupport.Models.People
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+@inject ToastState Toasts
+@inject LookupDataService Lookup
+
+@code {
+    /// <summary>Organisations for the edit form's Organisation select.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<OrgDto> Orgs { get; set; } = Array.Empty<OrgDto>();
+
+    /// <summary>Runs after any change (save, lock, reset) so the page can reload its data.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>Runs after a delete. Falls back to OnChanged when not set (the list page just reloads).</summary>
+    [Parameter] public EventCallback OnDeleted { get; set; }
+
+    /// <summary>Opens the create (user null) or edit form.</summary>
+    public void Edit(UserDto? user)
+        => Modal.Show(@<UserEditModal User="user" Orgs="Orgs" OnSaved="ChangedAsync" />, wide: true);
+
+    public async Task ToggleLockAsync(UserDto user)
+    {
+        var updated = await Api.ToggleUserLockAsync(user.Id, Session.AccountId);
+        await ChangedAsync();
+        Toasts.Show(updated.Name + (updated.Locked ? " is locked and cannot sign in." : " is unlocked."));
+    }
+
+    public void Reset(UserDto user)
+        => Modal.Show(@<ConfirmModal Title="Reset Password?"
+                                     Text="@($"{user.Name} will need a temporary password to sign in. Their current password stops working straight away.")"
+                                     Label="Reset Password" OnConfirm="@(() => ResetConfirmedAsync(user))" />);
+
+    /// <summary>Counts the user's tickets first, for the confirmation text.</summary>
+    public async Task DeleteAsync(UserDto user)
+    {
+        var n = (await Api.GetMyTicketsAsync(user.Id)).Count;
+        var tickets = n > 0 ? $"Their {n} ticket{(n == 1 ? "" : "s")} stay on record." : "They have no tickets.";
+        Modal.Show(@<ConfirmModal Title="@("Delete " + user.Name + "?")"
+                                  Text="@($"{user.Name} will be removed from the user list and won't be able to sign in. {tickets} This can't be undone in the demo except by resetting the demo data.")"
+                                  Label="Delete User" Danger="true" OnConfirm="@(() => DeleteConfirmedAsync(user))" />);
+    }
+
+    private async Task ResetConfirmedAsync(UserDto user)
+    {
+        var password = await Api.ResetUserPasswordAsync(user.Id, Session.AccountId);
+        Modal.Show(@<TempPasswordModal Password="password" />);
+        await ChangedAsync();
+    }
+
+    private async Task DeleteConfirmedAsync(UserDto user)
+    {
+        await Api.DeleteUserAsync(user.Id, Session.AccountId);
+        await Lookup.GetUsersAsync(forceRefresh: true);
+        Toasts.Show(user.Name + " deleted. Their equipment is now unassigned.");
+        await (OnDeleted.HasDelegate ? OnDeleted : OnChanged).InvokeAsync();
+    }
+
+    private async Task ChangedAsync()
+    {
+        // Pickers and name lookups elsewhere read the cached user pool.
+        await Lookup.GetUsersAsync(forceRefresh: true);
+        await OnChanged.InvokeAsync();
+    }
+}

@@ -1,0 +1,105 @@
+@* Port of ACT['org-edit'] / MODALS.orgedit / ACT['org-save'] in topsupport-app.js. Validation runs
+   in the Api. A new organisation opens its detail page; an edit just closes the modal. *@
+@using TopSupport.Models.Admin
+@using TopSupport.Models.People
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+@inject ToastState Toasts
+@inject NavigationManager Nav
+
+<div class="modal-head">
+    <h2>@(IsNew ? "Create Organisation" : "Edit " + Org!.Name)</h2>
+    <button type="button" class="icon-btn" aria-label="Close dialog" @onclick="Modal.Close">@((MarkupString)IconLibrary.Render("x", 18))</button>
+</div>
+<div class="modal-body">
+    <div class="field-grid">
+        @TextField("name", "Name", required: true, full: true)
+        @TextField("address", "Address", required: true, full: true)
+        @TextField("phone", "Main Phone", type: "tel")
+        @TextField("note", "Notes", full: true)
+    </div>
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Modal.Close">Cancel</button>
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">@(IsNew ? "Create Organisation" : "Save Changes")</button>
+</div>
+
+@code {
+    /// <summary>The organisation to edit, or null to create one.</summary>
+    [Parameter] public OrgDto? Org { get; set; }
+
+    /// <summary>Runs after a successful edit, so the page can reload.</summary>
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private readonly Dictionary<string, string> _f = new();
+    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
+    private bool _saving;
+
+    private bool IsNew => Org is null;
+
+    protected override void OnInitialized()
+    {
+        _f["name"] = Org?.Name ?? string.Empty;
+        _f["address"] = Org?.Address ?? string.Empty;
+        _f["phone"] = Org?.Phone ?? string.Empty;
+        _f["note"] = Org?.Note ?? string.Empty;
+    }
+
+    /// <summary>fInput({ path: 'oe.' + key, ... }) from the demo, ids from fid() ("f-oe-name").</summary>
+    private RenderFragment TextField(string key, string label, bool required = false, string type = "text", bool full = false)
+    {
+        var id = "f-oe-" + key;
+        var err = _errors.TryGetValue(key, out var e) ? e : null;
+        return @<div class="field @(full ? "full" : "")">
+            <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
+            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" value="@_f[key]"
+                   aria-required="@(required ? "true" : null)" aria-invalid="@(err is null ? null : "true")" aria-describedby="@(err is null ? null : id + "-e")"
+                   @oninput="@(ev => _f[key] = ev.Value?.ToString() ?? string.Empty)" />
+            @if (err is not null)
+            {
+                <span class="field-err" id="@(id)-e">@((MarkupString)IconLibrary.Render("alert", 14))@err</span>
+            }
+        </div>;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var request = new SaveOrgRequest
+            {
+                ActorId = Session.AccountId,
+                Name = _f["name"],
+                Address = _f["address"],
+                Phone = _f["phone"],
+                Note = _f["note"]
+            };
+
+            var result = await Api.SaveOrgAsync(Org?.Id, request);
+            if (!result.Ok)
+            {
+                _errors = result.Errors;
+                return;
+            }
+
+            var saved = result.Value!;
+            Modal.Close();
+            if (IsNew)
+            {
+                Nav.NavigateTo($"/orgs/{Uri.EscapeDataString(saved.Id)}");
+                Toasts.Show(saved.Name + " created.");
+            }
+            else
+            {
+                Toasts.Show(saved.Name + " saved.");
+                await OnSaved.InvokeAsync();
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

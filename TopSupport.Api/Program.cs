@@ -37,6 +37,12 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IAccountPasswordService, AccountPasswordService>();
 
+// Admin: Users and Organisations.
+builder.Services.AddScoped<IUserAdminRepository, UserAdminRepository>();
+builder.Services.AddScoped<IOrgRepository, OrgRepository>();
+builder.Services.AddScoped<IUserAdminService, UserAdminService>();
+builder.Services.AddScoped<IOrgAdminService, OrgAdminService>();
+
 // ASP.NET Core Identity, backed by the skeleton ADO.NET stores in TopSupport.Api/Identity.
 // AdoUserStore/AdoRoleStore are not implemented yet (every member throws) -- see their doc
 // comments and TopSupport.Database/README.md for what's still needed before sign-in works.

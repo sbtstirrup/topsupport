@@ -13,4 +13,7 @@ public class UserDto
     public string Department { get; set; } = string.Empty;
     public string? JobTitle { get; set; }
     public bool Locked { get; set; }
+
+    /// <summary>The demo's u.deleted soft delete: hidden from lists and pickers, but still named on old tickets.</summary>
+    public bool Deleted { get; set; }
 }
