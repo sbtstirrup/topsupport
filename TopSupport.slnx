@@ -1,4 +1,16 @@
 <Solution>
+  <Folder Name="/TopSupport.Database/">
+    <File Path="TopSupport.Database/README.md" />
+  </Folder>
+  <Folder Name="/TopSupport.Database/Scripts/">
+    <File Path="TopSupport.Database/Scripts/00_CreateDatabase.sql" />
+    <File Path="TopSupport.Database/Scripts/01_Schema_Identity.sql" />
+    <File Path="TopSupport.Database/Scripts/02_Schema_Core.sql" />
+    <File Path="TopSupport.Database/Scripts/03_StoredProcedures_Core.sql" />
+    <File Path="TopSupport.Database/Scripts/04_Schema_Extensions.sql" />
+    <File Path="TopSupport.Database/Scripts/05_StoredProcedures_Extensions.sql" />
+    <File Path="TopSupport.Database/Scripts/99_SeedData.sql" />
+  </Folder>
   <Project Path="TopSupport.Api/TopSupport.Api.csproj" />
   <Project Path="TopSupport.Blazor/TopSupport.Blazor.csproj" />
   <Project Path="TopSupport.Models/TopSupport.Models.csproj" />
