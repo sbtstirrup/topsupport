@@ -1,10 +1,120 @@
 @page "/security"
+@using System.Text.RegularExpressions
+@using TopSupport.Models.Admin
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ToastState Toasts
 
+@* Port of PAGES.security / ACT['sec-set'] / ACT['sec-save'] in topsupport-app.js. Like the demo,
+   only the password rules have an editor; the session/lockout/2FA settings ride along untouched. *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="Security" Icon="shield" Message="Password policy settings (see PAGES.security in the original demo) will be built out in a later pass." />
+    @if (_form is not null)
+    {
+        <div class="two-col">
+            <section class="card pad" aria-labelledby="sp-h">
+                <h2 id="sp-h" class="card-title">Password Rules</h2>
+                <p class="lede">Shown to people when they change their password.</p>
+
+                @NumberSetting("minLength", "Minimum length", "Characters", 8, 64, () => _minLength, v => _minLength = v)
+                @ToggleSetting("Uppercase letter", "At least one A–Z.", () => _form.RequireUpper, v => _form.RequireUpper = v)
+                @ToggleSetting("Lowercase letter", "At least one a–z.", () => _form.RequireLower, v => _form.RequireLower = v)
+                @ToggleSetting("Number", "At least one 0–9.", () => _form.RequireNumber, v => _form.RequireNumber = v)
+                @ToggleSetting("Symbol", "At least one character such as ! or #.", () => _form.RequireSymbol, v => _form.RequireSymbol = v)
+                @NumberSetting("expiryDays", "Password expiry", "Days before a password must be changed. 0 means never.", 0, 365, () => _expiryDays, v => _expiryDays = v)
+                @NumberSetting("history", "Password history", "Previous passwords that cannot be reused.", 0, 24, () => _history, v => _history = v)
+
+                <div class="row" style="margin-top:16px">
+                    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                        @((MarkupString)IconLibrary.Render("save", 16))Save Security Settings
+                    </button>
+                </div>
+            </section>
+        </div>
+    }
 </RoleGate>
 
 @code {
+    // S.forms.sec: a copy of the saved settings, with the three number inputs kept as typed text
+    // until Save (the demo parses them with parseInt there).
+    private SecuritySettingsDto? _form;
+    private string _minLength = string.Empty;
+    private string _expiryDays = string.Empty;
+    private string _history = string.Empty;
+    private bool _saving;
+
     protected override void OnInitialized() => Heading.SetHeading("Security", "Password rules.");
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _form = await Api.GetSecuritySettingsAsync();
+        _minLength = _form.MinLength.ToString();
+        _expiryDays = _form.ExpiryDays.ToString();
+        _history = _form.History.ToString();
+    }
+
+    private RenderFragment NumberSetting(string key, string label, string unit, int min, int max, Func<string> get, Action<string> set) => __builder =>
+    {
+        <div class="setting">
+            <div class="setting-text"><strong id="sl-@key">@label</strong><span>@unit</span></div>
+            <input class="input" style="width:110px" type="number" min="@min" max="@max" id="f-sec-@key" aria-labelledby="sl-@key"
+                   value="@get()" @onchange="@(e => set(e.Value?.ToString() ?? string.Empty))" />
+        </div>
+    };
+
+    private RenderFragment ToggleSetting(string label, string help, Func<bool> get, Action<bool> set) => __builder =>
+    {
+        <div class="setting">
+            <div class="setting-text"><strong>@label</strong><span>@help</span></div>
+            <div class="opts" role="group">
+                <button type="button" class="opt @(get() ? "on" : "")" aria-pressed="@(get() ? "true" : "false")" @onclick="@(() => set(true))">On</button>
+                <button type="button" class="opt @(!get() ? "on" : "")" aria-pressed="@(!get() ? "true" : "false")" @onclick="@(() => set(false))">Off</button>
+            </div>
+        </div>
+    };
+
+    // Math.max(0, parseInt(v, 10) || 0) from ACT['sec-save'].
+    private static int ParseNonNegative(string value)
+    {
+        var m = Regex.Match(value, @"^\s*([+-]?[0-9]+)");
+        return m.Success && int.TryParse(m.Groups[1].Value, out var n) ? Math.Max(0, n) : 0;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null) return;
+
+        _form.MinLength = ParseNonNegative(_minLength);
+        _form.ExpiryDays = ParseNonNegative(_expiryDays);
+        _form.History = ParseNonNegative(_history);
+        _minLength = _form.MinLength.ToString();
+        _expiryDays = _form.ExpiryDays.ToString();
+        _history = _form.History.ToString();
+
+        if (_form.MinLength < 8)
+        {
+            Toasts.Error("Minimum length must be at least 8.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var outcome = await Api.SaveSecuritySettingsAsync(Session.AccountId, _form);
+            if (outcome.Error is not null)
+            {
+                Toasts.Error(outcome.Error);
+                return;
+            }
+
+            await LoadAsync();
+            Toasts.Show(outcome.Changed > 0 ? $"Security settings saved ({outcome.Changed} changed)." : "No changes to save.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
 }
