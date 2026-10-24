@@ -1,0 +1,46 @@
+using TopSupport.Models.Admin;
+using TopSupport.Models.Tickets.FieldSchema;
+using TopSupport.Services.Abstractions;
+
+namespace TopSupport.Services.Admin;
+
+/// <summary>
+/// The per-department role permission grid (DB.perms / PAGES.roles in topsupport-app.js). The demo
+/// renders the grid read-only but its audit seed records changes as 'Changed permission "Delete"
+/// for Agent role' against the department, so SetAsync audits with that wording.
+/// </summary>
+public interface IRolePermissionService
+{
+    Task<IReadOnlyList<RolePermissionDto>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Throws ArgumentException for an unknown department, role or permission.</summary>
+    Task SetAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default);
+}
+
+public class RolePermissionService : IRolePermissionService
+{
+    private readonly IRolePermissionRepository _repository;
+    private readonly IAuditService _audit;
+
+    public RolePermissionService(IRolePermissionRepository repository, IAuditService audit)
+    {
+        _repository = repository;
+        _audit = audit;
+    }
+
+    public Task<IReadOnlyList<RolePermissionDto>> GetAllAsync(CancellationToken cancellationToken = default)
+        => _repository.GetAllAsync(cancellationToken);
+
+    public async Task SetAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!TicketTopics.DEPTS.Contains(request.Department)) throw new ArgumentException($"Unknown department \"{request.Department}\".", nameof(request));
+        if (!AgentRoles.All.Contains(request.Role)) throw new ArgumentException($"Unknown role \"{request.Role}\".", nameof(request));
+        var permission = RolePermissionKeys.All.FirstOrDefault(p => p.Key == request.Permission);
+        if (permission.Key is null) throw new ArgumentException($"Unknown permission \"{request.Permission}\".", nameof(request));
+
+        await _repository.SetAsync(request.Department, request.Role, permission.Key, request.Allowed, cancellationToken);
+        await _audit.LogAsync(request.ActorId,
+            "Changed permission \"" + permission.Label + "\" for " + request.Role + " role",
+            request.Department, AuditCategories.Permission, cancellationToken);
+    }
+}

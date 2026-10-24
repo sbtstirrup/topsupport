@@ -1,0 +1,173 @@
+@* Port of MODALS.agentedit / ACT['agent-edit'] / ACT['agent-save'] in topsupport-app.js. Agent is
+   null to create. Validation (validateUser(F, true) + departments) runs in the Api; its field
+   messages come back in AgentAdminSaveResult.Errors. Renders only the inner content --
+   ModalHost.razor supplies the .modal-back/.modal chrome (opened with wide: true). *@
+@using TopSupport.Models.Admin
+@using TopSupport.Models.People
+@using TopSupport.Models.Tickets.FieldSchema
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+
+<div class="modal-head">
+    <h2>@(Agent is null ? "Create Agent" : "Edit " + Agent.Name)</h2>
+    <button type="button" class="icon-btn" aria-label="Close dialog" @onclick="Modal.Close">@((MarkupString)IconLibrary.Render("x", 18))</button>
+</div>
+<div class="modal-body">
+    <div class="field-grid">
+        @TextField("f-ae-name", "Full Name", "text", true, "name", () => _form.Name, v => _form.Name = v)
+        @TextField("f-ae-email", "Email", "email", true, "email", () => _form.Email, v => _form.Email = v)
+        @TextField("f-ae-username", "Username", "text", true, "username", () => _form.Username, v => _form.Username = v)
+        @TextField("f-ae-phone", "Phone or Extension", "text", false, "phone", () => _form.Phone, v => _form.Phone = v)
+        @TextField("f-ae-jobTitle", "Job Title", "text", false, "jobTitle", () => _form.JobTitle, v => _form.JobTitle = v)
+
+        <div class="field">
+            <label class="field-label" for="f-ae-role">Role<span class="star" aria-hidden="true"> *</span></label>
+            <select class="input" id="f-ae-role" aria-required="true" @bind="_form.Role">
+                @foreach (var role in AgentRoles.All)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+        </div>
+
+        <fieldset class="full">
+            <legend>Departments<span class="star" aria-hidden="true"> *</span></legend>
+            <div class="chips">
+                @for (var i = 0; i < TicketTopics.DEPTS.Count; i++)
+                {
+                    var dept = TicketTopics.DEPTS[i];
+                    var on = _form.Departments.Contains(dept);
+                    <label class="chip @(on ? "on" : "")">
+                        <input type="checkbox" id="f-ae-departments-@i" value="@dept" checked="@on" @onchange="@(e => Toggle(_form.Departments, dept, e))" />@dept
+                    </label>
+                }
+            </div>
+            @Error("departments")
+        </fieldset>
+
+        <fieldset class="full">
+            <legend>Teams</legend>
+            @if (Teams.Count == 0)
+            {
+                <span class="hint">Nothing to choose from.</span>
+            }
+            else
+            {
+                <div class="chips">
+                    @for (var i = 0; i < Teams.Count; i++)
+                    {
+                        var team = Teams[i];
+                        var on = _form.TeamIds.Contains(team.Id);
+                        <label class="chip @(on ? "on" : "")">
+                            <input type="checkbox" id="f-ae-teams-@i" value="@team.Id" checked="@on" @onchange="@(e => Toggle(_form.TeamIds, team.Id, e))" />@team.Name
+                        </label>
+                    }
+                </div>
+            }
+        </fieldset>
+
+        <div class="field">
+            <label class="field-label" for="f-ae-active">Status</label>
+            <select class="input" id="f-ae-active" @bind="_active">
+                <option value="yes">Active</option>
+                <option value="no">Inactive (cannot sign in or be assigned)</option>
+            </select>
+        </div>
+    </div>
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Modal.Close">Cancel</button>
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">@(Agent is null ? "Create Agent" : "Save Changes")</button>
+</div>
+
+@code {
+    /// <summary>The agent to edit, or null to create one.</summary>
+    [Parameter] public AgentDto? Agent { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<TeamDto> Teams { get; set; } = Array.Empty<TeamDto>();
+
+    /// <summary>Raised after a successful save (the modal has already closed).</summary>
+    [Parameter] public EventCallback<AgentAdminSaveResult> OnSaved { get; set; }
+
+    private AgentSaveRequest _form = new();
+    private string _active = "yes";
+    private Dictionary<string, string> _errors = new();
+    private bool _saving;
+
+    protected override void OnInitialized()
+    {
+        // ACT['agent-edit']: copy the agent into the form, or the demo's blank defaults.
+        _form = Agent is null
+            ? new AgentSaveRequest { Phone = "ext. ", Role = AgentRoles.Agent }
+            : new AgentSaveRequest
+            {
+                Id = Agent.Id,
+                Name = Agent.Name,
+                Email = Agent.Email,
+                Username = Agent.Username,
+                Phone = Agent.Phone ?? string.Empty,
+                JobTitle = Agent.JobTitle ?? string.Empty,
+                Role = Agent.Role,
+                Departments = Agent.Departments.ToList(),
+                TeamIds = Agent.TeamIds.ToList()
+            };
+        _active = Agent is null || Agent.Active ? "yes" : "no";
+    }
+
+    private static void Toggle(List<string> values, string value, ChangeEventArgs e)
+    {
+        var isChecked = e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
+        if (isChecked && !values.Contains(value)) values.Add(value);
+        if (!isChecked) values.Remove(value);
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            _form.ActorId = Session.AccountId;
+            _form.Active = _active == "yes";
+            var result = await Api.SaveAgentAsync(_form);
+            if (!result.Succeeded)
+            {
+                _errors = result.Errors;
+                return;
+            }
+
+            Modal.Close();
+            await OnSaved.InvokeAsync(result);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // fInput(o) markup: label, input (invalid + aria-invalid when in error), field-err message.
+    private RenderFragment TextField(string id, string label, string type, bool required, string key, Func<string> get, Action<string> set) => __builder =>
+    {
+        var error = _errors.GetValueOrDefault(key);
+        <div class="field">
+            <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
+            <input class="input @(error is null ? "" : "invalid")" id="@id" type="@type" value="@get()"
+                   @oninput="@(e => set(e.Value?.ToString() ?? string.Empty))"
+                   aria-required="@(required ? "true" : null)" aria-invalid="@(error is null ? null : "true")"
+                   aria-describedby="@(error is null ? null : id + "-e")" />
+            @if (error is not null)
+            {
+                <span class="field-err" id="@(id)-e">@((MarkupString)IconLibrary.Render("alert", 14))@error</span>
+            }
+        </div>
+    };
+
+    private RenderFragment Error(string key) => __builder =>
+    {
+        var error = _errors.GetValueOrDefault(key);
+        if (error is not null)
+        {
+            <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@error</span>
+        }
+    };
+}
