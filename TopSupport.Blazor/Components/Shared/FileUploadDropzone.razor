@@ -1,0 +1,116 @@
+@* Wraps Blazor's InputFile in the demo's .dropzone/.file-list markup (see dropzone() in
+   topsupport-app.js). The parent page decides WHEN/HOW a selected file is actually persisted
+   by supplying OnUploadFile -- this lets the same component serve both "ticket already exists,
+   upload immediately" (TicketDetail/AgentTicketDetail reply attachments) and any flow that
+   wants to stage files locally before deciding to upload. 10MB/file cap enforced client-side
+   via OpenReadStream(maxAllowedSize). Attachments is two-way bound: @bind-Attachments.
+
+   Removal before upload (Attachments entries with Id == null) just removes the local staged
+   entry. Removal after upload is explicitly out of scope per the plan -- the remove button is
+   not rendered for already-uploaded (Id != null) entries. *@
+@using TopSupport.Blazor.Models
+
+<div class="field full">
+    <span class="field-label" id="@_labelId">@Label</span>
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <span class="hint">@Hint</span>
+    }
+    <div class="dropzone @(_isUploading ? "drag" : "")">
+        @((MarkupString)IconLibrary.Render("upload", 24))
+        <strong>Drag files here or choose files</strong>
+        <span class="hint">@(Hint ?? "Images, PDFs or documents up to 10 MB each")</span>
+        <InputFile id="@_id" multiple OnChange="OnFilesSelected" aria-labelledby="@_labelId" />
+    </div>
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_error</span>
+    }
+    @if (Attachments.Count > 0)
+    {
+        <ul class="file-list" aria-label="Attached files">
+            @foreach (var file in Attachments)
+            {
+                <li class="file-item">
+                    @((MarkupString)IconLibrary.Render("clip", 16))
+                    <span class="nm">@file.Name</span>
+                    <span class="hint">@FormatSize(file.SizeBytes)</span>
+                    @if (file.Id is null)
+                    {
+                        <button type="button" class="icon-btn" style="width:34px;height:34px" @onclick="@(() => RemoveStaged(file))" aria-label="Remove @file.Name">
+                            @((MarkupString)IconLibrary.Render("x", 16))
+                        </button>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private const long MaxBytes = 10 * 1024 * 1024;
+
+    [Parameter] public string Label { get; set; } = "Attachments";
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public List<AttachmentRef> Attachments { get; set; } = new();
+    [Parameter] public EventCallback<List<AttachmentRef>> AttachmentsChanged { get; set; }
+
+    /// <summary>Required. The parent decides how/when a selected file is actually persisted --
+    /// e.g. upload immediately to an existing ticket's attachments endpoint. Must return the
+    /// AttachmentRef to display (with Id set once uploaded).</summary>
+    [Parameter, EditorRequired] public Func<Microsoft.AspNetCore.Components.Forms.IBrowserFile, Task<AttachmentRef>> OnUploadFile { get; set; } = null!;
+
+    private readonly string _id = "dz-" + Guid.NewGuid().ToString("N");
+    private string _labelId => _id + "-lbl";
+    private bool _isUploading;
+    private string? _error;
+
+    private async Task OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _isUploading = true;
+        StateHasChanged();
+
+        try
+        {
+            foreach (var file in e.GetMultipleFiles())
+            {
+                if (file.Size > MaxBytes)
+                {
+                    _error = $"\"{file.Name}\" is larger than 10 MB and was not uploaded.";
+                    continue;
+                }
+
+                try
+                {
+                    var uploaded = await OnUploadFile(file);
+                    Attachments.Add(uploaded);
+                }
+                catch (Exception ex)
+                {
+                    _error = $"\"{file.Name}\" could not be uploaded: {ex.Message}";
+                }
+            }
+
+            await AttachmentsChanged.InvokeAsync(Attachments);
+        }
+        finally
+        {
+            _isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RemoveStaged(AttachmentRef file)
+    {
+        Attachments.Remove(file);
+        await AttachmentsChanged.InvokeAsync(Attachments);
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB"
+    };
+}

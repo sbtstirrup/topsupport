@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\TopSupport.Models\TopSupport.Models.csproj" />
+    <!-- Only for TopSupport.Services.Tickets.TicketSla (SlaHours/SlaDue/IsOverdue/IsAnswered),
+         reused here rather than redefined, per the plan. TopSupport.Services itself only
+         depends on TopSupport.Models (no ADO.NET/SqlClient), so this stays a light reference. -->
+    <ProjectReference Include="..\TopSupport.Services\TopSupport.Services.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>

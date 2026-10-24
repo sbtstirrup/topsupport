@@ -1,0 +1,120 @@
+@* Mirrors MODALS.change in topsupport-app.js: single-ticket Status + Priority + Topic form,
+   diffed on save so only changed fields trigger an API call. Renders only the modal's inner
+   content -- ModalHost.razor already supplies the .modal-back/.modal chrome. *@
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Tickets.FieldSchema
+@using TopSupport.Models.Enums
+@inject LookupDataService Lookup
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+
+<div class="modal-head">
+    <h2>Change #@Ticket.Number</h2>
+</div>
+<div class="modal-body">
+    <div class="field full">
+        <label class="field-label" for="@_statusId">Status</label>
+        <select class="input" id="@_statusId" @bind="_status">
+            @foreach (var s in Enum.GetValues<TicketStatus>())
+            {
+                <option value="@s.ToString()">@EnumDisplay.Label(s)</option>
+            }
+        </select>
+    </div>
+    <div class="field full">
+        <label class="field-label" for="@_priorityId">Priority</label>
+        <select class="input" id="@_priorityId" @bind="_priority">
+            @foreach (var p in Enum.GetValues<TicketPriority>())
+            {
+                <option value="@p.ToString()">@EnumDisplay.Label(p)</option>
+            }
+        </select>
+    </div>
+    <div class="field full">
+        <label class="field-label" for="@_topicId">Help Topic</label>
+        <select class="input" id="@_topicId" @bind="_topic">
+            @foreach (var grp in _topics.GroupBy(t => t.Group))
+            {
+                @if (string.IsNullOrEmpty(grp.Key))
+                {
+                    @foreach (var t in grp)
+                    {
+                        <option value="@t.Id">@t.Label</option>
+                    }
+                }
+                else
+                {
+                    <optgroup label="@grp.Key">
+                        @foreach (var t in grp)
+                        {
+                            <option value="@t.Id">@t.Label</option>
+                        }
+                    </optgroup>
+                }
+            }
+        </select>
+        <span class="hint">Answers from the old topic are kept on the ticket record.</span>
+    </div>
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">Save Changes</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string TicketId { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public TicketDto Ticket { get; set; } = null!;
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private readonly string _statusId = "chg-status-" + Guid.NewGuid().ToString("N");
+    private readonly string _priorityId = "chg-priority-" + Guid.NewGuid().ToString("N");
+    private readonly string _topicId = "chg-topic-" + Guid.NewGuid().ToString("N");
+
+    private IReadOnlyList<TicketTopic> _topics = Array.Empty<TicketTopic>();
+    private string _status = string.Empty;
+    private string _priority = string.Empty;
+    private string _topic = string.Empty;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _status = Ticket.Status.ToString();
+        _priority = Ticket.Priority.ToString();
+        _topic = Ticket.Topic;
+        _topics = await Api.GetTopicsAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var actor = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
+
+            if (_priority != Ticket.Priority.ToString())
+            {
+                await Api.ChangePriorityAsync(TicketId, _priority, actor);
+            }
+
+            if (_topic != Ticket.Topic)
+            {
+                await Api.ChangeTopicAsync(TicketId, _topic, actor);
+            }
+
+            if (_status != Ticket.Status.ToString())
+            {
+                await Api.ChangeStatusAsync(TicketId, _status, actor);
+            }
+
+            await OnSaved.InvokeAsync();
+            Modal.Close();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => Modal.Close();
+}

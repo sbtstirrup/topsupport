@@ -1,0 +1,217 @@
+@* Shared ticket list table for both Queue.razor (ColumnSet.Agent) and MyTickets.razor
+   (ColumnSet.User), mirroring the .tbl-wrap > table.tbl markup + thSort()/pager() in
+   topsupport-app.js. This component does NOT fetch or filter/sort/page data itself -- it is a
+   pure renderer over whatever page of Tickets the host page has already computed (PoC scale:
+   hosts do client-side filter/sort/page over one fetched list). SortKey/SortDirection/
+   PageNumber/PageSize are two-way bound so the host can react to a header click or pager click
+   and recompute its own filtered/sorted/sliced list; this component never mutates Tickets.
+
+   Parameter contract (read this before building Queue.razor/MyTickets.razor against it):
+   - Tickets: the CURRENT PAGE of rows to render (already filtered/sorted/sliced by the host).
+   - TotalCount: total matching rows across all pages (for the "Showing X-Y of N" pager footer)
+     -- NOT Tickets.Count, which is just the current page's size.
+   - SelectedIds: two-way bound checkbox selection, only rendered/relevant when ColumnSet.Agent.
+   - SortKey/SortDirection ("asc"|"desc"): two-way bound; clicking a sortable header toggles
+     direction if it's already the active key, else sets this key with the default direction.
+     Recognised keys: num, subject, requester, affected, topic, priority, sla, assignee, status,
+     created (mirrors the demo's thSort key set) -- the host's sort implementation decides what
+     each key actually sorts by.
+   - OnRowClick: fired with the ticket Id when a subject link (or row, for ColumnSet.Agent where
+     checkboxes occupy the row) is activated -- the host navigates (e.g. "/tickets/{id}" or
+     "/agent-tickets/{id}").
+   - PageNumber/PageSize: two-way bound; PageNumber is 1-based, matching pager() in the demo.
+   - ColumnSet.User: Ticket #, Subject, Topic, Priority, Status, Created (no checkboxes/assignee).
+     ColumnSet.Agent: checkbox, Ticket #, Subject, Requester, Topic, Priority, SLA due, Assignee,
+     Status.
+   - ActorNameResolver: resolves a user/agent id (requester, affected) to a display name.
+   - TeamNameResolver: resolves a team id to a display name (used together with
+     ActorNameResolver by the host to build an "Assignee" display -- this component shows
+     whatever string the host computes; see AssigneeLabel usage below, built from Ticket's
+     AssignedAgentId/AssignedTeamId via the two resolvers). *@
+@using TopSupport.Models.Enums
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Tickets.FieldSchema
+@using TopSupport.Services.Tickets
+
+<div class="tbl-wrap">
+    <table class="tbl">
+        <thead>
+            <tr>
+                @if (ColumnSet == QueueTableColumnSet.Agent)
+                {
+                    <th scope="col" class="cb"><span class="sr-only">Select</span></th>
+                }
+                @SortHeader("Ticket #", "num")
+                @SortHeader("Subject", "subject")
+                @if (ColumnSet == QueueTableColumnSet.Agent)
+                {
+                    @SortHeader("Requester", "requester")
+                }
+                @SortHeader("Topic", "topic")
+                @SortHeader("Priority", "priority")
+                @if (ColumnSet == QueueTableColumnSet.Agent)
+                {
+                    @SortHeader("SLA due", "sla")
+                    @SortHeader("Assignee", "assignee")
+                }
+                @SortHeader("Status", "status")
+                @if (ColumnSet == QueueTableColumnSet.User)
+                {
+                    @SortHeader("Created", "created")
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in Tickets)
+            {
+                var overdue = TicketSla.IsOverdue(t);
+                <tr class="@(overdue ? "is-overdue" : "") @(SelectedIds.Contains(t.Id) ? "selected" : "")">
+                    @if (ColumnSet == QueueTableColumnSet.Agent)
+                    {
+                        <td class="cb">
+                            <input type="checkbox" aria-label="Select ticket #@t.Number" checked="@SelectedIds.Contains(t.Id)"
+                                   @onchange="@(e => ToggleSelected(t.Id, (bool)(e.Value ?? false)))" />
+                        </td>
+                    }
+                    <td class="tnum">#@t.Number</td>
+                    <td class="subj">
+                        <a href="javascript:void(0)" @onclick="@(() => OnRowClick.InvokeAsync(t.Id))" @onclick:preventDefault="true">@t.Subject</a>
+                    </td>
+                    @if (ColumnSet == QueueTableColumnSet.Agent)
+                    {
+                        <td class="who">@ActorNameResolver(t.RequesterUserId)</td>
+                    }
+                    <td>@TopicLabel(t.Topic)</td>
+                    <td><PriorityBadge Priority="@t.Priority" /></td>
+                    @if (ColumnSet == QueueTableColumnSet.Agent)
+                    {
+                        <td>@TicketSla.SlaDue(t).ToLocalTime().ToString("d MMM, HH:mm")</td>
+                        <td class="who">@AssigneeLabel(t)</td>
+                    }
+                    <td><StatusBadge Status="@t.Status" /></td>
+                    @if (ColumnSet == QueueTableColumnSet.User)
+                    {
+                        <td>@t.Created.ToLocalTime().ToString("d MMM yyyy")</td>
+                    }
+                </tr>
+            }
+            @if (Tickets.Count == 0)
+            {
+                <tr><td colspan="9" style="text-align:center;padding:24px;color:var(--ink-4)">No tickets to show.</td></tr>
+            }
+        </tbody>
+    </table>
+    <div class="tbl-foot">
+        <span class="num-tab">Showing @FromIndex&ndash;@ToIndex of @TotalCount</span>
+        @if (TotalPages > 1)
+        {
+            <nav class="pagination" aria-label="Pages">
+                <button type="button" class="opt" disabled="@(PageNumber <= 1)" aria-label="Previous page" @onclick="@(() => GoToPage(PageNumber - 1))">@((MarkupString)IconLibrary.Render("back", 14, 2.5))</button>
+                @for (var p = 1; p <= TotalPages; p++)
+                {
+                    var pageNum = p;
+                    var ariaLabel = "Page " + pageNum;
+                    <button type="button" class="opt @(pageNum == PageNumber ? "on" : "")" aria-current="@(pageNum == PageNumber ? "page" : null)" aria-label="@ariaLabel" @onclick="@(() => GoToPage(pageNum))">@pageNum</button>
+                }
+                <button type="button" class="opt" disabled="@(PageNumber >= TotalPages)" aria-label="Next page" @onclick="@(() => GoToPage(PageNumber + 1))">@((MarkupString)IconLibrary.Render("chevron", 14, 2.5))</button>
+            </nav>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<TicketDto> Tickets { get; set; } = Array.Empty<TicketDto>();
+
+    /// <summary>Total matching rows across all pages -- NOT Tickets.Count (the current page's size).</summary>
+    [Parameter] public int TotalCount { get; set; }
+
+    [Parameter] public HashSet<string> SelectedIds { get; set; } = new();
+    [Parameter] public EventCallback<HashSet<string>> SelectedIdsChanged { get; set; }
+
+    [Parameter] public string? SortKey { get; set; }
+    [Parameter] public EventCallback<string?> SortKeyChanged { get; set; }
+    [Parameter] public string SortDirection { get; set; } = "asc";
+    [Parameter] public EventCallback<string> SortDirectionChanged { get; set; }
+
+    [Parameter] public EventCallback<string> OnRowClick { get; set; }
+
+    [Parameter] public int PageNumber { get; set; } = 1;
+    [Parameter] public EventCallback<int> PageNumberChanged { get; set; }
+    [Parameter] public int PageSize { get; set; } = 15;
+    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
+
+    [Parameter] public QueueTableColumnSet ColumnSet { get; set; } = QueueTableColumnSet.User;
+
+    /// <summary>Resolves a user or agent id (TicketActorRef.Id, RequesterUserId, AffectedUserId,
+    /// AssignedAgentId) to a display name.</summary>
+    [Parameter, EditorRequired] public Func<string?, string> ActorNameResolver { get; set; } = id => id ?? "—";
+
+    /// <summary>Resolves a team id (AssignedTeamId) to a display name.</summary>
+    [Parameter, EditorRequired] public Func<string?, string> TeamNameResolver { get; set; } = id => id ?? "—";
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)Math.Max(1, PageSize)));
+    private int FromIndex => TotalCount == 0 ? 0 : (PageNumber - 1) * PageSize + 1;
+    private int ToIndex => Math.Min(TotalCount, PageNumber * PageSize);
+
+    private static string TopicLabel(string topicId) => TicketTopics.Find(topicId)?.Label ?? topicId;
+
+    private string AssigneeLabel(TicketDto t)
+    {
+        if (!string.IsNullOrEmpty(t.AssignedAgentId)) return ActorNameResolver(t.AssignedAgentId);
+        if (!string.IsNullOrEmpty(t.AssignedTeamId)) return TeamNameResolver(t.AssignedTeamId);
+        return "Unassigned";
+    }
+
+    private async Task ToggleSelected(string ticketId, bool isSelected)
+    {
+        var updated = new HashSet<string>(SelectedIds);
+        if (isSelected) updated.Add(ticketId); else updated.Remove(ticketId);
+        SelectedIds = updated;
+        await SelectedIdsChanged.InvokeAsync(updated);
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (page < 1 || page > TotalPages || page == PageNumber) return;
+        PageNumber = page;
+        await PageNumberChanged.InvokeAsync(page);
+    }
+
+    private RenderFragment SortHeader(string label, string key) => builder =>
+    {
+        var isActive = SortKey == key;
+        var ariaSort = isActive ? (SortDirection == "asc" ? "ascending" : "descending") : null;
+        var icon = isActive ? (SortDirection == "asc" ? "up" : "down") : "sort";
+
+        builder.OpenElement(0, "th");
+        builder.AddAttribute(1, "scope", "col");
+        builder.OpenElement(2, "button");
+        builder.AddAttribute(3, "type", "button");
+        builder.AddAttribute(4, "class", "th-btn");
+        if (ariaSort is not null) builder.AddAttribute(5, "aria-sort", ariaSort);
+        builder.AddAttribute(6, "onclick", EventCallback.Factory.Create(this, () => OnSortClick(key)));
+        builder.AddContent(7, label);
+        builder.OpenElement(8, "span");
+        builder.AddAttribute(9, "class", "sort");
+        builder.AddContent(10, (MarkupString)IconLibrary.Render(icon, 14, 2.5));
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private async Task OnSortClick(string key)
+    {
+        if (SortKey == key)
+        {
+            SortDirection = SortDirection == "asc" ? "desc" : "asc";
+            await SortDirectionChanged.InvokeAsync(SortDirection);
+        }
+        else
+        {
+            SortKey = key;
+            SortDirection = "asc";
+            await SortKeyChanged.InvokeAsync(key);
+            await SortDirectionChanged.InvokeAsync(SortDirection);
+        }
+    }
+}

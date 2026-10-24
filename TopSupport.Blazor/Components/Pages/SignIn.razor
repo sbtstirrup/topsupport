@@ -1,0 +1,33 @@
+@page "/signin"
+@layout Layout.PublicLayout
+@inject SessionState Session
+@inject NavigationManager Nav
+
+<PageTitle>Sign in - TopSupport</PageTitle>
+
+<div class="signin-wrap">
+    <div class="card pad stack-16">
+        <div>
+            <h1 style="font-size:24px">Sign in to TopSupport</h1>
+            <p class="lede" style="margin:6px 0 0">Use your TopCashback username and password.</p>
+        </div>
+
+        <div class="field">
+            <span class="field-label">Choose a role to view as</span>
+            <span class="hint">Demo skeleton: no real credential check yet -- see TopSupport.Api/Identity/AdoUserStore.cs.</span>
+            <div class="opts" role="group">
+                <button type="button" class="opt @(Session.Role == AppRole.User ? "on" : "")" aria-pressed="@(Session.Role == AppRole.User)" @onclick="@(() => SignInAs(AppRole.User))">End user</button>
+                <button type="button" class="opt @(Session.Role == AppRole.Agent ? "on" : "")" aria-pressed="@(Session.Role == AppRole.Agent)" @onclick="@(() => SignInAs(AppRole.Agent))">Agent</button>
+                <button type="button" class="opt @(Session.Role == AppRole.Admin ? "on" : "")" aria-pressed="@(Session.Role == AppRole.Admin)" @onclick="@(() => SignInAs(AppRole.Admin))">Admin</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private void SignInAs(AppRole role)
+    {
+        Session.SetRole(role);
+        Nav.NavigateTo(Session.HomeRoute());
+    }
+}

@@ -1,0 +1,98 @@
+@* Mirrors MODALS.close in topsupport-app.js: radio choice between Resolved/Closed plus an
+   optional internal note added before the status change. Renders only the modal's inner
+   content -- ModalHost.razor already supplies the .modal-back/.modal chrome. *@
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Enums
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+
+<div class="modal-head">
+    <h2>Close @(TicketIds.Count == 1 ? "ticket" : TicketIds.Count + " tickets")</h2>
+</div>
+<div class="modal-body">
+    <fieldset class="full">
+        <legend>Close with Status<span class="star" aria-hidden="true"> *</span></legend>
+        <div class="choice-list">
+            <label class="choice @(_status == TicketStatus.Resolved ? "on" : "")">
+                <input type="radio" name="@_groupName" checked="@(_status == TicketStatus.Resolved)" @onchange="@(() => _status = TicketStatus.Resolved)" />
+                <span>
+                    <span class="choice-title">Resolved</span>
+                    <span class="choice-desc">The problem is fixed. The user can reply to reopen it.</span>
+                </span>
+            </label>
+            <label class="choice @(_status == TicketStatus.Closed ? "on" : "")">
+                <input type="radio" name="@_groupName" checked="@(_status == TicketStatus.Closed)" @onchange="@(() => _status = TicketStatus.Closed)" />
+                <span>
+                    <span class="choice-title">Closed</span>
+                    <span class="choice-desc">Final. The user cannot reply; they must raise a new ticket.</span>
+                </span>
+            </label>
+        </div>
+    </fieldset>
+    <div class="field full">
+        <label class="field-label" for="@_noteId">Internal Note (Optional)</label>
+        <textarea class="input" id="@_noteId" rows="3" placeholder="Why is this being closed?" @bind="_note" @bind:event="oninput"></textarea>
+    </div>
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+        @((MarkupString)IconLibrary.Render("lock", 16))Close Ticket@(TicketIds.Count > 1 ? "s" : "")
+    </button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> TicketIds { get; set; } = Array.Empty<string>();
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private readonly string _groupName = "close-status-" + Guid.NewGuid().ToString("N");
+    private readonly string _noteId = "close-note-" + Guid.NewGuid().ToString("N");
+    private TicketStatus _status = TicketStatus.Resolved;
+    private string _note = string.Empty;
+    private bool _saving;
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var actor = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
+
+            var note = _note.Trim();
+            if (note.Length > 0)
+            {
+                foreach (var id in TicketIds)
+                {
+                    await Api.AddAgentReplyAsync(id, new AddAgentReplyRequest
+                    {
+                        AgentId = Session.AccountId,
+                        Html = note,
+                        IsNote = true
+                    });
+                }
+            }
+
+            if (_status == TicketStatus.Resolved)
+            {
+                // BulkCloseAsync always sets Resolved server-side (see TicketService.BulkCloseAsync) --
+                // use it for the Resolved choice; the Closed choice goes through BulkChangeStatusAsync
+                // since there's no bulk "hard close" endpoint.
+                await Api.BulkCloseAsync(TicketIds, actor);
+            }
+            else
+            {
+                await Api.BulkChangeStatusAsync(TicketIds, TicketStatus.Closed.ToString(), actor);
+            }
+
+            await OnClosed.InvokeAsync();
+            Modal.Close();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => Modal.Close();
+}

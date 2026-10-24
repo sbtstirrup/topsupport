@@ -1,0 +1,12 @@
+@page "/orgs/{Id}"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Organisation" Icon="building" Message="Organisation details and members (see PAGES.org in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    protected override void OnParametersSet() => Heading.SetHeading("Organisation", "Organisation details and members.");
+}

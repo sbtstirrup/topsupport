@@ -1,0 +1,15 @@
+@* Mirrors priorityBadge(p) in topsupport-app.js: a .tag.pr-* pill, icon omitted for Normal. *@
+@using TopSupport.Models.Enums
+
+<span class="tag @EnumDisplay.CssClass(Priority)">
+    @{ var icon = EnumDisplay.Icon(Priority); }
+    @if (icon is not null)
+    {
+        @((MarkupString)IconLibrary.Render(icon, 13, 2.5))
+    }
+    @EnumDisplay.Label(Priority)
+</span>
+
+@code {
+    [Parameter, EditorRequired] public TicketPriority Priority { get; set; }
+}

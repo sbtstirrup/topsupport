@@ -1,0 +1,10 @@
+@page "/site"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Site Pages" Icon="page" Message="Landing and sign-in page text editing (see PAGES.site in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("Site Pages", "Text on the public landing page and the sign-in page.");
+}

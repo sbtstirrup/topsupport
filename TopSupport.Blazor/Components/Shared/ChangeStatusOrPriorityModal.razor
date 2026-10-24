@@ -1,0 +1,92 @@
+@* Mirrors MODALS.setfield in topsupport-app.js: single select of either TicketStatus or
+   TicketPriority values depending on Field, bulk-capable. Renders only the modal's inner
+   content -- ModalHost.razor already supplies the .modal-back/.modal chrome. *@
+@using TopSupport.Models.Tickets
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+
+<div class="modal-head">
+    <h2>@Title</h2>
+</div>
+<div class="modal-body">
+    <div class="field full">
+        <label class="field-label" for="@_id">@(Field == StatusOrPriority.Status ? "New status" : "New priority")<span class="star" aria-hidden="true"> *</span></label>
+        <select class="input @(_error is null ? "" : "invalid")" id="@_id" @bind="_selected">
+            <option value="">Choose a value</option>
+            @if (Field == StatusOrPriority.Status)
+            {
+                @foreach (var s in Enum.GetValues<TicketStatus>())
+                {
+                    <option value="@s.ToString()">@EnumDisplay.Label(s)</option>
+                }
+            }
+            else
+            {
+                @foreach (var p in Enum.GetValues<TicketPriority>())
+                {
+                    <option value="@p.ToString()">@EnumDisplay.Label(p)</option>
+                }
+            }
+        </select>
+        @if (Field == StatusOrPriority.Priority)
+        {
+            <p class="hint">Changing priority changes the SLA response target.</p>
+        }
+        @if (_error is not null)
+        {
+            <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_error</span>
+        }
+    </div>
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">Apply</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> TicketIds { get; set; } = Array.Empty<string>();
+    [Parameter, EditorRequired] public StatusOrPriority Field { get; set; }
+    [Parameter] public EventCallback OnApplied { get; set; }
+
+    private readonly string _id = "setfield-" + Guid.NewGuid().ToString("N");
+    private string _selected = string.Empty;
+    private string? _error;
+    private bool _saving;
+
+    private string Title => (Field == StatusOrPriority.Status ? "Change status of " : "Change priority of ")
+        + (TicketIds.Count == 1 ? "ticket" : TicketIds.Count + " tickets");
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrEmpty(_selected))
+        {
+            _error = "Choose a value.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var changedBy = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
+
+            if (Field == StatusOrPriority.Status)
+            {
+                await Api.BulkChangeStatusAsync(TicketIds, _selected, changedBy);
+            }
+            else
+            {
+                await Api.BulkChangePriorityAsync(TicketIds, _selected, changedBy);
+            }
+
+            await OnApplied.InvokeAsync();
+            Modal.Close();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => Modal.Close();
+}

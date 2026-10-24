@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Microsoft.AspNetCore.Identity itself ships as part of the ASP.NET Core shared framework
+         in .NET 10 (Microsoft.NET.Sdk.Web implicitly references it): no PackageReference needed. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TopSupport.Models\TopSupport.Models.csproj" />
+    <ProjectReference Include="..\TopSupport.Services\TopSupport.Services.csproj" />
+  </ItemGroup>
+
+</Project>

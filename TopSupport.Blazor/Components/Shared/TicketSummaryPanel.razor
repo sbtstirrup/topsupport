@@ -1,0 +1,116 @@
+@* Mirrors summaryPanel(t, agentMode) in topsupport-app.js: a .card.panel of .kv rows (Status,
+   Priority, Department, Help topic, Created, Requester, [Affected user if different], Assigned
+   to, [SLA due if ForAgent]).
+
+   Two modes:
+   - Ticket mode (default): pass Ticket (a real TicketDto) -- every row is read from it.
+   - Preview mode (PreviewMode="true"): used by the raise-ticket form's live sidebar before a
+     ticket exists. Pass PreviewTopic/PreviewPriority (and optionally PreviewRequesterUserId/
+     PreviewAffectedUserId) instead of Ticket; Created is "now", Status is "Open", Assigned to
+     shows the topic's default team, SLA due is computed from DateTimeOffset.UtcNow.
+
+   Resolves user/team/agent names via the injected LookupDataService -- callers must have
+   already warmed the relevant pools (GetUsersAsync/GetAgentsAsync/GetTeamsAsync) before first
+   render, e.g. in the host page's OnInitializedAsync, or rows will show raw ids as a fallback. *@
+@using TopSupport.Models.Enums
+@using TopSupport.Models.People
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Tickets.FieldSchema
+@inject LookupDataService Lookup
+
+<section class="card panel" aria-labelledby="@_headingId">
+    <h2 class="panel-title" id="@_headingId">Summary</h2>
+
+    <div class="kv"><span>Status</span><div><StatusBadge Status="@StatusValue" /></div></div>
+    <div class="kv"><span>Priority</span><div><PriorityBadge Priority="@PriorityValue" /></div></div>
+    <div class="kv"><span>Department</span><div>@DepartmentValue</div></div>
+    <div class="kv"><span>Help topic</span><div>@TopicLabel</div></div>
+    <div class="kv"><span>Created</span><div>@CreatedValue.ToLocalTime().ToString("d MMM yyyy, HH:mm")</div></div>
+
+    @if (RequesterUser is not null)
+    {
+        <div class="kv">
+            <span>Requester</span>
+            <div>@RequesterUser.Name<br /><span class="hint">@RequesterUser.Email<br />@RequesterUser.Phone</span></div>
+        </div>
+    }
+
+    @if (AffectedUser is not null && AffectedUserId != RequesterUserId)
+    {
+        <div class="kv">
+            <span>Affected user</span>
+            <div>@AffectedUser.Name<br /><span class="hint">@AffectedUser.Office<br />@AffectedUser.Phone</span></div>
+        </div>
+    }
+
+    <div class="kv"><span>Assigned to</span><div>@AssigneeLabel</div></div>
+
+    @if (ForAgent)
+    {
+        <div class="kv">
+            <span>SLA due</span>
+            <div>@SlaDue.ToLocalTime().ToString("d MMM yyyy, HH:mm")</div>
+        </div>
+    }
+</section>
+
+@code {
+    /// <summary>Ticket mode: the real ticket to summarise. Null in preview mode.</summary>
+    [Parameter] public TicketDto? Ticket { get; set; }
+
+    /// <summary>Preview mode (raise-form live sidebar, before a ticket exists).</summary>
+    [Parameter] public bool PreviewMode { get; set; }
+    [Parameter] public string? PreviewTopic { get; set; }
+    [Parameter] public TicketPriority? PreviewPriority { get; set; }
+    [Parameter] public string? PreviewRequesterUserId { get; set; }
+    [Parameter] public string? PreviewAffectedUserId { get; set; }
+
+    /// <summary>Adds the SLA-due row (agent/admin workspace view only).</summary>
+    [Parameter] public bool ForAgent { get; set; }
+
+    private readonly string _headingId = "sum-h-" + Guid.NewGuid().ToString("N");
+
+    private TicketStatus StatusValue => Ticket?.Status ?? TicketStatus.Open;
+    private TicketPriority PriorityValue => Ticket?.Priority ?? PreviewPriority ?? TicketPriority.Normal;
+    private string? TopicId => Ticket?.Topic ?? PreviewTopic;
+    private string TopicLabel => TopicId is not null ? (TicketTopics.Find(TopicId)?.Label ?? TopicId) : "—";
+    private string DepartmentValue => Ticket?.Department ?? (TopicId is not null ? TicketTopics.Find(TopicId)?.Department ?? "—" : "—");
+    private DateTimeOffset CreatedValue => Ticket?.Created ?? DateTimeOffset.UtcNow;
+    private DateTimeOffset SlaDue => CreatedValue.AddHours(TopSupport.Services.Tickets.TicketSla.SlaHours[PriorityValue]);
+
+    private string? RequesterUserId => Ticket?.RequesterUserId ?? PreviewRequesterUserId;
+    private string? AffectedUserId => Ticket?.AffectedUserId ?? PreviewAffectedUserId;
+
+    private UserDto? RequesterUser => Lookup.FindUser(RequesterUserId);
+    private UserDto? AffectedUser => Lookup.FindUser(AffectedUserId);
+
+    private string AssigneeLabel
+    {
+        get
+        {
+            if (Ticket is not null)
+            {
+                if (!string.IsNullOrEmpty(Ticket.AssignedAgentId))
+                {
+                    var agent = Lookup.FindAgent(Ticket.AssignedAgentId);
+                    return agent?.Name ?? Ticket.AssignedAgentId;
+                }
+
+                if (!string.IsNullOrEmpty(Ticket.AssignedTeamId))
+                {
+                    var team = Lookup.FindTeam(Ticket.AssignedTeamId);
+                    return team?.Name ?? Ticket.AssignedTeamId;
+                }
+
+                return "Unassigned";
+            }
+
+            // Preview mode: show the topic's default team (Infrastructure topics -> that
+            // dept's team, else the other -- matches createTicket()'s team default, though the
+            // exact team id mapping lives server-side; here we just show the department name
+            // as the best preview-time approximation since team ids aren't resolvable client-side
+            // without a ticket).
+            return TopicId is not null ? $"{TicketTopics.Find(TopicId)?.Department} team" : "—";
+        }
+    }
+}

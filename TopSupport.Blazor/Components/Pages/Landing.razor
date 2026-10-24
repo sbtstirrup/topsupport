@@ -1,0 +1,19 @@
+@page "/"
+@layout Layout.PublicLayout
+@inject NavigationManager Nav
+
+<PageTitle>TopSupport</PageTitle>
+
+<section class="card hero">
+    <div>
+        <h1>Need help with IT?</h1>
+        <p>Raise a ticket and the TopCashback IT team will pick it up. You can follow progress, reply to the team and see every update in one place.</p>
+        <div class="hero-actions">
+            <button type="button" class="btn btn-primary btn-lg" @onclick="@(() => Nav.NavigateTo("/signin"))">
+                @((MarkupString)IconLibrary.Render("plus", 20, 2.5)) Raise a Ticket
+            </button>
+            <button type="button" class="btn btn-secondary btn-lg" @onclick="@(() => Nav.NavigateTo("/signin"))">Sign in</button>
+        </div>
+        <p class="login-help">Can't sign in? Email <strong>itsupport@topcashback.example</strong></p>
+    </div>
+</section>

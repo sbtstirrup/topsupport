@@ -1,0 +1,10 @@
+@page "/profile"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.User, AppRole.Agent, AppRole.Admin }">
+    <ComingSoon Title="My Profile" Icon="user" Message="Contact details and password change (see PAGES.profile in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("My Profile", "Your contact details and password.");
+}

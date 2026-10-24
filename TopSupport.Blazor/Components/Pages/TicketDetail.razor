@@ -1,0 +1,385 @@
+@page "/tickets/{Id}"
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using TopSupport.Blazor.Components.Shared
+@using TopSupport.Blazor.Models
+@using TopSupport.Models.Enums
+@using TopSupport.Models.People
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Tickets.FieldSchema
+@inject PageHeadingState Heading
+@inject SessionState Session
+@inject LookupDataService Lookup
+@inject TopSupportApiClient Api
+@inject NavigationManager Nav
+
+<RoleGate AllowedRoles="new[] { AppRole.User }">
+    @if (!_loaded)
+    {
+        <div class="card"><div class="empty"><p>Loading ticket&hellip;</p></div></div>
+    }
+    else if (_ticket is null)
+    {
+        <div class="card">
+            <div class="empty">
+                <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
+                <h3>We could not find that ticket</h3>
+                <p>It may have been merged into another ticket, or it belongs to someone else.</p>
+                <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/my-tickets"))">Back to My Tickets</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="stack">
+            @if (_showCreatedBanner)
+            {
+                <div class="notice" role="status">
+                    @((MarkupString)IconLibrary.Render("check", 18))
+                    <span><span class="notice-title">Ticket created.</span> We aim to respond within @TopSupport.Services.Tickets.TicketSla.SlaHours[_ticket.Priority] hours and will email @(_requesterUser?.Email ?? "you").</span>
+                </div>
+            }
+
+            <div class="card tv-head">
+                <div style="flex:1;min-width:220px">
+                    <div class="tv-num">#@_ticket.Number &middot; @TopicLabel(_ticket.Topic)</div>
+                    <h2>@_ticket.Subject</h2>
+                    <div class="row" style="margin-top:8px">
+                        <StatusBadge Status="@_ticket.Status" />
+                        <PriorityBadge Priority="@_ticket.Priority" />
+                    </div>
+                </div>
+                <div class="row">
+                    <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/my-tickets"))">
+                        @((MarkupString)IconLibrary.Render("back", 16))My Tickets
+                    </button>
+                </div>
+            </div>
+
+            <div class="stack">
+                <TicketSummaryPanel Ticket="_ticket" ForAgent="false" />
+
+                <section class="card panel" aria-labelledby="tp-h">
+                    <h2 class="panel-title" id="tp-h"><span>@TopicLabel(_ticket.Topic) Details</span></h2>
+                    @foreach (var (label, value) in TopicAnswers)
+                    {
+                        <div class="kv">
+                            <span>@label</span>
+                            <div>
+                                @if (string.IsNullOrEmpty(value))
+                                {
+                                    <span class="muted">Not answered</span>
+                                }
+                                else
+                                {
+                                    @value
+                                }
+                            </div>
+                        </div>
+                    }
+                </section>
+
+                @if (_ticket.Status == TicketStatus.Closed)
+                {
+                    <div class="card pad-sm">
+                        <div class="notice">
+                            @((MarkupString)IconLibrary.Render("lock", 18))
+                            <span><span class="notice-title">This ticket is closed.</span> You can't reply to it. If you still need help, raise a new ticket and mention #@_ticket.Number.</span>
+                        </div>
+                        <div class="row" style="margin-top:12px">
+                            <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/raise"))">
+                                @((MarkupString)IconLibrary.Render("plus", 16))Raise a New Ticket
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <section class="card pad-sm stack-16 reply-card" aria-labelledby="rp-h">
+                        <h2 class="panel-title" id="rp-h" style="margin:0">Reply</h2>
+
+                        @if (_ticket.Status == TicketStatus.Resolved || _ticket.Status == TicketStatus.AwaitingUser)
+                        {
+                            <div class="warn" role="status">
+                                @((MarkupString)IconLibrary.Render("alert", 18))
+                                <span><strong>Replying will reopen this ticket.</strong> If your problem is fixed you don't need to reply.</span>
+                            </div>
+                        }
+
+                        <RichTextEditor @bind-Html="_replyHtml" Label="Your Message" Required="true" Placeholder="Write your reply to the IT team" ErrorMessage="@_replyError" />
+                        <FileUploadDropzone Label="Attachments (Optional)" Attachments="_stagedReplyAttachments" AttachmentsChanged="OnReplyAttachmentsChanged" OnUploadFile="StageReplyFileAsync" />
+
+                        <div class="row">
+                            <button type="button" class="btn btn-primary" disabled="@_isPostingReply" @onclick="PostReplyAsync">
+                                @((MarkupString)IconLibrary.Render("send", 16))@(_ticket.Status == TicketStatus.Resolved ? "Post Reply and Reopen" : "Post Reply")
+                            </button>
+                            <button type="button" class="btn btn-ghost" @onclick="ClearReply">Clear</button>
+                        </div>
+                    </section>
+                }
+
+                <section class="card panel" aria-labelledby="tl-h">
+                    <h2 class="panel-title" id="tl-h">Timeline</h2>
+                    <ol class="timeline" aria-label="Ticket timeline">
+                        @foreach (var e in VisibleTimeline)
+                        {
+                            @if (e.Kind == TicketTimelineEntryKind.Event)
+                            {
+                                <li class="tl-event">
+                                    <span class="tl-dot">@((MarkupString)IconLibrary.Render(EventIcon(e.Text ?? ""), 15))</span>
+                                    <span>@e.Text</span>
+                                    <time datetime="@e.At.ToString("O")" title="@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
+                                </li>
+                            }
+                            else
+                            {
+                                var isAgent = e.By.Type == "agent";
+                                var personName = (isAgent ? Lookup.FindAgent(e.By.Id)?.Name : Lookup.FindUser(e.By.Id)?.Name) ?? "Unknown";
+                                var isMe = Session.AccountId == e.By.Id;
+                                <li class="tl-msg">
+                                    <span class="avatar @(isAgent ? "agent" : "")" aria-hidden="true">@Initials(personName)</span>
+                                    <article class="msg @(isAgent ? "" : "user")" aria-label="Message from @personName">
+                                        <header class="msg-head">
+                                            <strong>@personName</strong>
+                                            @if (isAgent)
+                                            {
+                                                <span class="tag tag-green">IT Support</span>
+                                            }
+                                            else if (isMe)
+                                            {
+                                                <span class="tag tag-grey">You</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="tag tag-grey">@(e.By.Id == _ticket.RequesterUserId ? "Requester" : "User")</span>
+                                            }
+                                            <time datetime="@e.At.ToString("O")" title="@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
+                                        </header>
+                                        <div class="msg-body">@((MarkupString)(e.Html ?? string.Empty))</div>
+                                        @{ var entryFiles = AttachmentsFor(e.Id); }
+                                        @if (entryFiles.Count > 0)
+                                        {
+                                            <div class="msg-files">
+                                                @foreach (var file in entryFiles)
+                                                {
+                                                    <span class="tag tag-outline">@((MarkupString)IconLibrary.Render("clip", 12))@file.FileName</span>
+                                                }
+                                            </div>
+                                        }
+                                    </article>
+                                </li>
+                            }
+                        }
+                    </ol>
+                </section>
+            </div>
+        </div>
+    }
+</RoleGate>
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "created")]
+    public string? CreatedFlag { get; set; }
+
+    private bool _loaded;
+    private TicketDto? _ticket;
+    private UserDto? _requesterUser;
+    private List<TicketFieldDescriptor> _fieldSchema = new();
+    private bool _showCreatedBanner;
+
+    private string _replyHtml = string.Empty;
+    private string? _replyError;
+    private readonly List<(AttachmentRef Reference, IBrowserFile File)> _stagedReplyFiles = new();
+    private List<AttachmentRef> _stagedReplyAttachments = new();
+    private bool _isPostingReply;
+
+    protected override void OnParametersSet() => Heading.SetHeading($"Ticket #{Id}");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loaded = false;
+        _ticket = await Api.GetTicketAsync(Id);
+        await Lookup.GetUsersAsync();
+        await Lookup.GetAgentsAsync();
+        await Lookup.GetTeamsAsync();
+
+        if (_ticket is not null)
+        {
+            if (_ticket.RequesterUserId != Session.AccountId && _ticket.AffectedUserId != Session.AccountId)
+            {
+                Nav.NavigateTo(Session.HomeRoute());
+                return;
+            }
+
+            _requesterUser = Lookup.FindUser(_ticket.RequesterUserId);
+            _fieldSchema = (await Api.GetFieldSchemaAsync(_ticket.Topic, _ticket.AffectedUserId)).ToList();
+            _showCreatedBanner = CreatedFlag == "1";
+        }
+
+        _loaded = true;
+    }
+
+    private static string TopicLabel(string topicId) => TicketTopics.Find(topicId)?.Label ?? topicId;
+
+    private List<(string Label, string Value)> TopicAnswers
+    {
+        get
+        {
+            if (_ticket is null) return new();
+            var result = new List<(string, string)>();
+            foreach (var d in _fieldSchema)
+            {
+                if (d.Type == TicketFieldType.Banner) continue;
+                if (d.ShowWhen is not null && !d.ShowWhen.Evaluate(_ticket.Fields)) continue;
+
+                if (d.Type == TicketFieldType.Files)
+                {
+                    // Attachments live in TicketAttachments, not in Fields -- show the files
+                    // uploaded at ticket-creation time (TimelineEntryId == null), matching
+                    // the JS demo's "files" answerText (filenames, one per line).
+                    var createdFiles = _ticket.Attachments.Where(a => a.TimelineEntryId is null).ToList();
+                    result.Add((d.Label.Replace(" (Optional)", ""), string.Join(", ", createdFiles.Select(f => f.FileName))));
+                    continue;
+                }
+
+                _ticket.Fields.TryGetValue(d.Key, out var raw);
+                result.Add((d.Label, FormatFieldValue(d, raw)));
+            }
+            return result;
+        }
+    }
+
+    private List<TicketAttachmentDto> AttachmentsFor(string timelineEntryId) =>
+        _ticket?.Attachments.Where(a => a.TimelineEntryId == timelineEntryId).ToList() ?? new();
+
+    /// <summary>Mirrors answerText(t, d, v) in the JS demo: resolve Select/Radio/Checks values
+    /// to their option labels (not raw keys like "cant" or "desk") via the field's option list,
+    /// special-casing "location" (desk includes the affected user's office, matching the demo).</summary>
+    private string FormatFieldValue(TicketFieldDescriptor d, object? raw)
+    {
+        var values = ExtractValues(raw);
+        if (values.Count == 0) return string.Empty;
+
+        if (d.Key == "location")
+        {
+            var v = values[0];
+            if (v == "desk")
+            {
+                var office = _requesterUser is not null && _ticket?.AffectedUserId == _ticket?.RequesterUserId
+                    ? _requesterUser.Office
+                    : Lookup.FindUser(_ticket?.AffectedUserId)?.Office;
+                return "Affected user's desk" + (string.IsNullOrEmpty(office) ? "" : $": {office}");
+            }
+            if (v == "other") return "Different location";
+            if (v == "remote") return "Remote — needs collecting or a courier";
+        }
+
+        var options = d.StaticOptions;
+        if (options is { Count: > 0 })
+        {
+            var labelled = values.Select(v => options.FirstOrDefault(o => o.Value == v)?.Label ?? v);
+            return string.Join(", ", labelled);
+        }
+
+        return string.Join(", ", values);
+    }
+
+    private static List<string> ExtractValues(object? raw)
+    {
+        if (raw is null) return new();
+
+        if (raw is System.Text.Json.JsonElement je)
+        {
+            if (je.ValueKind == System.Text.Json.JsonValueKind.Array)
+                return je.EnumerateArray().Select(x => x.ToString()).Where(s => !string.IsNullOrEmpty(s)).ToList();
+            if (je.ValueKind == System.Text.Json.JsonValueKind.String)
+                return string.IsNullOrEmpty(je.GetString()) ? new() : new List<string> { je.GetString()! };
+            if (je.ValueKind == System.Text.Json.JsonValueKind.Null) return new();
+            return new List<string> { je.ToString() };
+        }
+
+        if (raw is List<string> list) return list.Where(s => !string.IsNullOrEmpty(s)).ToList();
+
+        var s2 = raw.ToString();
+        return string.IsNullOrEmpty(s2) ? new() : new List<string> { s2 };
+    }
+
+    /// <summary>End users must never see internal notes -- this filter is the hard requirement.</summary>
+    private List<TicketTimelineEntryDto> VisibleTimeline =>
+        _ticket?.Timeline
+            .Where(e => e.Kind != TicketTimelineEntryKind.Note)
+            .OrderBy(e => e.At)
+            .ToList() ?? new();
+
+    private static string EventIcon(string text) =>
+        text.StartsWith("Created") ? "plus" :
+        (text.StartsWith("Assigned") || text.StartsWith("Transferred")) ? "user" :
+        text.StartsWith("Closed") ? "lock" :
+        text.StartsWith("Reopened") ? "refresh" :
+        text.Contains("Priority") ? "flag" :
+        (text.Contains("ask") || text.Contains("Task")) ? "task" :
+        "clock";
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+
+    private Task<AttachmentRef> StageReplyFileAsync(IBrowserFile file)
+    {
+        var reference = new AttachmentRef(null, file.Name, file.Size, file.ContentType);
+        _stagedReplyFiles.Add((reference, file));
+        return Task.FromResult(reference);
+    }
+
+    private Task OnReplyAttachmentsChanged(List<AttachmentRef> files)
+    {
+        _stagedReplyAttachments = files;
+        _stagedReplyFiles.RemoveAll(f => !files.Contains(f.Reference));
+        return Task.CompletedTask;
+    }
+
+    private void ClearReply()
+    {
+        _replyHtml = string.Empty;
+        _replyError = null;
+        _stagedReplyFiles.Clear();
+        _stagedReplyAttachments = new();
+    }
+
+    private async Task PostReplyAsync()
+    {
+        if (_ticket is null || _isPostingReply) return;
+
+        var plainText = System.Text.RegularExpressions.Regex.Replace(_replyHtml ?? string.Empty, "<[^>]*>", string.Empty).Trim();
+        if (string.IsNullOrEmpty(plainText) && !_replyHtml.Contains("<img", StringComparison.OrdinalIgnoreCase))
+        {
+            _replyError = "Write a message before posting.";
+            return;
+        }
+
+        _replyError = null;
+        _isPostingReply = true;
+        try
+        {
+            var request = new AddUserReplyRequest { UserId = Session.AccountId, Html = _replyHtml };
+            var updated = await Api.AddUserReplyAsync(_ticket.Id, request);
+
+            foreach (var (_, file) in _stagedReplyFiles)
+            {
+                await Api.UploadAttachmentAsync(updated.Id, file, "user", Session.AccountId);
+            }
+
+            // Refresh in place so the new reply (and any reopened status) appears immediately.
+            _ticket = await Api.GetTicketAsync(_ticket.Id) ?? updated;
+            ClearReply();
+        }
+        finally
+        {
+            _isPostingReply = false;
+        }
+    }
+}

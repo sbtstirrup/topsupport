@@ -1,0 +1,89 @@
+@* Renders ModalState.Content inside the demo's .modal-back/.modal/.modal-head/.modal-body/
+   .modal-foot chrome (see modalHTML() in topsupport-app.js). Mounted once in MainLayout.razor,
+   only while Session.IsSignedIn. Callers (modals built elsewhere) supply their own title/body/
+   foot markup as a RenderFragment via ModalState.Show(...) -- this component only owns the
+   backdrop, Escape-to-close, and click-outside-to-close behaviour. *@
+@implements IAsyncDisposable
+@inject ModalState Modal
+@inject IJSRuntime JS
+
+@if (Modal.IsOpen)
+{
+    <div class="modal-back" @onclick="OnBackdropClick">
+        <div class="modal card @(Modal.Wide ? "wide" : "")" role="dialog" aria-modal="true" @onclick:stopPropagation="true">
+            @Modal.Content
+        </div>
+    </div>
+}
+
+<script type="module" src="@Assets["Components/Shared/ModalHost.razor.js"]"></script>
+
+@code {
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<ModalHost>? _selfRef;
+    private bool _attached;
+
+    protected override void OnInitialized()
+    {
+        Modal.Changed += OnModalChanged;
+    }
+
+    private void OnModalChanged() => InvokeAsync(async () =>
+    {
+        StateHasChanged();
+        await SyncJsAttachment();
+    });
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Matches ReconnectModal's colocation pattern: the <script type="module"> tag above
+            // (using @Assets[...] for the fingerprinted URL) registers the module; it's also
+            // importable directly here for invoking its exports from C#.
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Shared/ModalHost.razor.js");
+        }
+    }
+
+    private async Task SyncJsAttachment()
+    {
+        if (_module is null) return;
+
+        if (Modal.IsOpen && !_attached)
+        {
+            _selfRef = DotNetObjectReference.Create(this);
+            await _module.InvokeVoidAsync("attach", null, _selfRef);
+            _attached = true;
+        }
+        else if (!Modal.IsOpen && _attached)
+        {
+            await _module.InvokeVoidAsync("detach");
+            _selfRef?.Dispose();
+            _selfRef = null;
+            _attached = false;
+        }
+    }
+
+    [JSInvokable]
+    public void OnEscape() => Modal.Close();
+
+    private void OnBackdropClick() => Modal.Close();
+
+    public async ValueTask DisposeAsync()
+    {
+        Modal.Changed -= OnModalChanged;
+        _selfRef?.Dispose();
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("detach");
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit already gone -- nothing to clean up client-side.
+            }
+        }
+    }
+}

@@ -1,0 +1,10 @@
+@page "/users"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Users" Icon="users" Message="The user list, search and filters (see PAGES.users in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("Users", "End users who can raise tickets.");
+}

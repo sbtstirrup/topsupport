@@ -1,0 +1,55 @@
+@* Hardware-topic cross-reference: "other open tickets mentioning this same asset tag" --
+   useful context for an agent working a hardware ticket (e.g. "this laptop already has 2 other
+   open tickets"). DEFERRED/BEST-EFFORT per the Tier 3 plan: there is no by-asset-tag ticket
+   query on the Api (TicketsController has no such endpoint, and Fields is a free-form JSON
+   dictionary server-side with no indexed/queryable "device tag" column), so this component
+   does NOT call the Api itself. Instead the host page (AgentTicketDetail, built by the next
+   agent) must pass in an already-fetched candidate list -- e.g. the current queue/open-tickets
+   page it already has loaded -- and this component does the client-side filter-by-tag over
+   that list. If no such list is convenient to pass, skip rendering this component; it is
+   explicitly a nice-to-have, not a blocking dependency for ticket detail pages. *@
+@using TopSupport.Models.Tickets
+
+<section class="card panel">
+    <h2 class="panel-title">Other tickets for this device</h2>
+    @if (OtherTickets.Count == 0)
+    {
+        <p class="hint">No other tickets reference asset tag @AssetTag.</p>
+    }
+    else
+    {
+        <ul class="ph-list">
+            @foreach (var t in OtherTickets)
+            {
+                <li class="ph">
+                    <a href="javascript:void(0)" @onclick="@(() => OnTicketClick.InvokeAsync(t.Id))" @onclick:preventDefault="true">#@t.Number &mdash; @t.Subject</a>
+                    <StatusBadge Status="@t.Status" />
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    /// <summary>The asset tag to cross-reference (e.g. the hardware topic's "device" field value).</summary>
+    [Parameter, EditorRequired] public string AssetTag { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Candidate tickets to filter (e.g. the agent's currently-loaded queue/open-tickets page).
+    /// See the component doc comment above -- there is no server-side by-asset-tag query, so
+    /// this is best-effort over whatever the host already has in memory, and ExcludeTicketId
+    /// should be set to the ticket currently being viewed.
+    /// </summary>
+    [Parameter] public IReadOnlyList<TicketDto> CandidateTickets { get; set; } = Array.Empty<TicketDto>();
+
+    [Parameter] public string? ExcludeTicketId { get; set; }
+
+    [Parameter] public EventCallback<string> OnTicketClick { get; set; }
+
+    private List<TicketDto> OtherTickets => CandidateTickets
+        .Where(t => t.Id != ExcludeTicketId && TicketMentionsTag(t))
+        .ToList();
+
+    private bool TicketMentionsTag(TicketDto t) =>
+        t.Fields.Values.Any(v => string.Equals(v?.ToString(), AssetTag, StringComparison.OrdinalIgnoreCase));
+}

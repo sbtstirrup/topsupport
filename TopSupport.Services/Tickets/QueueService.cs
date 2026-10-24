@@ -1,0 +1,156 @@
+using TopSupport.Models.Tickets;
+using TopSupport.Services.Abstractions;
+
+namespace TopSupport.Services.Tickets;
+
+/// <summary>
+/// Default IQueueService. Given PoC-scale data, loads the active/filtered set from
+/// ITicketRepository then applies queue membership (QUEUES), free-text/status/priority/
+/// topic/department/assignee filters (applyFilters), sorting (thSort keys) and paging (pager)
+/// entirely in C#, matching the demo's client-side logic rather than duplicating it in T-SQL.
+/// </summary>
+public class QueueService : IQueueService
+{
+    private readonly ITicketRepository _tickets;
+
+    public QueueService(ITicketRepository tickets)
+    {
+        _tickets = tickets;
+    }
+
+    public async Task<TicketQueuePageResult> SearchAsync(TicketQueueRequest request, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<TicketDto> source;
+
+        // The 4 active-derived queues (open/mine/overdue/answered), and a plain unfiltered
+        // search (no Queue specified), all start from the full active set so overdue/answered/
+        // mine can be computed client-side. "closed" and any other filtered combination use
+        // the filtered proc instead, since the active set never contains closed tickets.
+        if (request.Queue is "open" or "mine" or "overdue" or "answered" or null)
+        {
+            source = await _tickets.GetActiveForQueueAsync(cancellationToken);
+        }
+        else
+        {
+            source = await _tickets.SearchForQueueAsync(
+                request.Queue == "closed" ? null : request.Status,
+                request.Priority,
+                request.Topic,
+                request.Department,
+                AssignedAgentIdFilter(request.Assignee),
+                AssignedTeamIdFilter(request.Assignee),
+                request.SearchText,
+                cancellationToken);
+        }
+
+        IEnumerable<TicketDto> filtered = request.Queue switch
+        {
+            "open" => source.Where(TicketSla.IsActive),
+            "mine" => source.Where(t => TicketSla.IsActive(t) && t.AssignedAgentId == request.ActingAgentId),
+            "overdue" => source.Where(TicketSla.IsOverdue),
+            "answered" => source.Where(TicketSla.IsAnswered),
+            "closed" => source.Where(t => !TicketSla.IsActive(t)),
+            _ => source
+        };
+
+        filtered = ApplyFilters(filtered, request);
+
+        var sorted = ApplySort(filtered, request.SortKey, request.SortDescending).ToList();
+
+        var page = Math.Max(1, request.Page);
+        var pageSize = Math.Max(1, request.PageSize);
+        var items = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return new TicketQueuePageResult
+        {
+            Items = items,
+            TotalCount = sorted.Count,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<TicketNavCountsDto> GetNavCountsAsync(string? userId, string? agentId, CancellationToken cancellationToken = default)
+    {
+        var result = new TicketNavCountsDto();
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            var mine = await _tickets.GetByRequesterOrAffectedAsync(userId, cancellationToken);
+            result.MyOpenTickets = mine.Count(TicketSla.IsActive);
+        }
+
+        var active = await _tickets.GetActiveForQueueAsync(cancellationToken);
+        result.QueueOpen = active.Count(TicketSla.IsActive);
+        result.QueueOverdue = active.Count(TicketSla.IsOverdue);
+        result.QueueAnswered = active.Count(TicketSla.IsAnswered);
+        if (!string.IsNullOrEmpty(agentId))
+        {
+            result.QueueMine = active.Count(t => TicketSla.IsActive(t) && t.AssignedAgentId == agentId);
+        }
+
+        var closed = await _tickets.SearchForQueueAsync(null, null, null, null, null, null, null, cancellationToken);
+        result.QueueClosed = closed.Count(t => !TicketSla.IsActive(t));
+
+        return result;
+    }
+
+    private static string? AssignedAgentIdFilter(string? assignee) =>
+        assignee != null && assignee.StartsWith("a:", StringComparison.Ordinal) ? assignee[2..] : null;
+
+    private static string? AssignedTeamIdFilter(string? assignee) =>
+        assignee != null && assignee.StartsWith("t:", StringComparison.Ordinal) ? assignee[2..] : null;
+
+    private static IEnumerable<TicketDto> ApplyFilters(IEnumerable<TicketDto> list, TicketQueueRequest request)
+    {
+        var q = (request.SearchText ?? string.Empty).Trim().ToLowerInvariant();
+
+        return list.Where(t =>
+        {
+            if (!string.IsNullOrEmpty(request.Status) && t.Status.ToString() != request.Status) return false;
+            if (!string.IsNullOrEmpty(request.Priority) && t.Priority.ToString() != request.Priority) return false;
+            if (!string.IsNullOrEmpty(request.Topic) && t.Topic != request.Topic) return false;
+            if (!string.IsNullOrEmpty(request.Department) && t.Department != request.Department) return false;
+
+            if (!string.IsNullOrEmpty(request.Assignee))
+            {
+                if (request.Assignee == "me" && t.AssignedAgentId != request.ActingAgentId) return false;
+                if (request.Assignee == "none" && t.AssignedAgentId != null) return false;
+                if (request.Assignee.StartsWith("a:", StringComparison.Ordinal) && t.AssignedAgentId != request.Assignee[2..]) return false;
+                if (request.Assignee.StartsWith("t:", StringComparison.Ordinal) && t.AssignedTeamId != request.Assignee[2..]) return false;
+            }
+
+            if (q.Length > 0)
+            {
+                var hay = ("#" + t.Number + " " + t.Subject + " " +
+                           string.Join(' ', t.Fields.Values.Where(v => v is string).Select(v => (string)v!)))
+                    .ToLowerInvariant();
+                if (!hay.Contains(q)) return false;
+            }
+
+            return true;
+        });
+    }
+
+    private static IEnumerable<TicketDto> ApplySort(IEnumerable<TicketDto> list, string? sortKey, bool descending)
+    {
+        Func<TicketDto, object> keySelector = sortKey switch
+        {
+            "num" => t => t.Number,
+            "subject" => t => t.Subject,
+            "requester" => t => t.RequesterUserId,
+            "affected" => t => t.AffectedUserId,
+            "topic" => t => t.Topic,
+            "priority" => t => t.Priority,
+            "sla" => t => TicketSla.SlaDue(t),
+            "assignee" => t => t.AssignedAgentId ?? t.AssignedTeamId ?? string.Empty,
+            "status" => t => t.Status,
+            "created" => t => t.Created,
+            _ => t => t.Created
+        };
+
+        // No explicit sort key defaults to newest-first, matching the queue's default order.
+        var effectiveDescending = sortKey == null ? true : descending;
+        return effectiveDescending ? list.OrderByDescending(keySelector) : list.OrderBy(keySelector);
+    }
+}

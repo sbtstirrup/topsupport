@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="TopSupport.Api/TopSupport.Api.csproj" />
+  <Project Path="TopSupport.Blazor/TopSupport.Blazor.csproj" />
+  <Project Path="TopSupport.Models/TopSupport.Models.csproj" />
+  <Project Path="TopSupport.Services/TopSupport.Services.csproj" />
+</Solution>

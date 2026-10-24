@@ -1,0 +1,10 @@
+@page "/agents"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Agents and Teams" Icon="team" Message="Agent and team management (see PAGES.agents in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("Agents and Teams", "IT staff, their departments and roles, and the teams they belong to.");
+}

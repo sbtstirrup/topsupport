@@ -1,0 +1,320 @@
+@page "/canned"
+@using TopSupport.Models.Tickets
+@implements IAsyncDisposable
+@inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject IJSRuntime JS
+
+<RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
+    <div class="side-col" style="grid-template-columns:300px minmax(0,1fr)">
+        <section class="card panel" aria-labelledby="cn-list-h">
+            <div class="panel-title">
+                <h2 id="cn-list-h" style="font-size:15px">Library (@_responses.Count)</h2>
+                <button type="button" class="btn btn-primary btn-sm" @onclick="NewResponse">
+                    @((MarkupString)IconLibrary.Render("plus", 14))New
+                </button>
+            </div>
+            @if (_responses.Count == 0)
+            {
+                <p class="hint">Create one to save time on common replies.</p>
+            }
+            else
+            {
+                @foreach (var c in _responses)
+                {
+                    <button type="button" class="list-item @(_selectedId == c.Id ? "active" : "")"
+                            aria-current="@(_selectedId == c.Id ? "true" : null)" @onclick="@(() => Pick(c))">
+                        @((MarkupString)IconLibrary.Render("note", 18))
+                        <span style="flex:1;min-width:0">
+                            <strong style="font-size:14px">@c.Title</strong>
+                            <span class="cell-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@Preview(c.Body)</span>
+                        </span>
+                    </button>
+                }
+            }
+        </section>
+
+        <div class="side-col">
+            <form class="card pad stack-16" novalidate aria-labelledby="cn-h" @onsubmit:preventDefault="true">
+                <h2 id="cn-h" class="card-title" style="margin:0">@(_isNew ? "New Canned Response" : "Edit Canned Response")</h2>
+
+                <div class="field full">
+                    <label class="field-label" for="cn-title">Title<span class="star" aria-hidden="true"> *</span></label>
+                    <input class="input @(_titleError is null ? "" : "invalid")" id="cn-title" type="text"
+                           placeholder="For example Courier collection booked" @bind="_title" @bind:event="oninput" />
+                    @if (_titleError is not null)
+                    {
+                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_titleError</span>
+                    }
+                </div>
+
+                <div class="field full">
+                    <label class="field-label" for="cn-body">Message<span class="star" aria-hidden="true"> *</span></label>
+                    <textarea class="input @(_bodyError is null ? "" : "invalid")" id="cn-body" rows="10" placeholder="Hi {recipient.first},"
+                              @ref="_bodyRef" @bind="_body" @bind:event="oninput"></textarea>
+                    @if (_bodyError is not null)
+                    {
+                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_bodyError</span>
+                    }
+                </div>
+
+                <div class="stack-8">
+                    <span class="section-title">Preview with sample ticket</span>
+                    <div class="msg">
+                        <div class="msg-body">@((MarkupString)RenderPreviewHtml())</div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                        @((MarkupString)IconLibrary.Render("save", 16))@(_isNew ? "Create Response" : "Save Changes")
+                    </button>
+                    @if (!_isNew)
+                    {
+                        <button type="button" class="btn btn-ghost" @onclick="@(() => _confirmingDelete = true)">
+                            @((MarkupString)IconLibrary.Render("trash", 16))Delete
+                        </button>
+                    }
+                </div>
+
+                @if (_confirmingDelete)
+                {
+                    <div class="notice alert">
+                        @((MarkupString)IconLibrary.Render("alert", 18))
+                        <span>
+                            <span class="notice-title">Delete “@_title”?</span>
+                            This will be removed for every agent. Replies already sent are not changed.
+                            <div class="row" style="margin-top:8px">
+                                <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => _confirmingDelete = false)">Cancel</button>
+                                <button type="button" class="btn btn-primary btn-sm" @onclick="DeleteAsync">Delete</button>
+                            </div>
+                        </span>
+                    </div>
+                }
+            </form>
+
+            <aside class="card panel" aria-labelledby="ph-h">
+                <h2 class="panel-title" id="ph-h">Placeholders</h2>
+                <p class="hint" style="margin-bottom:10px">Click Insert to add one at the cursor.</p>
+                <div class="ph-list">
+                    @foreach (var p in Placeholders)
+                    {
+                        <div class="ph">
+                            <span><code>@p.Token</code><span class="cell-sub">@p.Description</span></span>
+                            <button type="button" @onclick="@(() => InsertPlaceholderAsync(p.Token))" aria-label="Insert @p.Token">Insert</button>
+                        </div>
+                    }
+                </div>
+            </aside>
+        </div>
+    </div>
+</RoleGate>
+
+@code {
+    private static readonly (string Token, string Description)[] Placeholders =
+    {
+        ("{ticket.number}", "Ticket number"),
+        ("{ticket.subject}", "Ticket subject"),
+        ("{ticket.status}", "Current status"),
+        ("{ticket.priority}", "Priority"),
+        ("{ticket.sla_due}", "SLA response due"),
+        ("{recipient.name}", "Requester's full name"),
+        ("{recipient.first}", "Requester's first name"),
+        ("{recipient.email}", "Requester's email"),
+        ("{agent.name}", "Your full name"),
+        ("{agent.first}", "Your first name"),
+        ("{agent.phone}", "Your phone or extension"),
+    };
+
+    // Fallback sample values, mirroring fillPlaceholders(text, null) / CannedResponseService's
+    // no-ticket branch exactly, so the live preview matches the server's sample-data preview
+    // without needing a round trip (and works for drafts that aren't saved yet).
+    private static readonly Dictionary<string, string> SampleValues = new()
+    {
+        ["ticket.number"] = "#060012",
+        ["ticket.subject"] = "Laptop will not charge",
+        ["ticket.status"] = "Open",
+        ["ticket.priority"] = "Normal",
+        ["ticket.sla_due"] = DateTimeOffset.UtcNow.ToString("dd/MM/yyyy, HH:mm"),
+        ["recipient.name"] = "Amira Patel",
+        ["recipient.first"] = "Amira",
+        ["recipient.email"] = "amira.patel@topcashback.example",
+        ["agent.name"] = "Amira Patel",
+        ["agent.first"] = "Amira",
+        ["agent.phone"] = string.Empty,
+    };
+
+    private List<CannedResponseDto> _responses = new();
+    private string _selectedId = "new";
+    private bool _isNew = true;
+    private string _title = string.Empty;
+    private string _body = string.Empty;
+    private string? _titleError;
+    private string? _bodyError;
+    private bool _saving;
+    private bool _confirmingDelete;
+
+    private ElementReference _bodyRef;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized() => Heading.SetHeading("Canned Responses", "Reusable replies. Placeholders are filled in when you insert one into a ticket.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/Canned.razor.js");
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _responses = (await Api.GetCannedResponsesAsync()).OrderBy(c => c.SortOrder).ToList();
+        var first = _responses.FirstOrDefault();
+        if (first is not null)
+        {
+            Pick(first);
+        }
+        else
+        {
+            NewResponse();
+        }
+    }
+
+    private static string Preview(string body) => body.Replace("\n", " ").Length > 70
+        ? body.Replace("\n", " ")[..70]
+        : body.Replace("\n", " ");
+
+    private void Pick(CannedResponseDto c)
+    {
+        _selectedId = c.Id;
+        _isNew = false;
+        _title = c.Title;
+        _body = c.Body;
+        _titleError = null;
+        _bodyError = null;
+        _confirmingDelete = false;
+    }
+
+    private void NewResponse()
+    {
+        _selectedId = "new";
+        _isNew = true;
+        _title = string.Empty;
+        _body = string.Empty;
+        _titleError = null;
+        _bodyError = null;
+        _confirmingDelete = false;
+    }
+
+    private string RenderPreviewHtml()
+    {
+        var filled = FillPlaceholdersWithSampleData(_body);
+        // Plain-text body -> simple paragraph markup, matching the demo's textToHTML() for
+        // a non-rich-text source (one <p> per blank-line-separated block, <br> for single newlines).
+        var escaped = System.Net.WebUtility.HtmlEncode(filled);
+        var withBreaks = escaped.Replace("\r\n", "\n");
+        var paragraphs = withBreaks.Split("\n\n", StringSplitOptions.None)
+            .Select(p => "<p>" + p.Replace("\n", "<br>") + "</p>");
+        return string.Concat(paragraphs);
+    }
+
+    private static string FillPlaceholdersWithSampleData(string text)
+        => System.Text.RegularExpressions.Regex.Replace(text, @"\{([a-z_.]+)\}",
+            m => SampleValues.TryGetValue(m.Groups[1].Value, out var v) ? v : m.Value);
+
+    private async Task InsertPlaceholderAsync(string token)
+    {
+        if (_module is null) return;
+        // insertAtCursor splices the token into the textarea's DOM value at the cursor and
+        // returns the new value directly, so the preview can re-render immediately without a
+        // second round trip or relying on the dispatched "input" event's timing.
+        _body = await _module.InvokeAsync<string>("insertAtCursor", _bodyRef, token);
+        StateHasChanged();
+    }
+
+    private async Task SaveAsync()
+    {
+        _titleError = null;
+        _bodyError = null;
+
+        var title = _title.Trim();
+        if (string.IsNullOrEmpty(title))
+        {
+            _titleError = "Enter a title.";
+        }
+        else if (_responses.Any(c => c.Id != _selectedId && string.Equals(c.Title, title, StringComparison.OrdinalIgnoreCase)))
+        {
+            _titleError = "Another response already has this title.";
+        }
+
+        if (string.IsNullOrWhiteSpace(_body))
+        {
+            _bodyError = "Enter the message.";
+        }
+        else
+        {
+            var known = Placeholders.Select(p => p.Token).ToHashSet();
+            var unknown = System.Text.RegularExpressions.Regex.Matches(_body, @"\{[^}]+\}")
+                .Select(m => m.Value).Where(t => !known.Contains(t)).Distinct().ToList();
+            if (unknown.Count > 0)
+            {
+                _bodyError = "Unknown placeholder: " + string.Join(", ", unknown) + ". Use one from the list.";
+            }
+        }
+
+        if (_titleError is not null || _bodyError is not null) return;
+
+        _saving = true;
+        try
+        {
+            if (_isNew)
+            {
+                var created = await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body });
+                await LoadAsync();
+                var match = _responses.FirstOrDefault(c => c.Id == created.Id);
+                if (match is not null) Pick(match);
+            }
+            else
+            {
+                var updated = new CannedResponseDto { Id = _selectedId, Title = title, Body = _body, SortOrder = _responses.FirstOrDefault(c => c.Id == _selectedId)?.SortOrder ?? 0 };
+                await Api.UpdateCannedResponseAsync(updated);
+                await LoadAsync();
+                var match = _responses.FirstOrDefault(c => c.Id == _selectedId);
+                if (match is not null) Pick(match);
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        _confirmingDelete = false;
+        await Api.DeleteCannedResponseAsync(_selectedId);
+        await LoadAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+}
+
+<script type="module" src="@Assets["Components/Pages/Canned.razor.js"]"></script>

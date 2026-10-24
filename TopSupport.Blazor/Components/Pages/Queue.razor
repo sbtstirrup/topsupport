@@ -1,0 +1,344 @@
+@page "/queue/{QueueName}"
+@using TopSupport.Models.Enums
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Tickets.FieldSchema
+@using TopSupport.Blazor.Components.Shared
+@inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject LookupDataService Lookup
+@inject SessionState Session
+@inject ModalState ModalHost
+@inject NavigationManager Nav
+
+<RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
+    <div class="stack">
+        <div class="row between">
+            <div class="row">
+                @if (QueueName != "overdue" && _overdueCount > 0)
+                {
+                    <button type="button" class="tag overdue" style="cursor:pointer;min-height:32px" @onclick="@(() => Nav.NavigateTo("/queue/overdue"))">
+                        @((MarkupString)IconLibrary.Render("clock", 13))@_overdueCount overdue
+                    </button>
+                }
+                <span class="hint">@(_result?.TotalCount ?? 0) of @_baseCount tickets</span>
+            </div>
+            <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/new-ticket"))">
+                @((MarkupString)IconLibrary.Render("plus", 16))New Ticket
+            </button>
+        </div>
+
+        <section class="card" aria-label="@QueueTitle tickets">
+            <div class="filters">
+                <div class="field grow">
+                    <label class="field-label" for="qf-q">Search</label>
+                    <div class="search">
+                        @((MarkupString)IconLibrary.Render("search", 16))
+                        <input class="input" id="qf-q" type="search" value="@_searchText"
+                               @oninput="@(e => OnSearchChanged(e.Value?.ToString()))"
+                               placeholder="Number, subject, requester or details" />
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="qf-status">Status</label>
+                    <select class="input" id="qf-status" value="@_status" @onchange="@(e => OnStatusChanged(e.Value?.ToString()))">
+                        <option value="">Any status</option>
+                        @foreach (var s in Enum.GetValues<TicketStatus>())
+                        {
+                            <option value="@s">@EnumDisplay.Label(s)</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="qf-priority">Priority</label>
+                    <select class="input" id="qf-priority" value="@_priority" @onchange="@(e => OnPriorityChanged(e.Value?.ToString()))">
+                        <option value="">Any priority</option>
+                        @foreach (var p in Enum.GetValues<TicketPriority>())
+                        {
+                            <option value="@p">@EnumDisplay.Label(p)</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="qf-topic">Help topic</label>
+                    <select class="input" id="qf-topic" value="@_topic" @onchange="@(e => OnTopicChanged(e.Value?.ToString()))">
+                        <option value="">Any topic</option>
+                        @foreach (var t in TicketTopics.TOPICS)
+                        {
+                            <option value="@t.Id">@t.Label</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="qf-dept">Department</label>
+                    <select class="input" id="qf-dept" value="@_department" @onchange="@(e => OnDepartmentChanged(e.Value?.ToString()))">
+                        <option value="">Any department</option>
+                        @foreach (var d in TicketTopics.DEPTS)
+                        {
+                            <option value="@d">@d</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="qf-assignee">Assignee</label>
+                    <select class="input" id="qf-assignee" value="@_assignee" @onchange="@(e => OnAssigneeChanged(e.Value?.ToString()))">
+                        <option value="">Anyone</option>
+                        <option value="me">Me</option>
+                        <option value="none">No agent assigned</option>
+                        <optgroup label="Agents">
+                            @foreach (var a in _agents.Where(a => a.Active))
+                            {
+                                <option value="@("a:" + a.Id)">@a.Name</option>
+                            }
+                        </optgroup>
+                        <optgroup label="Teams">
+                            @foreach (var t in _teams)
+                            {
+                                <option value="@("t:" + t.Id)">@t.Name</option>
+                            }
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="row">
+                    @if (HasActiveFilters)
+                    {
+                        <button type="button" class="btn btn-ghost" @onclick="ClearFilters">
+                            @((MarkupString)IconLibrary.Render("x", 16))Clear Filters
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (_selectedIds.Count > 0)
+            {
+                <div class="bulkbar" role="region" aria-label="Bulk actions">
+                    <span>@_selectedIds.Count selected</span>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkAssign">@((MarkupString)IconLibrary.Render("user", 14))Assign</button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkChangeStatus">Change Status</button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkChangePriority">Change Priority</button>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkClose">@((MarkupString)IconLibrary.Render("lock", 14))Close</button>
+                    <button type="button" class="btn btn-ghost btn-sm" @onclick="@(() => SetSelected(new HashSet<string>()))">Clear Selection</button>
+                </div>
+            }
+
+            @if (_loading)
+            {
+                <div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div>
+            }
+            else if (_baseCount == 0)
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render(QueueName == "overdue" ? "check" : "inbox", 26))</span>
+                    <h3>@(QueueName == "overdue" ? "Nothing is overdue" : "This queue is empty")</h3>
+                    <p>@(QueueName == "overdue" ? "Every open ticket has had a response within its target." : "Tickets will appear here as they arrive.")</p>
+                </div>
+            }
+            else if ((_result?.TotalCount ?? 0) == 0)
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
+                    <h3>No tickets match these filters</h3>
+                    <p>Change or clear the filters to see more tickets.</p>
+                    <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
+                </div>
+            }
+            else
+            {
+                <QueueTable Tickets="_result!.Items" TotalCount="_result.TotalCount" ColumnSet="QueueTableColumnSet.Agent"
+                            SelectedIds="_selectedIds" SelectedIdsChanged="SetSelected"
+                            SortKey="_sortKey" SortKeyChanged="@(k => OnSortKeyChanged(k))"
+                            SortDirection="_sortDir" SortDirectionChanged="@(d => OnSortDirChanged(d))"
+                            PageNumber="_page" PageNumberChanged="@(p => OnPageChanged(p))" PageSize="_pageSize"
+                            OnRowClick="@(id => Nav.NavigateTo($"/agent-tickets/{id}"))"
+                            ActorNameResolver="ResolveActorName" TeamNameResolver="ResolveTeamName" />
+            }
+        </section>
+    </div>
+</RoleGate>
+
+@code {
+    [Parameter] public string QueueName { get; set; } = "open";
+
+    private string QueueTitle => QueueName switch
+    {
+        "mine" => "Assigned to Me",
+        "overdue" => "Overdue",
+        "answered" => "Answered",
+        "closed" => "Closed",
+        _ => "Open"
+    };
+
+    private TicketQueuePageResult? _result;
+    private bool _loading = true;
+    private int _baseCount;
+    private int _overdueCount;
+
+    private IReadOnlyList<TopSupport.Models.People.AgentDto> _agents = Array.Empty<TopSupport.Models.People.AgentDto>();
+    private IReadOnlyList<TopSupport.Models.People.TeamDto> _teams = Array.Empty<TopSupport.Models.People.TeamDto>();
+
+    private string _searchText = "";
+    private string _status = "";
+    private string _priority = "";
+    private string _topic = "";
+    private string _department = "";
+    private string _assignee = "";
+    private string _sortKey = "sla";
+    private string _sortDir = "asc";
+    private int _page = 1;
+    private readonly int _pageSize = 15;
+
+    private HashSet<string> _selectedIds = new();
+
+    private bool HasActiveFilters =>
+        !string.IsNullOrEmpty(_searchText) || !string.IsNullOrEmpty(_status) || !string.IsNullOrEmpty(_priority)
+        || !string.IsNullOrEmpty(_topic) || !string.IsNullOrEmpty(_department) || !string.IsNullOrEmpty(_assignee);
+
+    protected override void OnParametersSet()
+    {
+        Heading.SetHeading(QueueTitle, QueueDescription);
+    }
+
+    private string QueueDescription => QueueName switch
+    {
+        "mine" => "Active tickets assigned to you.",
+        "overdue" => "Open longer than the response target with no reply from an agent.",
+        "answered" => "Active tickets where the last public message came from IT Support.",
+        "closed" => "Resolved and closed tickets.",
+        _ => "Every ticket that is open, in progress or awaiting the user."
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _agents = await Lookup.GetAgentsAsync();
+        _teams = await Lookup.GetTeamsAsync();
+        await Lookup.GetUsersAsync();
+    }
+
+    private string? _lastQueueName;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_lastQueueName != QueueName)
+        {
+            // Changing queue (route param) resets filters/paging/selection, mirroring PAGES.queue.init().
+            _lastQueueName = QueueName;
+            _searchText = ""; _status = ""; _priority = ""; _topic = ""; _department = ""; _assignee = "";
+            _sortKey = QueueName == "closed" ? "created" : "sla";
+            _sortDir = QueueName == "closed" ? "desc" : "asc";
+            _page = 1;
+            _selectedIds = new();
+            await RefreshAsync();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var request = new TicketQueueRequest
+        {
+            Queue = QueueName,
+            ActingAgentId = Session.AccountId,
+            SearchText = string.IsNullOrWhiteSpace(_searchText) ? null : _searchText,
+            Status = string.IsNullOrEmpty(_status) ? null : _status,
+            Priority = string.IsNullOrEmpty(_priority) ? null : _priority,
+            Topic = string.IsNullOrEmpty(_topic) ? null : _topic,
+            Department = string.IsNullOrEmpty(_department) ? null : _department,
+            Assignee = string.IsNullOrEmpty(_assignee) ? null : _assignee,
+            SortKey = _sortKey,
+            SortDescending = _sortDir == "desc",
+            Page = _page,
+            PageSize = _pageSize
+        };
+
+        _result = await Api.GetQueueAsync(request);
+
+        // Base count (no filters) and overdue count, for the header line + overdue chip -- mirrors
+        // the demo's `base.length`/`DB.tickets.filter(isOverdue).length`.
+        var baseRequest = new TicketQueueRequest { Queue = QueueName, ActingAgentId = Session.AccountId, Page = 1, PageSize = 1 };
+        var baseResult = await Api.GetQueueAsync(baseRequest);
+        _baseCount = baseResult.TotalCount;
+
+        if (QueueName != "overdue")
+        {
+            var overdueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "overdue", ActingAgentId = Session.AccountId, Page = 1, PageSize = 1 });
+            _overdueCount = overdueResult.TotalCount;
+        }
+
+        _selectedIds = new HashSet<string>(_selectedIds.Where(id => _result.Items.Any(t => t.Id == id)));
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private async Task OnSearchChanged(string? value)
+    {
+        _searchText = value ?? "";
+        _page = 1;
+        await RefreshAsync();
+    }
+
+    private Task OnStatusChanged(string? v) { _status = v ?? ""; _page = 1; return RefreshAsync(); }
+    private Task OnPriorityChanged(string? v) { _priority = v ?? ""; _page = 1; return RefreshAsync(); }
+    private Task OnTopicChanged(string? v) { _topic = v ?? ""; _page = 1; return RefreshAsync(); }
+    private Task OnDepartmentChanged(string? v) { _department = v ?? ""; _page = 1; return RefreshAsync(); }
+    private Task OnAssigneeChanged(string? v) { _assignee = v ?? ""; _page = 1; return RefreshAsync(); }
+
+    private async Task ClearFilters()
+    {
+        _searchText = ""; _status = ""; _priority = ""; _topic = ""; _department = ""; _assignee = "";
+        _page = 1;
+        await RefreshAsync();
+    }
+
+    private async Task SetSelected(HashSet<string> ids)
+    {
+        _selectedIds = ids;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task OnSortKeyChanged(string? key)
+    {
+        _sortKey = key ?? "created";
+        await RefreshAsync();
+    }
+
+    private async Task OnSortDirChanged(string dir)
+    {
+        _sortDir = dir;
+        await RefreshAsync();
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        _page = page;
+        await RefreshAsync();
+    }
+
+    private string ResolveActorName(string? id)
+    {
+        if (string.IsNullOrEmpty(id)) return "—";
+        var user = Lookup.FindUser(id);
+        if (user is not null) return user.Name;
+        var agent = Lookup.FindAgent(id);
+        return agent?.Name ?? id;
+    }
+
+    private string ResolveTeamName(string? id) => id is null ? "—" : (Lookup.FindTeam(id)?.Name ?? id);
+
+    // ---------------- Bulk actions ----------------
+
+    private void BulkAssign() => ModalHost.Show(@<AssignTicketModal TicketIds="_selectedIds.ToList()" OnAssigned="HandleBulkChanged" />);
+
+    private void BulkChangeStatus() => ModalHost.Show(@<ChangeStatusOrPriorityModal TicketIds="_selectedIds.ToList()" Field="StatusOrPriority.Status" OnApplied="HandleBulkChanged" />);
+
+    private void BulkChangePriority() => ModalHost.Show(@<ChangeStatusOrPriorityModal TicketIds="_selectedIds.ToList()" Field="StatusOrPriority.Priority" OnApplied="HandleBulkChanged" />);
+
+    private void BulkClose() => ModalHost.Show(@<CloseTicketModal TicketIds="_selectedIds.ToList()" OnClosed="HandleBulkChanged" />);
+
+    private async Task HandleBulkChanged()
+    {
+        _selectedIds = new HashSet<string>();
+        await RefreshAsync();
+    }
+}

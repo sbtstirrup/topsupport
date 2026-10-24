@@ -1,0 +1,96 @@
+@* Mirrors MODALS.assign in topsupport-app.js: single select grouped Agent/Team, "a:<id>"/"t:<id>"
+   value convention. Renders only the modal's inner content (title/body/foot) -- ModalHost.razor
+   already supplies the .modal-back/.modal chrome. *@
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.People
+@inject LookupDataService Lookup
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+
+<div class="modal-head">
+    <h2>@Title</h2>
+</div>
+<div class="modal-body">
+    <div class="field full">
+        <label class="field-label" for="@_id">Assign to<span class="star" aria-hidden="true"> *</span></label>
+        <select class="input @(_error is null ? "" : "invalid")" id="@_id" @bind="_selected">
+            <option value="">Choose an agent or team</option>
+            @if (_agents is not null && _agents.Count > 0)
+            {
+                <optgroup label="Agents">
+                    @foreach (var a in _agents)
+                    {
+                        <option value="a:@a.Id">@a.Name</option>
+                    }
+                </optgroup>
+            }
+            @if (_teams is not null && _teams.Count > 0)
+            {
+                <optgroup label="Teams">
+                    @foreach (var t in _teams)
+                    {
+                        <option value="t:@t.Id">@t.Name</option>
+                    }
+                </optgroup>
+            }
+        </select>
+        <span class="hint">Assigning to a team clears the individual agent.</span>
+        @if (_error is not null)
+        {
+            <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_error</span>
+        }
+    </div>
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">Assign</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<string> TicketIds { get; set; } = Array.Empty<string>();
+    [Parameter] public EventCallback OnAssigned { get; set; }
+
+    private readonly string _id = "assign-" + Guid.NewGuid().ToString("N");
+    private IReadOnlyList<AgentDto>? _agents;
+    private IReadOnlyList<TeamDto>? _teams;
+    private string _selected = string.Empty;
+    private string? _error;
+    private bool _saving;
+
+    private string Title => "Assign " + (TicketIds.Count == 1 ? "ticket" : TicketIds.Count + " tickets");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _agents = await Lookup.GetAgentsAsync();
+        _teams = await Lookup.GetTeamsAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrEmpty(_selected))
+        {
+            _error = "Choose who to assign to.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var kind = _selected.StartsWith("a:", StringComparison.Ordinal) ? "agent" : "team";
+            var id = _selected[2..];
+            var assignedBy = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
+
+            await Api.BulkAssignAsync(TicketIds, kind, id, assignedBy);
+
+            await OnAssigned.InvokeAsync();
+            Modal.Close();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel() => Modal.Close();
+}

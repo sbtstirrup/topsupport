@@ -1,0 +1,12 @@
+@page "/users/{Id}"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="User" Icon="user" Message="User details, ticket history and assigned equipment (see PAGES.user in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    protected override void OnParametersSet() => Heading.SetHeading("User", "User details, ticket history and equipment.");
+}

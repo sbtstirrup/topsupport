@@ -1,0 +1,10 @@
+@page "/security"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Security" Icon="shield" Message="Password policy settings (see PAGES.security in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("Security", "Password rules.");
+}

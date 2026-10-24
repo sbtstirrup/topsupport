@@ -1,0 +1,10 @@
+@page "/kb"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Knowledge Base" Icon="book" Message="KB categories and article management (see PAGES.kb in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("Knowledge Base", "FAQ categories and help articles shown on the help portal.");
+}

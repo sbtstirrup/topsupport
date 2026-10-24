@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+@inject SessionState Session
+@inject NavigationManager Nav
+
+@* Matches pubShell() in topsupport-app.js: the unauthenticated chrome used by the landing
+   and sign-in pages, before a role is chosen. *@
+<a class="skip" href="#pub-main">Skip to content</a>
+<div class="pub">
+    <header class="pub-top">
+        <button type="button" class="brand" style="background:none;border:none;color:inherit;text-align:left;cursor:pointer" @onclick="@(() => Nav.NavigateTo("/"))">
+            <div class="brand-icon">@((MarkupString)BrandIcon)</div>
+            <div>
+                <div class="brand-title">TopSupport</div>
+                <div class="brand-sub">TopCashback</div>
+            </div>
+        </button>
+        <div class="topbar-right">
+            @if (!IsSignInPage)
+            {
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => Nav.NavigateTo("/signin"))">Sign in</button>
+            }
+        </div>
+    </header>
+    <main class="pub-body" id="pub-main">
+        @Body
+    </main>
+</div>
+
+@code {
+    private const string BrandIcon = "<svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 20h8M12 16v4\"/><path d=\"m9 10 2 2 4-4\"/></svg>";
+
+    private bool IsSignInPage => Nav.Uri.EndsWith("/signin", StringComparison.OrdinalIgnoreCase);
+}

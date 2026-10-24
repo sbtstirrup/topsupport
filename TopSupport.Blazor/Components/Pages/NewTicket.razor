@@ -1,0 +1,371 @@
+@page "/new-ticket"
+@using Microsoft.AspNetCore.Components.Forms
+@using TopSupport.Blazor.Models
+@using TopSupport.Models.Enums
+@using TopSupport.Models.Tickets
+@using TopSupport.Models.Tickets.FieldSchema
+@inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject LookupDataService Lookup
+@inject SessionState Session
+@inject NavigationManager Nav
+
+<RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
+    <div class="side-col">
+        <form class="card pad stack-16" novalidate aria-describedby="nt-intro">
+            <p class="lede" id="nt-intro" style="margin:0">Fields marked <span class="star">*</span> are required.</p>
+
+            @if (_errors.Count > 0)
+            {
+                <div class="err" role="alert" id="nt-errsum" tabindex="-1">
+                    <strong>@(_errors.Count == 1 ? "Fix 1 thing before you continue" : $"Fix {_errors.Count} things before you continue")</strong>
+                    <ul>
+                        @foreach (var kv in _errors)
+                        {
+                            <li>@kv.Value</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="field-grid">
+                <PersonCombo Value="@_requesterId" ValueChanged="OnRequesterChanged" Label="Requester" Required="true" FullWidth="true"
+                             Hint="The person asking for help. Replies go to them."
+                             Pool="UserPool" ErrorMessage="@ErrorFor("requester")" />
+
+                <div class="field full">
+                    <label class="field-label" for="nt-topic">Help Topic <span class="star" aria-hidden="true">*</span></label>
+                    <span class="hint">The form below changes to match the topic you choose.</span>
+                    <select class="input @(ErrorFor("topic") is not null ? "invalid" : "")" id="nt-topic" value="@_topicId" @onchange="OnTopicChanged">
+                        <option value="">Choose a help topic</option>
+                        @foreach (var group in _topics.GroupBy(t => t.Group))
+                        {
+                            @if (string.IsNullOrEmpty(group.Key))
+                            {
+                                @foreach (var t in group)
+                                {
+                                    <option value="@t.Id">@t.Label</option>
+                                }
+                            }
+                            else
+                            {
+                                <optgroup label="@group.Key">
+                                    @foreach (var t in group)
+                                    {
+                                        <option value="@t.Id">@t.Label</option>
+                                    }
+                                </optgroup>
+                            }
+                        }
+                    </select>
+                    @if (ErrorFor("topic") is { } topicErr)
+                    {
+                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@topicErr</span>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_topicId))
+            {
+                <div class="field-grid">
+                    <div class="field full">
+                        <label class="field-label" for="nt-subject">Subject <span class="star" aria-hidden="true">*</span></label>
+                        <input class="input @(ErrorFor("subject") is not null ? "invalid" : "")" id="nt-subject" type="text"
+                               value="@_subject" @onchange="@(e => _subject = e.Value?.ToString() ?? "")"
+                               placeholder="A short summary, for example &quot;Laptop will not charge&quot;" />
+                        @if (ErrorFor("subject") is { } subjErr)
+                        {
+                            <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@subjErr</span>
+                        }
+                    </div>
+
+                    <label class="full" style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;margin-bottom:-6px">
+                        <input type="checkbox" checked="@(!string.IsNullOrEmpty(_requesterId) && _affectedId == _requesterId)"
+                               disabled="@string.IsNullOrEmpty(_requesterId)"
+                               @onchange="OnAffectedSameChanged"
+                               style="width:18px;height:18px;margin:0;accent-color:var(--green)" />
+                        Affected user is the requester@(RequesterUser is not null ? $" ({RequesterUser.Name})" : "")
+                    </label>
+
+                    <PersonCombo Value="@_affectedId" ValueChanged="OnAffectedChanged" Label="Affected User" Required="true" FullWidth="true"
+                                 Hint="Defaults to the requester. Change it if you are asking for someone else."
+                                 Pool="UserPool" ErrorMessage="@ErrorFor("affected")" />
+
+                    @if (AffectedUser is not null)
+                    {
+                        <div class="readonly-details full" aria-label="Affected user details">
+                            <div><span>Office</span><strong>@AffectedUser.Office</strong></div>
+                            <div><span>Department</span><strong>@AffectedUser.Department</strong></div>
+                            <div><span>Phone</span><strong>@AffectedUser.Phone</strong></div>
+                        </div>
+                    }
+
+                    @foreach (var descriptor in _fieldSchema)
+                    {
+                        <DynamicTopicField Descriptor="descriptor" Value="GetFieldValue(descriptor.Key)"
+                                            ValueChanged="@(v => SetFieldValue(descriptor.Key, v))"
+                                            AllValues="_fieldValues" Errors="_errors" FullWidth="true"
+                                            OnUploadFile="UploadStagedFileAsync" />
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="notice">@((MarkupString)IconLibrary.Render("info", 18))<span>Choose a help topic to see the questions for it.</span></div>
+            }
+
+            <div class="row" style="padding-top:6px;border-top:1px solid var(--line-4)">
+                <button type="button" class="btn btn-primary" @onclick="SubmitAsync" disabled="@_submitting">
+                    @((MarkupString)IconLibrary.Render("send", 16))Create Ticket
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="ResetForm">Reset</button>
+                <button type="button" class="btn btn-ghost" @onclick="@(() => Nav.NavigateTo("/queue/open"))">Cancel</button>
+            </div>
+        </form>
+
+        <aside class="card pad-sm stack-8" aria-label="What happens next">
+            <span class="section-title">What happens next</span>
+            <div class="row">
+                @if (!string.IsNullOrEmpty(_topicId))
+                {
+                    <PriorityBadge Priority="PreviewPriority" />
+                }
+                else
+                {
+                    <span class="tag tag-grey">Priority set by your answers</span>
+                }
+            </div>
+            <p style="font-size:14px;line-height:1.55;color:var(--ink-2)">
+                @if (!string.IsNullOrEmpty(_topicId))
+                {
+                    <text>We aim to respond within <strong>@(TopSupport.Services.Tickets.TicketSla.SlaHours[PreviewPriority]) hours</strong>. @(HasImpactField ? "Priority comes from your answer about how much this is affecting work." : "This topic uses Normal priority.")</text>
+                }
+                else
+                {
+                    <text>Choose a help topic and answer the questions. We set the priority from how much the problem affects work.</text>
+                }
+            </p>
+            @if (!string.IsNullOrEmpty(_topicId))
+            {
+                <div class="kv"><span>Team</span><strong>@(SelectedTopic?.Department == "Infrastructure" ? "Infrastructure" : "Service Desk")</strong></div>
+                <div class="kv"><span>Department</span><strong>@SelectedTopic?.Department</strong></div>
+            }
+            <div class="kv"><span>Urgent help</span><strong>Call ext. 4400</strong></div>
+        </aside>
+    </div>
+</RoleGate>
+
+@code {
+    private IReadOnlyList<TicketTopic> _topics = Array.Empty<TicketTopic>();
+    private IReadOnlyList<TicketFieldDescriptor> _fieldSchema = Array.Empty<TicketFieldDescriptor>();
+    private IReadOnlyList<TopSupport.Models.People.UserDto> _users = Array.Empty<TopSupport.Models.People.UserDto>();
+
+    private string? _requesterId;
+    private string? _affectedId;
+    private bool _affectedManuallyChanged;
+    private string _topicId = "";
+    private string _subject = "";
+    private readonly Dictionary<string, object?> _fieldValues = new();
+    private Dictionary<string, string> _errors = new();
+    private List<AttachmentRef> _stagedFiles = new();
+    private readonly Dictionary<AttachmentRef, IBrowserFile> _stagedBrowserFiles = new();
+    private bool _submitting;
+
+    private TopSupport.Models.People.UserDto? RequesterUser => Lookup.FindUser(_requesterId);
+    private TopSupport.Models.People.UserDto? AffectedUser => Lookup.FindUser(_affectedId);
+    private TicketTopic? SelectedTopic => string.IsNullOrEmpty(_topicId) ? null : TicketTopics.Find(_topicId);
+    private bool HasImpactField => _fieldValues.ContainsKey("impact");
+
+    private TicketPriority PreviewPriority
+    {
+        get
+        {
+            if (_fieldValues.TryGetValue("impact", out var impact) && impact is string s && !string.IsNullOrEmpty(s)
+                && TicketFieldOptionSets.IMPACT_PRI.TryGetValue(s, out var p) && Enum.TryParse<TicketPriority>(p, out var priority))
+            {
+                return priority;
+            }
+            return TicketPriority.Normal;
+        }
+    }
+
+    private IReadOnlyList<(string Id, string Name, string Meta)> UserPool =>
+        _users.Select(u => (u.Id, u.Name, Meta: $"{u.Department} · {u.Email}")).ToList();
+
+    protected override void OnInitialized() => Heading.SetHeading("New Ticket for a User", "Log a ticket on behalf of someone, for example after a phone call.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _users = await Lookup.GetUsersAsync();
+        _topics = await Api.GetTopicsAsync();
+    }
+
+    private string? ErrorFor(string key) => _errors.TryGetValue(key, out var msg) ? msg : null;
+
+    private object? GetFieldValue(string key) => _fieldValues.TryGetValue(key, out var v) ? v : null;
+
+    private async Task SetFieldValue(string key, object? value)
+    {
+        _fieldValues[key] = value;
+        await ReloadFieldSchemaAsync();
+    }
+
+    private async Task OnRequesterChanged(string? value)
+    {
+        _requesterId = value;
+        // Port of COMBO_HOOKS.requester: changing requester auto-updates affected UNLESS the
+        // agent already manually changed affected themselves.
+        if (!_affectedManuallyChanged)
+        {
+            _affectedId = value;
+        }
+        await ReloadFieldSchemaAsync();
+    }
+
+    private async Task OnAffectedChanged(string? value)
+    {
+        _affectedId = value;
+        _affectedManuallyChanged = true;
+        await ReloadFieldSchemaAsync();
+    }
+
+    private async Task OnAffectedSameChanged(ChangeEventArgs e)
+    {
+        var isChecked = (bool)(e.Value ?? false);
+        _affectedId = isChecked ? _requesterId : null;
+        _affectedManuallyChanged = !isChecked;
+        await ReloadFieldSchemaAsync();
+    }
+
+    private async Task OnTopicChanged(ChangeEventArgs e)
+    {
+        _topicId = e.Value?.ToString() ?? "";
+        _fieldValues.Clear();
+        await ReloadFieldSchemaAsync();
+    }
+
+    private async Task ReloadFieldSchemaAsync()
+    {
+        if (string.IsNullOrEmpty(_topicId))
+        {
+            _fieldSchema = Array.Empty<TicketFieldDescriptor>();
+            return;
+        }
+
+        _fieldSchema = await Api.GetFieldSchemaAsync(_topicId, _affectedId);
+
+        // Mirrors normalizeTicketForm: drop answers that are no longer valid options after the
+        // option set changes (e.g. affected user changed, narrowing asset options).
+        foreach (var d in _fieldSchema)
+        {
+            if (d.Type == TicketFieldType.Select && _fieldValues.TryGetValue(d.Key, out var sv) && sv is string ss && !string.IsNullOrEmpty(ss)
+                && d.StaticOptions is not null && !d.StaticOptions.Any(o => o.Value == ss))
+            {
+                _fieldValues[d.Key] = "";
+            }
+            if (d.Type == TicketFieldType.Checks && _fieldValues.TryGetValue(d.Key, out var cv) && cv is List<string> list && d.StaticOptions is not null)
+            {
+                _fieldValues[d.Key] = list.Where(v => d.StaticOptions.Any(o => o.Value == v)).ToList();
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task<AttachmentRef> UploadStagedFileAsync(IBrowserFile file)
+    {
+        // No ticket exists yet -- stage locally; actual upload happens after CreateTicketAsync succeeds.
+        var staged = new AttachmentRef(null, file.Name, file.Size, file.ContentType);
+        _stagedFiles.Add(staged);
+        await Task.CompletedTask;
+        return staged;
+    }
+
+    private void ResetForm()
+    {
+        _requesterId = null;
+        _affectedId = null;
+        _affectedManuallyChanged = false;
+        _topicId = "";
+        _subject = "";
+        _fieldValues.Clear();
+        _errors.Clear();
+        _stagedFiles.Clear();
+        _fieldSchema = Array.Empty<TicketFieldDescriptor>();
+    }
+
+    private async Task SubmitAsync()
+    {
+        var errors = new Dictionary<string, string>();
+
+        if (string.IsNullOrEmpty(_requesterId)) errors["requester"] = "Choose the person who is asking for help.";
+        if (string.IsNullOrEmpty(_topicId)) errors["topic"] = "Choose a help topic.";
+
+        if (!string.IsNullOrEmpty(_topicId))
+        {
+            if (string.IsNullOrWhiteSpace(_subject)) errors["subject"] = "Enter a short subject.";
+            else if (_subject.Trim().Length < 5) errors["subject"] = "Make the subject at least 5 characters so the team can find it.";
+
+            if (string.IsNullOrEmpty(_affectedId)) errors["affected"] = "Choose who is affected.";
+
+            foreach (var d in _fieldSchema)
+            {
+                if (!d.Required || (d.ShowWhen is not null && !d.ShowWhen.Evaluate(_fieldValues))) continue;
+                var v = GetFieldValue(d.Key);
+                var isEmpty = v is null || (v is List<string> l && l.Count == 0) || (v is string s && string.IsNullOrWhiteSpace(s));
+                if (isEmpty)
+                {
+                    var label = d.Label.Replace(" (optional)", "");
+                    errors[d.Key] = d.Type is TicketFieldType.Select or TicketFieldType.Radio
+                        ? $"Choose an answer for “{label}”."
+                        : d.Type == TicketFieldType.Date
+                            ? $"Enter a date for “{label}”."
+                            : $"Fill in “{label}”.";
+                }
+            }
+        }
+
+        _errors = errors;
+        if (errors.Count > 0) { StateHasChanged(); return; }
+
+        _submitting = true;
+        try
+        {
+            var fields = new Dictionary<string, object?>();
+            foreach (var d in _fieldSchema)
+            {
+                if (d.Type == TicketFieldType.Banner) continue;
+                if (d.ShowWhen is not null && !d.ShowWhen.Evaluate(_fieldValues)) continue;
+                fields[d.Key] = GetFieldValue(d.Key) ?? "";
+            }
+
+            var request = new CreateTicketRequest
+            {
+                Topic = _topicId,
+                Subject = _subject.Trim(),
+                RequesterUserId = _requesterId!,
+                AffectedUserId = _affectedId!,
+                Fields = fields
+            };
+
+            // Current agent is the creator, not the requester -- per plan, actor type "agent" with SessionState.AccountId.
+            var createdBy = new TicketActorRef { Type = "agent", Id = Session.AccountId };
+            var ticket = await Api.CreateTicketAsync(request, createdBy);
+
+            // Upload staged files now that the ticket exists.
+            foreach (var staged in _stagedFiles)
+            {
+                if (_stagedBrowserFiles.TryGetValue(staged, out var browserFile))
+                {
+                    await Api.UploadAttachmentAsync(ticket.Id, browserFile, "agent", Session.AccountId);
+                }
+            }
+
+            Nav.NavigateTo($"/agent-tickets/{ticket.Id}");
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

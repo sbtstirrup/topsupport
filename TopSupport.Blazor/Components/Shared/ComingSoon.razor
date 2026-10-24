@@ -1,0 +1,15 @@
+@* Placeholder body used by every not-yet-implemented page in this skeleton pass.
+   Markup/classes match emptyState() in topsupport-app.js (.card > .empty > .empty-icon). *@
+<div class="card">
+    <div class="empty">
+        <span class="empty-icon">@((MarkupString)IconLibrary.Render(Icon, 26))</span>
+        <h3>@Title</h3>
+        <p>@Message</p>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Coming soon";
+    [Parameter] public string Message { get; set; } = "This screen is part of the skeleton pass and will be built out next.";
+    [Parameter] public string Icon { get; set; } = "page";
+}

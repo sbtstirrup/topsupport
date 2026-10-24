@@ -1,0 +1,11 @@
+@* Mirrors statusBadge(s) in topsupport-app.js: a fixed-width .tag.st-* pill with an icon. *@
+@using TopSupport.Models.Enums
+
+<span class="tag @EnumDisplay.CssClass(Status)" style="width:128px;justify-content:center">
+    @((MarkupString)IconLibrary.Render(EnumDisplay.Icon(Status), 13, 2.5))
+    @EnumDisplay.Label(Status)
+</span>
+
+@code {
+    [Parameter, EditorRequired] public TicketStatus Status { get; set; }
+}

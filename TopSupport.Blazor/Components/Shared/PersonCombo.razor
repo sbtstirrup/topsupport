@@ -1,0 +1,142 @@
+@* Type-ahead combobox over an already-fetched pool, mirroring combo() in topsupport-app.js --
+   simple client-side Contains() filter over Name/Meta (no server-side search needed; the demo's
+   whole user/agent pool is PoC-scale). Used for requester/affected-user/agent pickers.
+
+   Pool shape: callers project UserDto/AgentDto (or anything else) into (Id, Name, Meta) tuples,
+   e.g. Pool="@(Users.Select(u => (u.Id, u.Name, Meta: $"{u.Department} · {u.Email}")).ToList())".
+   Value is the two-way bound selected Id (string?). *@
+
+<div class="field @(FullWidth ? "full" : "")">
+    <label class="field-label" for="@_id">@Label@(Required ? StarMarkup : null)</label>
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <span class="hint">@Hint</span>
+    }
+    <div class="combo search" @onfocusout="OnFocusOut">
+        @((MarkupString)IconLibrary.Render("search", 16))
+        <input class="input @(string.IsNullOrEmpty(ErrorMessage) ? "" : "invalid")" id="@_id" type="text"
+               role="combobox" autocomplete="off" aria-autocomplete="list" aria-expanded="@_isOpen"
+               value="@_query" placeholder="Search by name, email or department"
+               @oninput="OnInput" @onfocus="OnFocus" />
+        @if (_isOpen)
+        {
+            <ul class="combo-list" role="listbox">
+                @{ var matches = Matches; }
+                @if (matches.Count > 0)
+                {
+                    @foreach (var person in matches)
+                    {
+                        <li class="combo-opt @(person.Id == Value ? "active" : "")" role="option" aria-selected="@(person.Id == Value)"
+                            @onmousedown="@(() => Pick(person))" @onmousedown:preventDefault="true">
+                            <span class="avatar" aria-hidden="true">@Initials(person.Name)</span>
+                            <span>
+                                <strong>@person.Name</strong>
+                                <span class="meta" style="display:block">@person.Meta</span>
+                            </span>
+                        </li>
+                    }
+                }
+                else
+                {
+                    <li class="combo-empty">No one matches &ldquo;@_query&rdquo;. Try a first name, surname or department.</li>
+                }
+            </ul>
+        }
+    </div>
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@ErrorMessage</span>
+    }
+</div>
+
+@code {
+    private static readonly MarkupString StarMarkup = (MarkupString)"<span class=\"star\" aria-hidden=\"true\"> *</span>";
+
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<(string Id, string Name, string Meta)> Pool { get; set; } = Array.Empty<(string, string, string)>();
+
+    [Parameter] public string Label { get; set; } = "Person";
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public bool FullWidth { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private readonly string _id = "combo-" + Guid.NewGuid().ToString("N");
+    private string _query = string.Empty;
+    private bool _isOpen;
+    private bool _queryIsUserEdited;
+
+    // Tracks the Value this component last derived _query from, so OnParametersSet only
+    // recomputes the displayed text when Value has genuinely changed since the last render
+    // (e.g. a parent resetting the form, or a different Value flowing in from outside). This
+    // prevents an unrelated parent re-render -- triggered by this component's own
+    // ValueChanged.InvokeAsync callback kicking off an async parent handler -- from re-running
+    // OnParametersSet mid-selection and recomputing _query from a Pool lookup that can race
+    // with Pick()'s own synchronous assignment. Pick() is always the source of truth for what
+    // the box shows immediately after a selection; OnParametersSet only needs to handle Value
+    // changing for reasons outside this component (initial load, external reset).
+    private string? _lastSeenValue = NotYetSeen;
+    private const string NotYetSeen = "\0__unset__";
+
+    protected override void OnParametersSet()
+    {
+        if (_queryIsUserEdited) return;
+        if (_lastSeenValue == Value) return;
+
+        _lastSeenValue = Value;
+        var selected = Pool.FirstOrDefault(p => p.Id == Value);
+        _query = selected.Id is not null ? selected.Name : string.Empty;
+    }
+
+    private List<(string Id, string Name, string Meta)> Matches
+    {
+        get
+        {
+            var q = _query.Trim();
+            var filtered = string.IsNullOrEmpty(q)
+                ? Pool
+                : Pool.Where(p => (p.Name + " " + p.Meta).Contains(q, StringComparison.OrdinalIgnoreCase));
+            return filtered.Take(8).ToList();
+        }
+    }
+
+    private void OnFocus()
+    {
+        _isOpen = true;
+    }
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? string.Empty;
+        _queryIsUserEdited = true;
+        _isOpen = true;
+    }
+
+    private void OnFocusOut()
+    {
+        _isOpen = false;
+    }
+
+    private async Task Pick((string Id, string Name, string Meta) person)
+    {
+        Value = person.Id;
+        _query = person.Name;
+        _queryIsUserEdited = false;
+        _isOpen = false;
+        // Mark this Value as already reflected in _query *before* the await below, so if the
+        // parent's ValueChanged handler triggers a re-render that flows this same Value back
+        // in via OnParametersSet (now a near-certainty since the parent typically re-renders
+        // after an async handler completes), it's a no-op rather than re-deriving _query from
+        // a Pool lookup and potentially racing/duplicating this assignment.
+        _lastSeenValue = person.Id;
+        await ValueChanged.InvokeAsync(person.Id);
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+}

@@ -1,0 +1,50 @@
+@* Port of allowed(pg) in topsupport-app.js: redirects to /signin if nobody is "signed in"
+   (no role chosen via the skeleton's role switcher), or to that role's home route if the
+   current role isn't one of AllowedRoles. Wrap each role-restricted page's content in this. *@
+@implements IDisposable
+@inject SessionState Session
+@inject NavigationManager Nav
+
+@if (IsAllowed)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter, EditorRequired] public AppRole[] AllowedRoles { get; set; } = Array.Empty<AppRole>();
+
+    private bool IsAllowed { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+        Evaluate();
+    }
+
+    protected override void OnParametersSet() => Evaluate();
+
+    private void OnSessionChanged()
+    {
+        Evaluate();
+        StateHasChanged();
+    }
+
+    private void Evaluate()
+    {
+        if (Session.Role is not { } role)
+        {
+            IsAllowed = false;
+            Nav.NavigateTo("/signin");
+            return;
+        }
+
+        IsAllowed = AllowedRoles.Contains(role);
+        if (!IsAllowed)
+        {
+            Nav.NavigateTo(Session.HomeRoute());
+        }
+    }
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+}

@@ -1,0 +1,10 @@
+@page "/audit"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Audit Trail" Icon="list" Message="The audit log table and filters (see PAGES.audit in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("Audit Trail", "Who did what and when: sign-ins, ticket changes, user and permission changes.");
+}

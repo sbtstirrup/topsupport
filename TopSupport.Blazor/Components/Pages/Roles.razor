@@ -1,0 +1,10 @@
+@page "/roles"
+@inject PageHeadingState Heading
+
+<RoleGate AllowedRoles="new[] { AppRole.Admin }">
+    <ComingSoon Title="Roles and Permissions" Icon="key" Message="The per-department permissions matrix (see PAGES.roles in the original demo) will be built out in a later pass." />
+</RoleGate>
+
+@code {
+    protected override void OnInitialized() => Heading.SetHeading("Roles and Permissions", "What each agent role can do, set separately for each department.");
+}
