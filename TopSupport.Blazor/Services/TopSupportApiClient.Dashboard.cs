@@ -8,5 +8,5 @@ public partial class TopSupportApiClient
     // ---------------- Dashboard (DashboardController) ----------------
 
     public async Task<DashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<DashboardDto>("api/dashboard", cancellationToken) ?? new();
+        => await GetRequiredAsync<DashboardDto>("api/dashboard", cancellationToken);
 }

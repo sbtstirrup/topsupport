@@ -7,31 +7,29 @@
 
 @* Port of PAGES.security / ACT['sec-set'] / ACT['sec-save'] in topsupport-app.js. Like the demo,
    only the password rules have an editor; the session/lockout/2FA settings ride along untouched. *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    @if (_form is not null)
-    {
-        <div class="two-col">
-            <section class="card pad" aria-labelledby="sp-h">
-                <h2 id="sp-h" class="card-title">Password Rules</h2>
-                <p class="lede">Shown to people when they change their password.</p>
+@if (_form is not null)
+{
+    <div class="two-col">
+        <section class="card pad" aria-labelledby="sp-h">
+            <h2 id="sp-h" class="card-title">Password Rules</h2>
+            <p class="lede">Shown to people when they change their password.</p>
 
-                @NumberSetting("minLength", "Minimum length", "Characters", 8, 64, () => _minLength, v => _minLength = v)
-                @ToggleSetting("Uppercase letter", "At least one A–Z.", () => _form.RequireUpper, v => _form.RequireUpper = v)
-                @ToggleSetting("Lowercase letter", "At least one a–z.", () => _form.RequireLower, v => _form.RequireLower = v)
-                @ToggleSetting("Number", "At least one 0–9.", () => _form.RequireNumber, v => _form.RequireNumber = v)
-                @ToggleSetting("Symbol", "At least one character such as ! or #.", () => _form.RequireSymbol, v => _form.RequireSymbol = v)
-                @NumberSetting("expiryDays", "Password expiry", "Days before a password must be changed. 0 means never.", 0, 365, () => _expiryDays, v => _expiryDays = v)
-                @NumberSetting("history", "Password history", "Previous passwords that cannot be reused.", 0, 24, () => _history, v => _history = v)
+            @NumberSetting("minLength", "Minimum length", "Characters", 8, 64, () => _minLength, v => _minLength = v)
+            @ToggleSetting("Uppercase letter", "At least one A–Z.", () => _form.RequireUpper, v => _form.RequireUpper = v)
+            @ToggleSetting("Lowercase letter", "At least one a–z.", () => _form.RequireLower, v => _form.RequireLower = v)
+            @ToggleSetting("Number", "At least one 0–9.", () => _form.RequireNumber, v => _form.RequireNumber = v)
+            @ToggleSetting("Symbol", "At least one character such as ! or #.", () => _form.RequireSymbol, v => _form.RequireSymbol = v)
+            @NumberSetting("expiryDays", "Password expiry", "Days before a password must be changed. 0 means never.", 0, 365, () => _expiryDays, v => _expiryDays = v)
+            @NumberSetting("history", "Password history", "Previous passwords that cannot be reused.", 0, 24, () => _history, v => _history = v)
 
-                <div class="row" style="margin-top:16px">
-                    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-                        @((MarkupString)IconLibrary.Render("save", 16))Save Security Settings
-                    </button>
-                </div>
-            </section>
-        </div>
-    }
-</RoleGate>
+            <div class="row" style="margin-top:16px">
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @((MarkupString)IconLibrary.Render("save", 16))Save Security Settings
+                </button>
+            </div>
+        </section>
+    </div>
+}
 
 @code {
     // S.forms.sec: a copy of the saved settings, with the three number inputs kept as typed text

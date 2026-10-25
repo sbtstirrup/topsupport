@@ -30,7 +30,6 @@ builder.Services
         options.LoginPath = "/signin";
         options.AccessDeniedPath = "/home";
         options.SlidingExpiration = false;
-        options.Events.OnValidatePrincipal = AuthCookie.ValidateAsync;
     });
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();

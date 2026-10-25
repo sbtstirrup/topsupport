@@ -28,7 +28,7 @@
                     {
                         <li class="combo-opt @(person.Id == Value ? "active" : "")" role="option" aria-selected="@(person.Id == Value)"
                             @onmousedown="@(() => Pick(person))" @onmousedown:preventDefault="true">
-                            <span class="avatar" aria-hidden="true">@Initials(person.Name)</span>
+                            <span class="avatar" aria-hidden="true">@NameFormat.Initials(person.Name)</span>
                             <span>
                                 <strong>@person.Name</strong>
                                 <span class="meta" style="display:block">@person.Meta</span>
@@ -140,11 +140,5 @@
         // a Pool lookup and potentially racing/duplicating this assignment.
         _lastSeenValue = person.Id;
         await ValueChanged.InvokeAsync(person.Id);
-    }
-
-    private static string Initials(string name)
-    {
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
     }
 }

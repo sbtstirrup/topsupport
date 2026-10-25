@@ -10,5 +10,5 @@ public partial class TopSupportApiClient
     // ---------------- Audit (AuditController) ----------------
 
     public async Task<IReadOnlyList<AuditEntryDto>> GetAuditAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<AuditEntryDto>>("api/audit", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<AuditEntryDto>>("api/audit", cancellationToken);
 }

@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Components.Forms;
 using TopSupport.Models.People;
 using TopSupport.Models.Tickets;
 using TopSupport.Models.Tickets.FieldSchema;
@@ -44,10 +43,10 @@ public partial class TopSupportApiClient
 
     /// <summary>"My Tickets": every ticket where the acting user is requester or affected.</summary>
     public async Task<IReadOnlyList<TicketDto>> GetMyTicketsAsync(string requesterUserId, CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TicketDto>>($"api/tickets/by-requester/{Uri.EscapeDataString(requesterUserId)}", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<TicketDto>>($"api/tickets/by-requester/{Uri.EscapeDataString(requesterUserId)}", cancellationToken);
 
     public async Task<IReadOnlyList<TicketTopic>> GetTopicsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TicketTopic>>("api/tickets/topics", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<TicketTopic>>("api/tickets/topics", cancellationToken);
 
     /// <summary>Resolved field descriptors (dynamic options filled in) for one topic's form.</summary>
     public async Task<IReadOnlyList<TicketFieldDescriptor>> GetFieldSchemaAsync(string topic, string? affectedUserId, CancellationToken cancellationToken = default)
@@ -58,17 +57,7 @@ public partial class TopSupportApiClient
             url += $"?affectedUserId={Uri.EscapeDataString(affectedUserId)}";
         }
 
-        return await _httpClient.GetFromJsonAsync<List<TicketFieldDescriptor>>(url, cancellationToken) ?? new();
-    }
-
-    /// <summary>POST /api/tickets. Throws on failure -- callers should catch HttpRequestException
-    /// (400 ValidationProblem) and surface field errors; the Api's error shape on a 400 is the
-    /// standard ASP.NET ValidationProblemDetails (Errors: Dictionary&lt;string,string[]&gt;).</summary>
-    public async Task<TicketDto> CreateTicketAsync(CreateTicketRequest request, CancellationToken cancellationToken = default)
-    {
-        var response = await _httpClient.PostAsJsonAsync("api/tickets", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
+        return await GetRequiredAsync<List<TicketFieldDescriptor>>(url, cancellationToken);
     }
 
     /// <summary>POST /api/tickets, returning the raw response so callers can inspect a 400
@@ -93,20 +82,6 @@ public partial class TopSupportApiClient
     public async Task<TicketDto> ChangeStatusAsync(string ticketId, string status, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/status", new { status }, cancellationToken);
-        await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
-    }
-
-    public async Task<TicketDto> ChangePriorityAsync(string ticketId, string priority, CancellationToken cancellationToken = default)
-    {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/priority", new { priority }, cancellationToken);
-        await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
-    }
-
-    public async Task<TicketDto> ChangeTopicAsync(string ticketId, string topic, CancellationToken cancellationToken = default)
-    {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/topic", new { topic }, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
@@ -172,9 +147,6 @@ public partial class TopSupportApiClient
         return (await response.Content.ReadFromJsonAsync<TicketTaskDto>(cancellationToken))!;
     }
 
-    public async Task<IReadOnlyList<TicketAttachmentDto>> GetAttachmentsAsync(string ticketId, CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TicketAttachmentDto>>($"api/tickets/{Uri.EscapeDataString(ticketId)}/attachments", cancellationToken) ?? new();
-
     /// <summary>
     /// POST /api/tickets/{id}/attachments (multipart/form-data). 10MB/file cap is enforced
     /// both client-side (see FileUploadDropzone, OpenReadStream maxAllowedSize) and server-side
@@ -235,17 +207,10 @@ public partial class TopSupportApiClient
         return fallback;
     }
 
-    /// <summary>Convenience overload that reads straight from an IBrowserFile (10MB cap applied by the caller).</summary>
-    public Task<TicketAttachmentDto> UploadAttachmentAsync(
-        string ticketId, IBrowserFile file,
-        long maxAllowedSize = 10 * 1024 * 1024, string? timelineEntryId = null, CancellationToken cancellationToken = default)
-        => UploadAttachmentAsync(ticketId, file.Name, file.ContentType, file.OpenReadStream(maxAllowedSize, cancellationToken),
-            timelineEntryId, cancellationToken);
-
     public async Task<TicketQueuePageResult> GetQueueAsync(TicketQueueRequest request, CancellationToken cancellationToken = default)
     {
         var query = BuildQueueQueryString(request);
-        return await _httpClient.GetFromJsonAsync<TicketQueuePageResult>($"api/tickets/queue{query}", cancellationToken) ?? new();
+        return await GetRequiredAsync<TicketQueuePageResult>($"api/tickets/queue{query}", cancellationToken);
     }
 
     private static string BuildQueueQueryString(TicketQueueRequest r)
@@ -273,7 +238,7 @@ public partial class TopSupportApiClient
 
     /// <summary>The signed-in account's sidebar badges.</summary>
     public async Task<TicketNavCountsDto> GetNavCountsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<TicketNavCountsDto>("api/tickets/nav-counts", cancellationToken) ?? new();
+        => await GetRequiredAsync<TicketNavCountsDto>("api/tickets/nav-counts", cancellationToken);
 
     // ---------------- Attachments (content download) ----------------
 
@@ -295,7 +260,7 @@ public partial class TopSupportApiClient
     // ---------------- Canned responses ----------------
 
     public async Task<IReadOnlyList<CannedResponseDto>> GetCannedResponsesAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<CannedResponseDto>>("api/CannedResponses", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<CannedResponseDto>>("api/CannedResponses", cancellationToken);
 
     /// <summary>The created response, or the Api's field errors ("title", "body") from a 400.</summary>
     public async Task<UserOrgSaveResult<CannedResponseDto>> CreateCannedResponseAsync(CannedResponseDto response, CancellationToken cancellationToken = default)
@@ -337,16 +302,16 @@ public partial class TopSupportApiClient
     // ---------------- Lookup data (users/agents/teams/assets) ----------------
 
     public async Task<IReadOnlyList<UserDto>> GetUsersAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<UserDto>>("api/lookup/users", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<UserDto>>("api/lookup/users", cancellationToken);
 
     public async Task<IReadOnlyList<AgentDto>> GetAgentsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<AgentDto>>("api/lookup/agents", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<AgentDto>>("api/lookup/agents", cancellationToken);
 
     public async Task<IReadOnlyList<TeamDto>> GetTeamsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TeamDto>>("api/lookup/teams", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<TeamDto>>("api/lookup/teams", cancellationToken);
 
     /// <summary>Assets belonging to one user. There is no "all assets" lookup (see LookupController) --
     /// userId is required.</summary>
     public async Task<IReadOnlyList<AssetDto>> GetAssetsByUserAsync(string userId, CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<AssetDto>>($"api/lookup/assets?userId={Uri.EscapeDataString(userId)}", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<AssetDto>>($"api/lookup/assets?userId={Uri.EscapeDataString(userId)}", cancellationToken);
 }

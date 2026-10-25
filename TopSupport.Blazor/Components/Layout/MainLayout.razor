@@ -64,7 +64,7 @@
                 @if (Session.IsSignedIn)
                 {
                     <div class="rel acct-wrap">
-                        <button type="button" class="acct" aria-haspopup="true" aria-expanded="@_acctMenu" @onclick="() => _acctMenu = !_acctMenu"><span class="avatar" aria-hidden="true">@Initials(Session.DisplayName)</span><span class="acct-name">@Session.DisplayName</span></button>
+                        <button type="button" class="acct" aria-haspopup="true" aria-expanded="@_acctMenu" @onclick="() => _acctMenu = !_acctMenu"><span class="avatar" aria-hidden="true">@NameFormat.Initials(Session.DisplayName)</span><span class="acct-name">@Session.DisplayName</span></button>
                         @if (_acctMenu)
                         {
                             @* Account menu from the demo's acct-menu (My profile is the only route to /profile for agents and admins). *@
@@ -161,10 +161,4 @@
     };
 
     private bool IsActive(string route) => Nav.Uri.EndsWith(route, StringComparison.OrdinalIgnoreCase);
-
-    private static string Initials(string name)
-    {
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
-    }
 }

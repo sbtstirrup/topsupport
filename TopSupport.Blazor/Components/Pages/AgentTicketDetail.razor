@@ -11,211 +11,209 @@
 @inject ModalState ModalHost
 @inject ToastState Toasts
 
-<RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
-    @if (_loading)
-    {
-        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
-    }
-    else if (_ticket is null)
-    {
-        <div class="card">
-            <div class="empty">
-                <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
-                <h3>We could not find that ticket</h3>
-                <p>It may have been deleted when the demo data was reset.</p>
-                <a class="btn btn-primary" href="/queue/open">Open Queue</a>
-            </div>
+@if (_loading)
+{
+    <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+}
+else if (_ticket is null)
+{
+    <div class="card">
+        <div class="empty">
+            <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
+            <h3>We could not find that ticket</h3>
+            <p>It may have been deleted when the demo data was reset.</p>
+            <a class="btn btn-primary" href="/queue/open">Open Queue</a>
         </div>
-    }
-    else
-    {
-        var t = _ticket;
-        var mine = t.AssignedAgentId == Session.AccountId;
-        // Resolved tickets still take replies and can be closed; only Closed ones must be reopened first.
-        var closed = t.Status == TicketStatus.Closed;
+    </div>
+}
+else
+{
+    var t = _ticket;
+    var mine = t.AssignedAgentId == Session.AccountId;
+    // Resolved tickets still take replies and can be closed; only Closed ones must be reopened first.
+    var closed = t.Status == TicketStatus.Closed;
 
-        <div class="stack">
-            @if (_flashMessage is not null)
-            {
-                <div class="notice" role="status">@((MarkupString)IconLibrary.Render("check", 18))<span><span class="notice-title">Done.</span> @_flashMessage</span></div>
-            }
+    <div class="stack">
+        @if (_flashMessage is not null)
+        {
+            <div class="notice" role="status">@((MarkupString)IconLibrary.Render("check", 18))<span><span class="notice-title">Done.</span> @_flashMessage</span></div>
+        }
 
-            <div class="card">
-                <div class="tv-head">
-                    <div style="flex:1;min-width:220px">
-                        <div class="tv-num">#@t.Number &middot; @TicketTopics.Find(t.Topic)?.Label &middot; @t.Department</div>
-                        <h2>@t.Subject</h2>
-                        <div class="row" style="margin-top:8px">
-                            <StatusBadge Status="t.Status" />
-                            <PriorityBadge Priority="t.Priority" />
-                            @if (TicketSla.IsOverdue(t, DateTimeOffset.UtcNow))
-                            {
-                                <span class="tag overdue">@((MarkupString)IconLibrary.Render("clock", 13)) Overdue</span>
-                            }
-                            <span class="hint">Assigned to @AssigneeLabel(t)</span>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <a class="btn btn-secondary btn-sm" href="/queue/open">@((MarkupString)IconLibrary.Render("back", 15))Queue</a>
+        <div class="card">
+            <div class="tv-head">
+                <div style="flex:1;min-width:220px">
+                    <div class="tv-num">#@t.Number &middot; @TicketTopics.Find(t.Topic)?.Label &middot; @t.Department</div>
+                    <h2>@t.Subject</h2>
+                    <div class="row" style="margin-top:8px">
+                        <StatusBadge Status="t.Status" />
+                        <PriorityBadge Priority="t.Priority" />
+                        @if (TicketSla.IsOverdue(t, DateTimeOffset.UtcNow))
+                        {
+                            <span class="tag overdue">@((MarkupString)IconLibrary.Render("clock", 13)) Overdue</span>
+                        }
+                        <span class="hint">Assigned to @AssigneeLabel(t)</span>
                     </div>
                 </div>
-                <div class="actionbar" role="toolbar" aria-label="Ticket actions" style="border-top:1px solid var(--line-4)">
-                    @if (!mine)
-                    {
-                        <button type="button" class="btn btn-secondary btn-sm" @onclick="ClaimAsync">@((MarkupString)IconLibrary.Render("user", 15))Claim</button>
-                    }
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenAssign">@((MarkupString)IconLibrary.Render("users", 15))Assign</button>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenChange">@((MarkupString)IconLibrary.Render("edit", 15))Change Status, Priority or Topic</button>
-                    @if (!closed)
-                    {
-                        <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenClose">@((MarkupString)IconLibrary.Render("lock", 15))Close</button>
-                    }
-                    else
-                    {
-                        <button type="button" class="btn btn-secondary btn-sm" @onclick="ReopenAsync">@((MarkupString)IconLibrary.Render("refresh", 15))Reopen</button>
-                    }
+                <div class="row">
+                    <a class="btn btn-secondary btn-sm" href="/queue/open">@((MarkupString)IconLibrary.Render("back", 15))Queue</a>
                 </div>
             </div>
-
-            <div class="stack">
-                <TicketSummaryPanel Ticket="t" ForAgent="true" />
-
-                <section class="card panel" aria-labelledby="tp-h">
-                    <h2 class="panel-title" id="tp-h">@TicketTopics.Find(t.Topic)?.Label Details</h2>
-                    @foreach (var d in _fieldSchema.Where(d => d.Type != TicketFieldType.Banner && (d.ShowWhen is null || d.ShowWhen.Evaluate(t.Fields))))
-                    {
-                        <div class="kv">
-                            <span>@d.Label.Replace(" (optional)", "", StringComparison.OrdinalIgnoreCase)</span>
-                            <div>@AnswerText(d, t.Fields.GetValueOrDefault(d.Key))</div>
-                        </div>
-                    }
-                </section>
-
-                @{ var deviceTag = t.Fields.GetValueOrDefault("device")?.ToString(); }
-                @if (t.Topic == "hardware" && !string.IsNullOrWhiteSpace(deviceTag))
+            <div class="actionbar" role="toolbar" aria-label="Ticket actions" style="border-top:1px solid var(--line-4)">
+                @if (!mine)
                 {
-                    <DevicePanel AssetTag="@deviceTag"
-                                 CandidateTickets="_candidateTickets" ExcludeTicketId="@t.Id"
-                                 OnTicketClick="@(id => Nav.NavigateTo($"/agent-tickets/{id}"))" />
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ClaimAsync">@((MarkupString)IconLibrary.Render("user", 15))Claim</button>
                 }
-
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenAssign">@((MarkupString)IconLibrary.Render("users", 15))Assign</button>
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenChange">@((MarkupString)IconLibrary.Render("edit", 15))Change Status, Priority or Topic</button>
                 @if (!closed)
                 {
-                    <section class="card pad-sm stack-16 reply-card @(_replyMode == "note" ? "note-mode" : "")" aria-labelledby="arp-h">
-                        <div class="row between">
-                            <h2 class="panel-title" id="arp-h" style="margin:0">Respond</h2>
-                            <div class="tabs" role="tablist" aria-label="Response type">
-                                <button type="button" class="tab" role="tab" aria-selected="@(_replyMode == "public")" @onclick="@(() => SetReplyMode("public"))">@((MarkupString)IconLibrary.Render("reply", 15))Public reply</button>
-                                <button type="button" class="tab" role="tab" aria-selected="@(_replyMode == "note")" @onclick="@(() => SetReplyMode("note"))">@((MarkupString)IconLibrary.Render("lock", 15))Internal note</button>
-                            </div>
-                        </div>
-
-                        @if (_replyMode == "note")
-                        {
-                            <div class="notice alert">@((MarkupString)IconLibrary.Render("lock", 18))<span>Internal notes are only visible to IT staff. The user is not told about them.</span></div>
-                        }
-                        else if (t.Status == TicketStatus.Resolved)
-                        {
-                            <div class="warn">@((MarkupString)IconLibrary.Render("info", 18))<span>This ticket is Resolved. Choose a status below if your reply should reopen it.</span></div>
-                        }
-
-                        @if (_cannedResponses.Count > 0)
-                        {
-                            <div class="field">
-                                <label class="field-label" for="canned-select">Insert a canned response</label>
-                                <select class="input" id="canned-select" @onchange="OnCannedSelected">
-                                    <option value="">Choose a response&hellip;</option>
-                                    @foreach (var c in _cannedResponses)
-                                    {
-                                        <option value="@c.Id">@c.Title</option>
-                                    }
-                                </select>
-                                <span class="hint">Placeholders such as {recipient.name} are filled in for this ticket.</span>
-                            </div>
-                        }
-
-                        <RichTextEditor @ref="_editorRef" @bind-Html="_replyHtml"
-                                        Label="@(_replyMode == "note" ? "Internal note" : $"Reply to {RequesterName}")"
-                                        Required="true" ErrorMessage="@_replyError"
-                                        Placeholder="@(_replyMode == "note" ? "Notes for the team" : "Write your reply")" />
-
-                        <FileUploadDropzone Label="Attachments (Optional)" Attachments="_replyFiles" AttachmentsChanged="OnReplyFilesChanged"
-                                            OnUploadFile="StageReplyFileAsync" />
-
-                        <div class="row" style="align-items:flex-end">
-                            @if (_replyMode != "note")
-                            {
-                                <div class="field">
-                                    <label class="field-label" for="status-after">Status After Sending</label>
-                                    <select class="input" id="status-after" @bind="_statusAfterSending">
-                                        <option value="">Keep as @EnumDisplay.Label(t.Status)</option>
-                                        @foreach (var s in Enum.GetValues<TicketStatus>().Where(s => s != t.Status))
-                                        {
-                                            <option value="@s">Set to @EnumDisplay.Label(s)</option>
-                                        }
-                                    </select>
-                                </div>
-                            }
-                            <button type="button" class="btn btn-primary" @onclick="SendReplyAsync" disabled="@_sendingReply">
-                                @((MarkupString)IconLibrary.Render(_replyMode == "note" ? "note" : "send", 16))@(_replyMode == "note" ? "Add Internal Note" : "Send Reply")
-                            </button>
-                            <button type="button" class="btn btn-ghost" @onclick="ClearReply">Clear</button>
-                        </div>
-                    </section>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenClose">@((MarkupString)IconLibrary.Render("lock", 15))Close</button>
                 }
                 else
                 {
-                    <div class="card pad-sm"><div class="notice">@((MarkupString)IconLibrary.Render("lock", 18))<span><span class="notice-title">This ticket is closed.</span> Reopen it to reply or add notes.</span></div></div>
+                    <button type="button" class="btn btn-secondary btn-sm" @onclick="ReopenAsync">@((MarkupString)IconLibrary.Render("refresh", 15))Reopen</button>
                 }
-
-                <section class="card panel" aria-labelledby="atl-h">
-                    <h2 class="panel-title" id="atl-h"><span>Timeline</span><span class="hint">@(t.Timeline.Count(e => e.Kind == TicketTimelineEntryKind.Note)) internal notes</span></h2>
-                    <ol class="timeline" aria-label="Ticket timeline">
-                        @foreach (var entry in t.Timeline.OrderBy(e => e.At))
-                        {
-                            @if (entry.Kind == TicketTimelineEntryKind.Event)
-                            {
-                                <li class="tl-event">
-                                    <span class="tl-dot">@((MarkupString)IconLibrary.Render(EventIcon(entry.Text), 15))</span>
-                                    <span>@entry.Text</span>
-                                    <time title="@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
-                                </li>
-                            }
-                            else
-                            {
-                                var isAgent = entry.By.Type == "agent";
-                                var isNote = entry.Kind == TicketTimelineEntryKind.Note;
-                                var personName = ActorName(entry.By);
-                                <li class="tl-msg">
-                                    <span class="avatar" aria-hidden="true">@Initials(personName)</span>
-                                    <article class="msg @(isNote ? "note" : (isAgent ? "" : "user"))" aria-label="@(isNote ? "Internal note" : "Message") from @personName">
-                                        <header class="msg-head">
-                                            <strong>@personName</strong>
-                                            @if (isNote)
-                                            {
-                                                <span class="tag internal-tag">@((MarkupString)IconLibrary.Render("lock", 12, 2.5))Internal — not visible to user</span>
-                                            }
-                                            else if (isAgent)
-                                            {
-                                                <span class="tag tag-green">IT Support</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="tag tag-grey">@(entry.By.Id == t.RequesterUserId ? "Requester" : "User")</span>
-                                            }
-                                            <time title="@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
-                                        </header>
-                                        <div class="msg-body">@((MarkupString)(entry.Html ?? ""))</div>
-                                    </article>
-                                </li>
-                            }
-                        }
-                    </ol>
-                </section>
             </div>
         </div>
-    }
-</RoleGate>
+
+        <div class="stack">
+            <TicketSummaryPanel Ticket="t" ForAgent="true" />
+
+            <section class="card panel" aria-labelledby="tp-h">
+                <h2 class="panel-title" id="tp-h">@TicketTopics.Find(t.Topic)?.Label Details</h2>
+                @foreach (var d in _fieldSchema.Where(d => d.Type != TicketFieldType.Banner && (d.ShowWhen is null || d.ShowWhen.Evaluate(t.Fields))))
+                {
+                    <div class="kv">
+                        <span>@d.Label.Replace(" (optional)", "", StringComparison.OrdinalIgnoreCase)</span>
+                        <div>@AnswerText(d, t.Fields.GetValueOrDefault(d.Key))</div>
+                    </div>
+                }
+            </section>
+
+            @{ var deviceTag = t.Fields.GetValueOrDefault("device")?.ToString(); }
+            @if (t.Topic == "hardware" && !string.IsNullOrWhiteSpace(deviceTag))
+            {
+                <DevicePanel AssetTag="@deviceTag"
+                             CandidateTickets="_candidateTickets" ExcludeTicketId="@t.Id"
+                             OnTicketClick="@(id => Nav.NavigateTo($"/agent-tickets/{id}"))" />
+            }
+
+            @if (!closed)
+            {
+                <section class="card pad-sm stack-16 reply-card @(_replyMode == "note" ? "note-mode" : "")" aria-labelledby="arp-h">
+                    <div class="row between">
+                        <h2 class="panel-title" id="arp-h" style="margin:0">Respond</h2>
+                        <div class="tabs" role="tablist" aria-label="Response type">
+                            <button type="button" class="tab" role="tab" aria-selected="@(_replyMode == "public")" @onclick="@(() => SetReplyMode("public"))">@((MarkupString)IconLibrary.Render("reply", 15))Public reply</button>
+                            <button type="button" class="tab" role="tab" aria-selected="@(_replyMode == "note")" @onclick="@(() => SetReplyMode("note"))">@((MarkupString)IconLibrary.Render("lock", 15))Internal note</button>
+                        </div>
+                    </div>
+
+                    @if (_replyMode == "note")
+                    {
+                        <div class="notice alert">@((MarkupString)IconLibrary.Render("lock", 18))<span>Internal notes are only visible to IT staff. The user is not told about them.</span></div>
+                    }
+                    else if (t.Status == TicketStatus.Resolved)
+                    {
+                        <div class="warn">@((MarkupString)IconLibrary.Render("info", 18))<span>This ticket is Resolved. Choose a status below if your reply should reopen it.</span></div>
+                    }
+
+                    @if (_cannedResponses.Count > 0)
+                    {
+                        <div class="field">
+                            <label class="field-label" for="canned-select">Insert a canned response</label>
+                            <select class="input" id="canned-select" @onchange="OnCannedSelected">
+                                <option value="">Choose a response&hellip;</option>
+                                @foreach (var c in _cannedResponses)
+                                {
+                                    <option value="@c.Id">@c.Title</option>
+                                }
+                            </select>
+                            <span class="hint">Placeholders such as {recipient.name} are filled in for this ticket.</span>
+                        </div>
+                    }
+
+                    <RichTextEditor @ref="_editorRef" @bind-Html="_replyHtml"
+                                    Label="@(_replyMode == "note" ? "Internal note" : $"Reply to {RequesterName}")"
+                                    Required="true" ErrorMessage="@_replyError"
+                                    Placeholder="@(_replyMode == "note" ? "Notes for the team" : "Write your reply")" />
+
+                    <FileUploadDropzone Label="Attachments (Optional)" Attachments="_replyFiles" AttachmentsChanged="OnReplyFilesChanged"
+                                        OnUploadFile="StageReplyFileAsync" />
+
+                    <div class="row" style="align-items:flex-end">
+                        @if (_replyMode != "note")
+                        {
+                            <div class="field">
+                                <label class="field-label" for="status-after">Status After Sending</label>
+                                <select class="input" id="status-after" @bind="_statusAfterSending">
+                                    <option value="">Keep as @EnumDisplay.Label(t.Status)</option>
+                                    @foreach (var s in Enum.GetValues<TicketStatus>().Where(s => s != t.Status))
+                                    {
+                                        <option value="@s">Set to @EnumDisplay.Label(s)</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-primary" @onclick="SendReplyAsync" disabled="@_sendingReply">
+                            @((MarkupString)IconLibrary.Render(_replyMode == "note" ? "note" : "send", 16))@(_replyMode == "note" ? "Add Internal Note" : "Send Reply")
+                        </button>
+                        <button type="button" class="btn btn-ghost" @onclick="ClearReply">Clear</button>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <div class="card pad-sm"><div class="notice">@((MarkupString)IconLibrary.Render("lock", 18))<span><span class="notice-title">This ticket is closed.</span> Reopen it to reply or add notes.</span></div></div>
+            }
+
+            <section class="card panel" aria-labelledby="atl-h">
+                <h2 class="panel-title" id="atl-h"><span>Timeline</span><span class="hint">@(t.Timeline.Count(e => e.Kind == TicketTimelineEntryKind.Note)) internal notes</span></h2>
+                <ol class="timeline" aria-label="Ticket timeline">
+                    @foreach (var entry in t.Timeline.OrderBy(e => e.At))
+                    {
+                        @if (entry.Kind == TicketTimelineEntryKind.Event)
+                        {
+                            <li class="tl-event">
+                                <span class="tl-dot">@((MarkupString)IconLibrary.Render(EventIcon(entry.Text), 15))</span>
+                                <span>@entry.Text</span>
+                                <time title="@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
+                            </li>
+                        }
+                        else
+                        {
+                            var isAgent = entry.By.Type == "agent";
+                            var isNote = entry.Kind == TicketTimelineEntryKind.Note;
+                            var personName = ActorName(entry.By);
+                            <li class="tl-msg">
+                                <span class="avatar" aria-hidden="true">@NameFormat.Initials(personName)</span>
+                                <article class="msg @(isNote ? "note" : (isAgent ? "" : "user"))" aria-label="@(isNote ? "Internal note" : "Message") from @personName">
+                                    <header class="msg-head">
+                                        <strong>@personName</strong>
+                                        @if (isNote)
+                                        {
+                                            <span class="tag internal-tag">@((MarkupString)IconLibrary.Render("lock", 12, 2.5))Internal — not visible to user</span>
+                                        }
+                                        else if (isAgent)
+                                        {
+                                            <span class="tag tag-green">IT Support</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="tag tag-grey">@(entry.By.Id == t.RequesterUserId ? "Requester" : "User")</span>
+                                        }
+                                        <time title="@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@entry.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
+                                    </header>
+                                    <div class="msg-body">@((MarkupString)(entry.Html ?? ""))</div>
+                                </article>
+                            </li>
+                        }
+                    }
+                </ol>
+            </section>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter] public string Id { get; set; } = string.Empty;
@@ -497,12 +495,6 @@
         if (by.Type == "agent") return Lookup.FindAgent(by.Id)?.Name ?? "Unknown";
         if (by.Type == "user") return Lookup.FindUser(by.Id)?.Name ?? "Unknown";
         return "System";
-    }
-
-    private static string Initials(string name)
-    {
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
     }
 
     private static string EventIcon(string? text)

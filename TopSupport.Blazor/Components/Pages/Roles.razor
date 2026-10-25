@@ -13,90 +13,88 @@
    the agents holding each role there. The demo's grid is read-only; here each cell is a toggle
    button that saves straight away and audits 'Changed permission "<Label>" for <Role> role'
    (the wording of the demo's audit seed). ?tab=<department> mirrors the demo's p.tab. *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    @if (_permissions is null || _agents is null)
-    {
-        <p class="hint">Loading…</p>
-    }
-    else
-    {
-        <div class="stack">
-            <div class="tabs" role="tablist" aria-label="Department">
-                @foreach (var d in TicketTopics.DEPTS)
-                {
-                    <button type="button" class="tab" role="tab" aria-selected="@(d == Dept ? "true" : "false")" @onclick="@(() => Nav.NavigateTo("/roles?tab=" + Uri.EscapeDataString(d)))">@d</button>
-                }
-            </div>
+@if (_permissions is null || _agents is null)
+{
+    <p class="hint">Loading…</p>
+}
+else
+{
+    <div class="stack">
+        <div class="tabs" role="tablist" aria-label="Department">
+            @foreach (var d in TicketTopics.DEPTS)
+            {
+                <button type="button" class="tab" role="tab" aria-selected="@(d == Dept ? "true" : "false")" @onclick="@(() => Nav.NavigateTo("/roles?tab=" + Uri.EscapeDataString(d)))">@d</button>
+            }
+        </div>
 
-            <section class="card" aria-label="Permissions for @Dept">
-                <div class="tbl-wrap">
-                    <table class="tbl">
-                        <caption class="sr-only">Permissions in @Dept</caption>
-                        <thead>
+        <section class="card" aria-label="Permissions for @Dept">
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <caption class="sr-only">Permissions in @Dept</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col"><span>Role</span></th>
+                            @foreach (var p in RolePermissionKeys.All)
+                            {
+                                <th scope="col" style="text-align:center"><span style="justify-content:center">@p.Label</span></th>
+                            }
+                            <th scope="col"><span>Agents with this role</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in AgentRoles.All)
+                        {
+                            var holders = _agents.Where(a => a.Role == r && a.Departments.Contains(Dept)).Select(a => NameFormat.Short(a.Name)).ToList();
                             <tr>
-                                <th scope="col"><span>Role</span></th>
+                                <th scope="row" style="background:none;border-bottom:1px solid var(--line-4);padding:12px;text-align:left"><strong>@r</strong></th>
                                 @foreach (var p in RolePermissionKeys.All)
                                 {
-                                    <th scope="col" style="text-align:center"><span style="justify-content:center">@p.Label</span></th>
-                                }
-                                <th scope="col"><span>Agents with this role</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var r in AgentRoles.All)
-                            {
-                                var holders = _agents.Where(a => a.Role == r && a.Departments.Contains(Dept)).Select(a => Short(a.Name)).ToList();
-                                <tr>
-                                    <th scope="row" style="background:none;border-bottom:1px solid var(--line-4);padding:12px;text-align:left"><strong>@r</strong></th>
-                                    @foreach (var p in RolePermissionKeys.All)
-                                    {
-                                        var allowed = IsAllowed(r, p.Key);
-                                        <td style="text-align:center">
-                                            <button type="button" style="background:none;border:0;padding:0;cursor:pointer;display:inline-grid;border-radius:8px"
-                                                    aria-pressed="@(allowed ? "true" : "false")" aria-label="@p.Label for @r: @(allowed ? "Allowed" : "Not allowed")"
-                                                    title="@(allowed ? "Allowed" : "Not allowed")" disabled="@_saving"
-                                                    @onclick="@(() => ToggleAsync(r, p.Key, !allowed))">
-                                                @if (allowed)
-                                                {
-                                                    <span class="perm-check">@((MarkupString)IconLibrary.Render("check", 15, 3))</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="perm-x">@((MarkupString)IconLibrary.Render("x", 14, 2.5))</span>
-                                                }
-                                            </button>
-                                        </td>
-                                    }
-                                    <td>
-                                        @if (holders.Count > 0)
-                                        {
-                                            @string.Join(", ", holders)
-                                        }
-                                        else
-                                        {
-                                            <span class="muted">None</span>
-                                        }
+                                    var allowed = IsAllowed(r, p.Key);
+                                    <td style="text-align:center">
+                                        <button type="button" style="background:none;border:0;padding:0;cursor:pointer;display:inline-grid;border-radius:8px"
+                                                aria-pressed="@(allowed ? "true" : "false")" aria-label="@p.Label for @r: @(allowed ? "Allowed" : "Not allowed")"
+                                                title="@(allowed ? "Allowed" : "Not allowed")" disabled="@_saving"
+                                                @onclick="@(() => ToggleAsync(r, p.Key, !allowed))">
+                                            @if (allowed)
+                                            {
+                                                <span class="perm-check">@((MarkupString)IconLibrary.Render("check", 15, 3))</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="perm-x">@((MarkupString)IconLibrary.Render("x", 14, 2.5))</span>
+                                            }
+                                        </button>
                                     </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pad-sm" style="border-top:1px solid var(--line-4)">
-                    <div class="notice">@((MarkupString)IconLibrary.Render("info", 18))<span>Permissions apply to tickets in <strong>@Dept</strong> only. An agent in both departments gets the permissions of their role in each.</span></div>
-                </div>
-            </section>
+                                }
+                                <td>
+                                    @if (holders.Count > 0)
+                                    {
+                                        @string.Join(", ", holders)
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">None</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="pad-sm" style="border-top:1px solid var(--line-4)">
+                <div class="notice">@((MarkupString)IconLibrary.Render("info", 18))<span>Permissions apply to tickets in <strong>@Dept</strong> only. An agent in both departments gets the permissions of their role in each.</span></div>
+            </div>
+        </section>
 
-            <section class="card pad-sm">
-                <h2 class="card-title">What Each Permission Allows</h2>
-                @foreach (var (label, text) in Explanations)
-                {
-                    <div class="kv"><span>@label</span><strong>@text</strong></div>
-                }
-            </section>
-        </div>
-    }
-</RoleGate>
+        <section class="card pad-sm">
+            <h2 class="card-title">What Each Permission Allows</h2>
+            @foreach (var (label, text) in Explanations)
+            {
+                <div class="kv"><span>@label</span><strong>@text</strong></div>
+            }
+        </section>
+    </div>
+}
 
 @code {
     private static readonly (string Label, string Text)[] Explanations =
@@ -131,12 +129,6 @@
         => _permissions!.Any(p => p.Department == Dept && p.Role == role && p.Permission == permission && p.Allowed);
 
     // short(n) in the demo: "Ellie Shaw" -> "E. Shaw".
-    private static string Short(string name)
-    {
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 1 ? parts[0][0] + ". " + parts[^1] : parts.FirstOrDefault() ?? string.Empty;
-    }
-
     private async Task ToggleAsync(string role, string permission, bool allowed)
     {
         _saving = true;

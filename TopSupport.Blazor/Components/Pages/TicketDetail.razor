@@ -15,169 +15,167 @@
 @inject NavigationManager Nav
 @inject ToastState Toasts
 
-<RoleGate AllowedRoles="new[] { AppRole.User }">
-    @if (!_loaded)
-    {
-        <div class="card"><div class="empty"><p>Loading ticket&hellip;</p></div></div>
-    }
-    else if (_ticket is null)
-    {
-        <div class="card">
-            <div class="empty">
-                <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
-                <h3>We could not find that ticket</h3>
-                <p>It may have been merged into another ticket, or it belongs to someone else.</p>
-                <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/my-tickets"))">Back to My Tickets</button>
+@if (!_loaded)
+{
+    <div class="card"><div class="empty"><p>Loading ticket&hellip;</p></div></div>
+}
+else if (_ticket is null)
+{
+    <div class="card">
+        <div class="empty">
+            <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
+            <h3>We could not find that ticket</h3>
+            <p>It may have been merged into another ticket, or it belongs to someone else.</p>
+            <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/my-tickets"))">Back to My Tickets</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="stack">
+        @if (_showCreatedBanner)
+        {
+            <div class="notice" role="status">
+                @((MarkupString)IconLibrary.Render("check", 18))
+                <span><span class="notice-title">Ticket created.</span> We aim to respond within @TopSupport.Services.Tickets.TicketSla.SlaHours[_ticket.Priority] hours and will email @(_requesterUser?.Email ?? "you").</span>
+            </div>
+        }
+
+        <div class="card tv-head">
+            <div style="flex:1;min-width:220px">
+                <div class="tv-num">#@_ticket.Number &middot; @TopicLabel(_ticket.Topic)</div>
+                <h2>@_ticket.Subject</h2>
+                <div class="row" style="margin-top:8px">
+                    <StatusBadge Status="@_ticket.Status" />
+                    <PriorityBadge Priority="@_ticket.Priority" />
+                </div>
+            </div>
+            <div class="row">
+                <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/my-tickets"))">
+                    @((MarkupString)IconLibrary.Render("back", 16))My Tickets
+                </button>
             </div>
         </div>
-    }
-    else
-    {
+
         <div class="stack">
-            @if (_showCreatedBanner)
-            {
-                <div class="notice" role="status">
-                    @((MarkupString)IconLibrary.Render("check", 18))
-                    <span><span class="notice-title">Ticket created.</span> We aim to respond within @TopSupport.Services.Tickets.TicketSla.SlaHours[_ticket.Priority] hours and will email @(_requesterUser?.Email ?? "you").</span>
-                </div>
-            }
+            <TicketSummaryPanel Ticket="_ticket" ForAgent="false" />
 
-            <div class="card tv-head">
-                <div style="flex:1;min-width:220px">
-                    <div class="tv-num">#@_ticket.Number &middot; @TopicLabel(_ticket.Topic)</div>
-                    <h2>@_ticket.Subject</h2>
-                    <div class="row" style="margin-top:8px">
-                        <StatusBadge Status="@_ticket.Status" />
-                        <PriorityBadge Priority="@_ticket.Priority" />
-                    </div>
-                </div>
-                <div class="row">
-                    <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/my-tickets"))">
-                        @((MarkupString)IconLibrary.Render("back", 16))My Tickets
-                    </button>
-                </div>
-            </div>
-
-            <div class="stack">
-                <TicketSummaryPanel Ticket="_ticket" ForAgent="false" />
-
-                <section class="card panel" aria-labelledby="tp-h">
-                    <h2 class="panel-title" id="tp-h"><span>@TopicLabel(_ticket.Topic) Details</span></h2>
-                    @foreach (var (label, value) in TopicAnswers)
-                    {
-                        <div class="kv">
-                            <span>@label</span>
-                            <div>
-                                @if (string.IsNullOrEmpty(value))
-                                {
-                                    <span class="muted">Not answered</span>
-                                }
-                                else
-                                {
-                                    @value
-                                }
-                            </div>
-                        </div>
-                    }
-                </section>
-
-                @if (_ticket.Status == TicketStatus.Closed)
+            <section class="card panel" aria-labelledby="tp-h">
+                <h2 class="panel-title" id="tp-h"><span>@TopicLabel(_ticket.Topic) Details</span></h2>
+                @foreach (var (label, value) in TopicAnswers)
                 {
-                    <div class="card pad-sm">
-                        <div class="notice">
-                            @((MarkupString)IconLibrary.Render("lock", 18))
-                            <span><span class="notice-title">This ticket is closed.</span> You can't reply to it. If you still need help, raise a new ticket and mention #@_ticket.Number.</span>
-                        </div>
-                        <div class="row" style="margin-top:12px">
-                            <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/raise"))">
-                                @((MarkupString)IconLibrary.Render("plus", 16))Raise a New Ticket
-                            </button>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <section class="card pad-sm stack-16 reply-card" aria-labelledby="rp-h">
-                        <h2 class="panel-title" id="rp-h" style="margin:0">Reply</h2>
-
-                        @if (_ticket.Status == TicketStatus.Resolved || _ticket.Status == TicketStatus.AwaitingUser)
-                        {
-                            <div class="warn" role="status">
-                                @((MarkupString)IconLibrary.Render("alert", 18))
-                                <span><strong>Replying will reopen this ticket.</strong> If your problem is fixed you don't need to reply.</span>
-                            </div>
-                        }
-
-                        <RichTextEditor @ref="_editorRef" @bind-Html="_replyHtml" Label="Your Message" Required="true" Placeholder="Write your reply to the IT team" ErrorMessage="@_replyError" />
-                        <FileUploadDropzone Label="Attachments (Optional)" Attachments="_stagedReplyAttachments" AttachmentsChanged="OnReplyAttachmentsChanged" OnUploadFile="StageReplyFileAsync" />
-
-                        <div class="row">
-                            <button type="button" class="btn btn-primary" disabled="@_isPostingReply" @onclick="PostReplyAsync">
-                                @((MarkupString)IconLibrary.Render("send", 16))@(_ticket.Status == TicketStatus.Resolved ? "Post Reply and Reopen" : "Post Reply")
-                            </button>
-                            <button type="button" class="btn btn-ghost" @onclick="ClearReply">Clear</button>
-                        </div>
-                    </section>
-                }
-
-                <section class="card panel" aria-labelledby="tl-h">
-                    <h2 class="panel-title" id="tl-h">Timeline</h2>
-                    <ol class="timeline" aria-label="Ticket timeline">
-                        @foreach (var e in VisibleTimeline)
-                        {
-                            @if (e.Kind == TicketTimelineEntryKind.Event)
+                    <div class="kv">
+                        <span>@label</span>
+                        <div>
+                            @if (string.IsNullOrEmpty(value))
                             {
-                                <li class="tl-event">
-                                    <span class="tl-dot">@((MarkupString)IconLibrary.Render(EventIcon(e.Text ?? ""), 15))</span>
-                                    <span>@e.Text</span>
-                                    <time datetime="@e.At.ToString("O")" title="@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
-                                </li>
+                                <span class="muted">Not answered</span>
                             }
                             else
                             {
-                                var isAgent = e.By.Type == "agent";
-                                var personName = (isAgent ? Lookup.FindAgent(e.By.Id)?.Name : Lookup.FindUser(e.By.Id)?.Name) ?? "Unknown";
-                                var isMe = Session.AccountId == e.By.Id;
-                                <li class="tl-msg">
-                                    <span class="avatar @(isAgent ? "agent" : "")" aria-hidden="true">@Initials(personName)</span>
-                                    <article class="msg @(isAgent ? "" : "user")" aria-label="Message from @personName">
-                                        <header class="msg-head">
-                                            <strong>@personName</strong>
-                                            @if (isAgent)
-                                            {
-                                                <span class="tag tag-green">IT Support</span>
-                                            }
-                                            else if (isMe)
-                                            {
-                                                <span class="tag tag-grey">You</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="tag tag-grey">@(e.By.Id == _ticket.RequesterUserId ? "Requester" : "User")</span>
-                                            }
-                                            <time datetime="@e.At.ToString("O")" title="@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
-                                        </header>
-                                        <div class="msg-body">@((MarkupString)(e.Html ?? string.Empty))</div>
-                                        @{ var entryFiles = AttachmentsFor(e.Id); }
-                                        @if (entryFiles.Count > 0)
-                                        {
-                                            <div class="msg-files">
-                                                @foreach (var file in entryFiles)
-                                                {
-                                                    <span class="tag tag-outline">@((MarkupString)IconLibrary.Render("clip", 12))@file.FileName</span>
-                                                }
-                                            </div>
-                                        }
-                                    </article>
-                                </li>
+                                @value
                             }
-                        }
-                    </ol>
+                        </div>
+                    </div>
+                }
+            </section>
+
+            @if (_ticket.Status == TicketStatus.Closed)
+            {
+                <div class="card pad-sm">
+                    <div class="notice">
+                        @((MarkupString)IconLibrary.Render("lock", 18))
+                        <span><span class="notice-title">This ticket is closed.</span> You can't reply to it. If you still need help, raise a new ticket and mention #@_ticket.Number.</span>
+                    </div>
+                    <div class="row" style="margin-top:12px">
+                        <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/raise"))">
+                            @((MarkupString)IconLibrary.Render("plus", 16))Raise a New Ticket
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <section class="card pad-sm stack-16 reply-card" aria-labelledby="rp-h">
+                    <h2 class="panel-title" id="rp-h" style="margin:0">Reply</h2>
+
+                    @if (_ticket.Status == TicketStatus.Resolved || _ticket.Status == TicketStatus.AwaitingUser)
+                    {
+                        <div class="warn" role="status">
+                            @((MarkupString)IconLibrary.Render("alert", 18))
+                            <span><strong>Replying will reopen this ticket.</strong> If your problem is fixed you don't need to reply.</span>
+                        </div>
+                    }
+
+                    <RichTextEditor @ref="_editorRef" @bind-Html="_replyHtml" Label="Your Message" Required="true" Placeholder="Write your reply to the IT team" ErrorMessage="@_replyError" />
+                    <FileUploadDropzone Label="Attachments (Optional)" Attachments="_stagedReplyAttachments" AttachmentsChanged="OnReplyAttachmentsChanged" OnUploadFile="StageReplyFileAsync" />
+
+                    <div class="row">
+                        <button type="button" class="btn btn-primary" disabled="@_isPostingReply" @onclick="PostReplyAsync">
+                            @((MarkupString)IconLibrary.Render("send", 16))@(_ticket.Status == TicketStatus.Resolved ? "Post Reply and Reopen" : "Post Reply")
+                        </button>
+                        <button type="button" class="btn btn-ghost" @onclick="ClearReply">Clear</button>
+                    </div>
                 </section>
-            </div>
+            }
+
+            <section class="card panel" aria-labelledby="tl-h">
+                <h2 class="panel-title" id="tl-h">Timeline</h2>
+                <ol class="timeline" aria-label="Ticket timeline">
+                    @foreach (var e in VisibleTimeline)
+                    {
+                        @if (e.Kind == TicketTimelineEntryKind.Event)
+                        {
+                            <li class="tl-event">
+                                <span class="tl-dot">@((MarkupString)IconLibrary.Render(EventIcon(e.Text ?? ""), 15))</span>
+                                <span>@e.Text</span>
+                                <time datetime="@e.At.ToString("O")" title="@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
+                            </li>
+                        }
+                        else
+                        {
+                            var isAgent = e.By.Type == "agent";
+                            var personName = (isAgent ? Lookup.FindAgent(e.By.Id)?.Name : Lookup.FindUser(e.By.Id)?.Name) ?? "Unknown";
+                            var isMe = Session.AccountId == e.By.Id;
+                            <li class="tl-msg">
+                                <span class="avatar @(isAgent ? "agent" : "")" aria-hidden="true">@NameFormat.Initials(personName)</span>
+                                <article class="msg @(isAgent ? "" : "user")" aria-label="Message from @personName">
+                                    <header class="msg-head">
+                                        <strong>@personName</strong>
+                                        @if (isAgent)
+                                        {
+                                            <span class="tag tag-green">IT Support</span>
+                                        }
+                                        else if (isMe)
+                                        {
+                                            <span class="tag tag-grey">You</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="tag tag-grey">@(e.By.Id == _ticket.RequesterUserId ? "Requester" : "User")</span>
+                                        }
+                                        <time datetime="@e.At.ToString("O")" title="@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")">@e.At.ToLocalTime().ToString("d MMM yyyy, HH:mm")</time>
+                                    </header>
+                                    <div class="msg-body">@((MarkupString)(e.Html ?? string.Empty))</div>
+                                    @{ var entryFiles = AttachmentsFor(e.Id); }
+                                    @if (entryFiles.Count > 0)
+                                    {
+                                        <div class="msg-files">
+                                            @foreach (var file in entryFiles)
+                                            {
+                                                <span class="tag tag-outline">@((MarkupString)IconLibrary.Render("clip", 12))@file.FileName</span>
+                                            }
+                                        </div>
+                                    }
+                                </article>
+                            </li>
+                        }
+                    }
+                </ol>
+            </section>
         </div>
-    }
-</RoleGate>
+    </div>
+}
 
 @code {
     [Parameter] public string Id { get; set; } = string.Empty;
@@ -324,12 +322,6 @@
         text.Contains("Priority") ? "flag" :
         (text.Contains("ask") || text.Contains("Task")) ? "task" :
         "clock";
-
-    private static string Initials(string name)
-    {
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
-    }
 
     /// <summary>Staged in memory only; uploaded after the reply is posted, anchored to it.</summary>
     private async Task<AttachmentRef> StageReplyFileAsync(IBrowserFile file)

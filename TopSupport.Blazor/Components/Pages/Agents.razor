@@ -12,118 +12,116 @@
 @* Port of PAGES.agents in topsupport-app.js: Agents tab (table) and Teams tab (cards), with
    create/edit modals for both, team delete and (beyond the demo's agents page, reusing
    ACT['user-reset']) an agent password reset. ?tab=teams mirrors the demo's p.tab. *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    @if (_agents is null || _teams is null)
-    {
-        <p class="hint">Loading…</p>
-    }
-    else
-    {
-        <div class="stack">
-            <div class="row between">
-                <div class="tabs" role="tablist" aria-label="Agents or teams">
-                    <button type="button" class="tab" role="tab" aria-selected="@(!IsTeamsTab ? "true" : "false")" @onclick="@(() => Nav.NavigateTo("/agents"))">Agents<span class="count">@_agents.Count</span></button>
-                    <button type="button" class="tab" role="tab" aria-selected="@(IsTeamsTab ? "true" : "false")" @onclick="@(() => Nav.NavigateTo("/agents?tab=teams"))">Teams<span class="count">@_teams.Count</span></button>
-                </div>
-                @if (IsTeamsTab)
-                {
-                    <button type="button" class="btn btn-primary" @onclick="@(() => EditTeam(null))">@((MarkupString)IconLibrary.Render("plus", 16))Create Team</button>
-                }
-                else
-                {
-                    <button type="button" class="btn btn-primary" @onclick="@(() => EditAgent(null))">@((MarkupString)IconLibrary.Render("plus", 16))Create Agent</button>
-                }
+@if (_agents is null || _teams is null)
+{
+    <p class="hint">Loading…</p>
+}
+else
+{
+    <div class="stack">
+        <div class="row between">
+            <div class="tabs" role="tablist" aria-label="Agents or teams">
+                <button type="button" class="tab" role="tab" aria-selected="@(!IsTeamsTab ? "true" : "false")" @onclick="@(() => Nav.NavigateTo("/agents"))">Agents<span class="count">@_agents.Count</span></button>
+                <button type="button" class="tab" role="tab" aria-selected="@(IsTeamsTab ? "true" : "false")" @onclick="@(() => Nav.NavigateTo("/agents?tab=teams"))">Teams<span class="count">@_teams.Count</span></button>
             </div>
-
             @if (IsTeamsTab)
             {
-                <div class="two-col">
-                    @foreach (var t in _teams)
-                    {
-                        var lead = FindAgent(t.LeadAgentId);
-                        <section class="card pad-sm stack-8" aria-labelledby="tm-@t.Id">
-                            <div class="row between">
-                                <h2 id="tm-@t.Id" class="card-title" style="margin:0">@t.Name</h2>
-                                <button type="button" class="btn btn-ghost btn-sm" @onclick="@(() => EditTeam(t))">@((MarkupString)IconLibrary.Render("edit", 14))Edit</button>
-                            </div>
-                            <span class="hint">@t.Department · lead @(string.IsNullOrEmpty(t.LeadAgentId) ? "not set" : lead?.Name)</span>
-                            @if (t.MemberAgentIds.Count > 0)
-                            {
-                                @foreach (var a in MembersInOrder(t))
-                                {
-                                    <div class="list-item">
-                                        <span class="avatar agent" aria-hidden="true">@Initials(a.Name)</span>
-                                        <span style="flex:1"><strong style="font-size:14px">@a.Name</strong><span class="cell-sub">@a.JobTitle</span></span>
-                                        @if (t.LeadAgentId == a.Id)
-                                        {
-                                            <span class="tag tag-green">Lead</span>
-                                        }
-                                    </div>
-                                }
-                            }
-                            else
-                            {
-                                <p class="hint">No members yet.</p>
-                            }
-                            <span class="hint">@_counts.ByTeam.GetValueOrDefault(t.Id) active tickets assigned to this team</span>
-                        </section>
-                    }
-                </div>
+                <button type="button" class="btn btn-primary" @onclick="@(() => EditTeam(null))">@((MarkupString)IconLibrary.Render("plus", 16))Create Team</button>
             }
             else
             {
-                <section class="card">
-                    <div class="tbl-wrap">
-                        <table class="tbl">
-                            <caption class="sr-only">Agents</caption>
-                            <thead>
-                                <tr><th><span>Name</span></th><th><span>Role</span></th><th><span>Departments</span></th><th><span>Teams</span></th><th><span>Active tickets</span></th><th><span>Status</span></th><th><span>Actions</span></th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var a in _agents)
-                                {
-                                    var teamNames = a.TeamIds.Select(id => FindTeam(id)?.Name ?? string.Empty).ToList();
-                                    <tr>
-                                        <td class="who"><strong>@a.Name</strong><span class="cell-sub">@a.Email · @a.Phone</span></td>
-                                        <td><span class="tag @RoleTagClass(a.Role)">@a.Role</span></td>
-                                        <td>@LinesOf(a.Departments)</td>
-                                        <td>
-                                            @if (teamNames.Count > 0)
-                                            {
-                                                @LinesOf(teamNames)
-                                            }
-                                            else
-                                            {
-                                                <span class="muted">None</span>
-                                            }
-                                        </td>
-                                        <td class="num-tab">@_counts.ByAgent.GetValueOrDefault(a.Id)</td>
-                                        <td>
-                                            @if (a.Active)
-                                            {
-                                                <span class="tag tag-green">Active</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="tag tag-grey">Inactive</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <div class="row" style="flex-wrap:nowrap;gap:6px">
-                                                <button type="button" class="icon-btn" aria-label="Edit @a.Name" @onclick="@(() => EditAgent(a))">@((MarkupString)IconLibrary.Render("edit", 16))</button>
-                                                <button type="button" class="icon-btn" aria-label="Reset password for @a.Name" @onclick="@(() => ConfirmReset(a))">@((MarkupString)IconLibrary.Render("key", 16))</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                <button type="button" class="btn btn-primary" @onclick="@(() => EditAgent(null))">@((MarkupString)IconLibrary.Render("plus", 16))Create Agent</button>
             }
         </div>
-    }
-</RoleGate>
+
+        @if (IsTeamsTab)
+        {
+            <div class="two-col">
+                @foreach (var t in _teams)
+                {
+                    var lead = FindAgent(t.LeadAgentId);
+                    <section class="card pad-sm stack-8" aria-labelledby="tm-@t.Id">
+                        <div class="row between">
+                            <h2 id="tm-@t.Id" class="card-title" style="margin:0">@t.Name</h2>
+                            <button type="button" class="btn btn-ghost btn-sm" @onclick="@(() => EditTeam(t))">@((MarkupString)IconLibrary.Render("edit", 14))Edit</button>
+                        </div>
+                        <span class="hint">@t.Department · lead @(string.IsNullOrEmpty(t.LeadAgentId) ? "not set" : lead?.Name)</span>
+                        @if (t.MemberAgentIds.Count > 0)
+                        {
+                            @foreach (var a in MembersInOrder(t))
+                            {
+                                <div class="list-item">
+                                    <span class="avatar agent" aria-hidden="true">@NameFormat.Initials(a.Name)</span>
+                                    <span style="flex:1"><strong style="font-size:14px">@a.Name</strong><span class="cell-sub">@a.JobTitle</span></span>
+                                    @if (t.LeadAgentId == a.Id)
+                                    {
+                                        <span class="tag tag-green">Lead</span>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="hint">No members yet.</p>
+                        }
+                        <span class="hint">@_counts.ByTeam.GetValueOrDefault(t.Id) active tickets assigned to this team</span>
+                    </section>
+                }
+            </div>
+        }
+        else
+        {
+            <section class="card">
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <caption class="sr-only">Agents</caption>
+                        <thead>
+                            <tr><th><span>Name</span></th><th><span>Role</span></th><th><span>Departments</span></th><th><span>Teams</span></th><th><span>Active tickets</span></th><th><span>Status</span></th><th><span>Actions</span></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var a in _agents)
+                            {
+                                var teamNames = a.TeamIds.Select(id => FindTeam(id)?.Name ?? string.Empty).ToList();
+                                <tr>
+                                    <td class="who"><strong>@a.Name</strong><span class="cell-sub">@a.Email · @a.Phone</span></td>
+                                    <td><span class="tag @RoleTagClass(a.Role)">@a.Role</span></td>
+                                    <td>@LinesOf(a.Departments)</td>
+                                    <td>
+                                        @if (teamNames.Count > 0)
+                                        {
+                                            @LinesOf(teamNames)
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">None</span>
+                                        }
+                                    </td>
+                                    <td class="num-tab">@_counts.ByAgent.GetValueOrDefault(a.Id)</td>
+                                    <td>
+                                        @if (a.Active)
+                                        {
+                                            <span class="tag tag-green">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="tag tag-grey">Inactive</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="row" style="flex-wrap:nowrap;gap:6px">
+                                            <button type="button" class="icon-btn" aria-label="Edit @a.Name" @onclick="@(() => EditAgent(a))">@((MarkupString)IconLibrary.Render("edit", 16))</button>
+                                            <button type="button" class="icon-btn" aria-label="Reset password for @a.Name" @onclick="@(() => ConfirmReset(a))">@((MarkupString)IconLibrary.Render("key", 16))</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    </div>
+}
 
 @code {
     [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
@@ -172,9 +170,6 @@
         AgentRoles.Supervisor => "tag-amber",
         _ => "tag-grey"
     };
-
-    private static string Initials(string name)
-        => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => w[0])).ToUpperInvariant();
 
     // Equivalent of the demo's values.map(esc).join('<br>').
     private static RenderFragment LinesOf(IReadOnlyList<string> values) => __builder =>

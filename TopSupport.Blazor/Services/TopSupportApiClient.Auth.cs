@@ -33,7 +33,7 @@ public partial class TopSupportApiClient
         var response = await _httpClient.GetAsync("api/auth/test-accounts", cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound) return Array.Empty<TestAccountItem>();
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<List<TestAccountItem>>(cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<List<TestAccountItem>>(cancellationToken) ?? throw EmptyBody(response);
     }
 
     /// <summary>Test-account switcher: a token for any account without its password (Development only).</summary>

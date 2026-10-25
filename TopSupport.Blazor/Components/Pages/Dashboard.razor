@@ -11,131 +11,129 @@
 @* Port of PAGES.dashboard in topsupport-app.js. All figures come pre-computed from
    GET api/dashboard (DashboardService); this page only renders them with the demo's markup:
    .stats tiles, the lineChart() SVG, hbars() rows, the By Agent table and "Overdue Now". *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    @if (_data is { } d)
-    {
-        <div class="stack">
-            <div class="stats">
-                @Stat("Active tickets", d.ActiveCount.ToString(), "Open, in progress or awaiting user")
-                @Stat("Overdue", d.OverdueCount.ToString(), "No response within target", d.OverdueCount > 0)
-                @Stat("Opened, last 30 days", d.OpenedLast30Days.ToString(), "New tickets")
-                @Stat("Closed, last 30 days", d.ClosedLast30Days.ToString(), "Resolved or closed")
-                @Stat("Avg first response", DurationFormat.Hours(d.AvgFirstResponseHours), "Across all responded tickets")
-                @Stat("Response target met",
-                      d.RespondedCount > 0 ? Math.Round(d.ResponseTargetMetCount * 100.0 / d.RespondedCount, MidpointRounding.AwayFromZero) + "%" : "—",
-                      $"{d.ResponseTargetMetCount} of {d.RespondedCount} responded tickets")
-            </div>
+@if (_data is { } d)
+{
+    <div class="stack">
+        <div class="stats">
+            @Stat("Active tickets", d.ActiveCount.ToString(), "Open, in progress or awaiting user")
+            @Stat("Overdue", d.OverdueCount.ToString(), "No response within target", d.OverdueCount > 0)
+            @Stat("Opened, last 30 days", d.OpenedLast30Days.ToString(), "New tickets")
+            @Stat("Closed, last 30 days", d.ClosedLast30Days.ToString(), "Resolved or closed")
+            @Stat("Avg first response", DurationFormat.Hours(d.AvgFirstResponseHours), "Across all responded tickets")
+            @Stat("Response target met",
+                  d.RespondedCount > 0 ? Math.Round(d.ResponseTargetMetCount * 100.0 / d.RespondedCount, MidpointRounding.AwayFromZero) + "%" : "—",
+                  $"{d.ResponseTargetMetCount} of {d.RespondedCount} responded tickets")
+        </div>
 
-            <section class="card pad chart" aria-labelledby="ch1">
-                <div class="card-head">
-                    <h2 id="ch1" class="card-title">Tickets Opened and Closed per Week</h2>
-                    <div class="legend"><span><i style="background:var(--green)"></i>Opened</span><span><i style="background:var(--slate)"></i>Closed (dashed)</span></div>
+        <section class="card pad chart" aria-labelledby="ch1">
+            <div class="card-head">
+                <h2 id="ch1" class="card-title">Tickets Opened and Closed per Week</h2>
+                <div class="legend"><span><i style="background:var(--green)"></i>Opened</span><span><i style="background:var(--slate)"></i>Closed (dashed)</span></div>
+            </div>
+            @((MarkupString)LineChart(d.Weeks))
+            <p class="hint">Last @d.Weeks.Count weeks. Week labels show the first day of each week.</p>
+        </section>
+
+        <div class="chart-grid">
+            <section class="card pad" aria-labelledby="ch2">
+                <h2 id="ch2" class="card-title">By Department</h2>
+                <p class="lede">Active tickets, with overdue counts and average first response.</p>
+                @((MarkupString)HBars(d.Departments.Select(x => (x.Department, x.Active))))
+                <div style="margin-top:12px">
+                    @foreach (var dept in d.Departments)
+                    {
+                        <div class="kv"><span>@dept.Department</span><strong>@dept.Overdue overdue · avg response @DurationFormat.Hours(dept.AvgFirstResponseHours)</strong></div>
+                    }
                 </div>
-                @((MarkupString)LineChart(d.Weeks))
-                <p class="hint">Last @d.Weeks.Count weeks. Week labels show the first day of each week.</p>
             </section>
+            <section class="card pad" aria-labelledby="ch3">
+                <h2 id="ch3" class="card-title">By Help Topic</h2>
+                <p class="lede">All tickets in the last 90 days.</p>
+                @((MarkupString)HBars(d.Topics.Select(x => (x.Label, x.Count))))
+            </section>
+        </div>
 
-            <div class="chart-grid">
-                <section class="card pad" aria-labelledby="ch2">
-                    <h2 id="ch2" class="card-title">By Department</h2>
-                    <p class="lede">Active tickets, with overdue counts and average first response.</p>
-                    @((MarkupString)HBars(d.Departments.Select(x => (x.Department, x.Active))))
-                    <div style="margin-top:12px">
-                        @foreach (var dept in d.Departments)
+        <section class="card" aria-labelledby="ch4">
+            <div class="pad-sm"><h2 id="ch4" class="card-title" style="margin:0">By Agent</h2></div>
+            <div class="tbl-wrap">
+                <table class="tbl">
+                    <thead>
+                        <tr>
+                            <th><span>Agent</span></th>
+                            <th><span>Active</span></th>
+                            <th><span>Resolved or closed</span></th>
+                            <th><span>Avg first response</span></th>
+                            <th><span>Overdue</span></th>
+                            <th style="min-width:180px"><span>Active workload</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var maxActive = Math.Max(1, d.Agents.Select(a => a.Active).DefaultIfEmpty(0).Max()); }
+                        @foreach (var a in d.Agents)
                         {
-                            <div class="kv"><span>@dept.Department</span><strong>@dept.Overdue overdue · avg response @DurationFormat.Hours(dept.AvgFirstResponseHours)</strong></div>
-                        }
-                    </div>
-                </section>
-                <section class="card pad" aria-labelledby="ch3">
-                    <h2 id="ch3" class="card-title">By Help Topic</h2>
-                    <p class="lede">All tickets in the last 90 days.</p>
-                    @((MarkupString)HBars(d.Topics.Select(x => (x.Label, x.Count))))
-                </section>
-            </div>
-
-            <section class="card" aria-labelledby="ch4">
-                <div class="pad-sm"><h2 id="ch4" class="card-title" style="margin:0">By Agent</h2></div>
-                <div class="tbl-wrap">
-                    <table class="tbl">
-                        <thead>
                             <tr>
-                                <th><span>Agent</span></th>
-                                <th><span>Active</span></th>
-                                <th><span>Resolved or closed</span></th>
-                                <th><span>Avg first response</span></th>
-                                <th><span>Overdue</span></th>
-                                <th style="min-width:180px"><span>Active workload</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @{ var maxActive = Math.Max(1, d.Agents.Select(a => a.Active).DefaultIfEmpty(0).Max()); }
-                            @foreach (var a in d.Agents)
-                            {
-                                <tr>
-                                    <td class="who"><strong>@a.Name</strong><span class="cell-sub">@a.TeamNames</span></td>
-                                    <td class="num-tab">@a.Active</td>
-                                    <td class="num-tab">@a.ResolvedOrClosed</td>
-                                    <td class="num-tab">@DurationFormat.Hours(a.AvgFirstResponseHours)</td>
-                                    <td>
-                                        @if (a.Overdue > 0)
-                                        {
-                                            <span class="tag overdue">@a.Overdue</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="muted">0</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        <div class="hbar" style="grid-template-columns:minmax(0,1fr);padding:0">
-                                            <span class="track"><span class="fill" style="display:block;width:@Pct(a.Active, maxActive)%"></span></span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            }
-                            <tr>
-                                <td class="who"><strong>Unassigned (team queue)</strong></td>
-                                <td class="num-tab">@d.UnassignedActive</td>
-                                <td>—</td>
-                                <td>—</td>
+                                <td class="who"><strong>@a.Name</strong><span class="cell-sub">@a.TeamNames</span></td>
+                                <td class="num-tab">@a.Active</td>
+                                <td class="num-tab">@a.ResolvedOrClosed</td>
+                                <td class="num-tab">@DurationFormat.Hours(a.AvgFirstResponseHours)</td>
                                 <td>
-                                    @if (d.UnassignedOverdue > 0)
+                                    @if (a.Overdue > 0)
                                     {
-                                        <span class="tag overdue">@d.UnassignedOverdue</span>
+                                        <span class="tag overdue">@a.Overdue</span>
                                     }
                                     else
                                     {
-                                        @("0")
+                                        <span class="muted">0</span>
                                     }
                                 </td>
-                                <td></td>
+                                <td>
+                                    <div class="hbar" style="grid-template-columns:minmax(0,1fr);padding:0">
+                                        <span class="track"><span class="fill" style="display:block;width:@Pct(a.Active, maxActive)%"></span></span>
+                                    </div>
+                                </td>
                             </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                        }
+                        <tr>
+                            <td class="who"><strong>Unassigned (team queue)</strong></td>
+                            <td class="num-tab">@d.UnassignedActive</td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>
+                                @if (d.UnassignedOverdue > 0)
+                                {
+                                    <span class="tag overdue">@d.UnassignedOverdue</span>
+                                }
+                                else
+                                {
+                                    @("0")
+                                }
+                            </td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
-            @if (d.OverdueTickets.Count > 0)
-            {
-                <section class="card pad-sm" aria-labelledby="ch5">
-                    <h2 id="ch5" class="card-title">Overdue Now</h2>
-                    @foreach (var t in d.OverdueTickets)
-                    {
-                        <button type="button" class="list-item" @onclick="@(() => Nav.NavigateTo($"/agent-tickets/{Uri.EscapeDataString(t.Id)}"))">
-                            <PriorityBadge Priority="@t.Priority" />
-                            <span style="flex:1;min-width:0">
-                                <strong style="font-size:14px">#@t.Number @t.Subject</strong>
-                                <span class="cell-sub">@t.RequesterName · @t.AssigneeLabel</span>
-                            </span>
-                            <span class="tag overdue">@((MarkupString)IconLibrary.Render("clock", 13)) Overdue @DurationFormat.Duration(DateTimeOffset.UtcNow - t.SlaDue)</span>
-                        </button>
-                    }
-                </section>
-            }
-        </div>
-    }
-</RoleGate>
+        @if (d.OverdueTickets.Count > 0)
+        {
+            <section class="card pad-sm" aria-labelledby="ch5">
+                <h2 id="ch5" class="card-title">Overdue Now</h2>
+                @foreach (var t in d.OverdueTickets)
+                {
+                    <button type="button" class="list-item" @onclick="@(() => Nav.NavigateTo($"/agent-tickets/{Uri.EscapeDataString(t.Id)}"))">
+                        <PriorityBadge Priority="@t.Priority" />
+                        <span style="flex:1;min-width:0">
+                            <strong style="font-size:14px">#@t.Number @t.Subject</strong>
+                            <span class="cell-sub">@t.RequesterName · @t.AssigneeLabel</span>
+                        </span>
+                        <span class="tag overdue">@((MarkupString)IconLibrary.Render("clock", 13)) Overdue @DurationFormat.Duration(DateTimeOffset.UtcNow - t.SlaDue)</span>
+                    </button>
+                }
+            </section>
+        }
+    </div>
+}
 
 @code {
     private DashboardDto? _data;

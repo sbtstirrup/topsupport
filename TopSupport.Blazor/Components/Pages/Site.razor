@@ -8,44 +8,42 @@
 
 @* Port of PAGES.site / ACT['site-save'] in topsupport-app.js. Landing.razor and SignIn.razor read
    the saved text through SiteText. *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    @if (_form is not null)
-    {
-        <div class="two-col">
-            <section class="card pad stack-16" aria-labelledby="sl-h">
-                <h2 id="sl-h" class="card-title" style="margin:0">Landing Page</h2>
-                <div class="field">
-                    <label class="field-label" for="f-site-landingTitle">Welcome Heading</label>
-                    <input class="input" id="f-site-landingTitle" type="text" maxlength="@FieldLimits.SiteHeading" @bind="_form.LandingTitle" @bind:event="oninput" />
-                </div>
-                <div class="field full">
-                    <label class="field-label" for="f-site-landingBody">Welcome Message</label>
-                    <textarea class="input" id="f-site-landingBody" rows="4" maxlength="@FieldLimits.SiteBody" @bind="_form.LandingBody" @bind:event="oninput"></textarea>
-                </div>
-                <p class="hint">The “Raise a ticket” button, sign-in button and login help line always appear.</p>
-            </section>
-            <section class="card pad stack-16" aria-labelledby="ssi-h">
-                <h2 id="ssi-h" class="card-title" style="margin:0">Sign-In Page</h2>
-                <div class="field">
-                    <label class="field-label" for="f-site-signinTitle">Heading</label>
-                    <input class="input" id="f-site-signinTitle" type="text" maxlength="@FieldLimits.SiteHeading" @bind="_form.SigninTitle" @bind:event="oninput" />
-                </div>
-                <div class="field full">
-                    <label class="field-label" for="f-site-signinBody">Instructions</label>
-                    <textarea class="input" id="f-site-signinBody" rows="3" maxlength="@FieldLimits.SiteBody" @bind="_form.SigninBody" @bind:event="oninput"></textarea>
-                </div>
-            </section>
-            <div class="row full">
-                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-                    @((MarkupString)IconLibrary.Render("save", 16))Save Pages
-                </button>
-                <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/"))">
-                    @((MarkupString)IconLibrary.Render("eye", 16))View Landing Page
-                </button>
+@if (_form is not null)
+{
+    <div class="two-col">
+        <section class="card pad stack-16" aria-labelledby="sl-h">
+            <h2 id="sl-h" class="card-title" style="margin:0">Landing Page</h2>
+            <div class="field">
+                <label class="field-label" for="f-site-landingTitle">Welcome Heading</label>
+                <input class="input" id="f-site-landingTitle" type="text" maxlength="@FieldLimits.SiteHeading" @bind="_form.LandingTitle" @bind:event="oninput" />
             </div>
+            <div class="field full">
+                <label class="field-label" for="f-site-landingBody">Welcome Message</label>
+                <textarea class="input" id="f-site-landingBody" rows="4" maxlength="@FieldLimits.SiteBody" @bind="_form.LandingBody" @bind:event="oninput"></textarea>
+            </div>
+            <p class="hint">The “Raise a ticket” button, sign-in button and login help line always appear.</p>
+        </section>
+        <section class="card pad stack-16" aria-labelledby="ssi-h">
+            <h2 id="ssi-h" class="card-title" style="margin:0">Sign-In Page</h2>
+            <div class="field">
+                <label class="field-label" for="f-site-signinTitle">Heading</label>
+                <input class="input" id="f-site-signinTitle" type="text" maxlength="@FieldLimits.SiteHeading" @bind="_form.SigninTitle" @bind:event="oninput" />
+            </div>
+            <div class="field full">
+                <label class="field-label" for="f-site-signinBody">Instructions</label>
+                <textarea class="input" id="f-site-signinBody" rows="3" maxlength="@FieldLimits.SiteBody" @bind="_form.SigninBody" @bind:event="oninput"></textarea>
+            </div>
+        </section>
+        <div class="row full">
+            <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                @((MarkupString)IconLibrary.Render("save", 16))Save Pages
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/"))">
+                @((MarkupString)IconLibrary.Render("eye", 16))View Landing Page
+            </button>
         </div>
-    }
-</RoleGate>
+    </div>
+}
 
 @code {
     // S.forms.site: an editable copy of the saved text.

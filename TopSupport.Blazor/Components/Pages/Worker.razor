@@ -10,228 +10,226 @@
    has emailed. Read-only views of its recurring jobs, recent runs and worker.NotificationLog;
    jobs are triggered or retried from the Hangfire dashboard on the worker's host. Refreshes
    itself every 30 seconds. *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <div class="stack-16">
-        @if (_refreshFailedAt is { } failedAt)
-        {
-            <div class="notice alert" role="status">
-                @((MarkupString)IconLibrary.Render("alert", 18))
-                <span>Couldn't refresh at @failedAt.ToLocalTime().ToString("HH:mm") &mdash; retrying every 30 seconds.@(_jobs is null ? "" : " The figures below are from the last successful refresh.")</span>
+<div class="stack-16">
+    @if (_refreshFailedAt is { } failedAt)
+    {
+        <div class="notice alert" role="status">
+            @((MarkupString)IconLibrary.Render("alert", 18))
+            <span>Couldn't refresh at @failedAt.ToLocalTime().ToString("HH:mm") &mdash; retrying every 30 seconds.@(_jobs is null ? "" : " The figures below are from the last successful refresh.")</span>
+        </div>
+    }
+    @if (_jobs is null)
+    {
+        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+    }
+    else
+    {
+        var server = _jobs.Servers.FirstOrDefault();
+        var running = server is not null && DateTimeOffset.UtcNow - server.LastHeartbeat < HeartbeatTimeout;
+
+        <div class="stats">
+            <div class="card stat">
+                <span class="stat-label">Worker</span>
+                <span class="stat-val @(running ? "" : "alert")">@(running ? "Running" : "Not running")</span>
+                <span class="stat-sub">
+                    @if (server is null)
+                    {
+                        @:Never started against this database
+                    }
+                    else if (running)
+                    {
+                        @($"On {server.Host}, last heartbeat {DurationFormat.Relative(server.LastHeartbeat)}")
+                    }
+                    else
+                    {
+                        @($"Last seen on {server.Host} {DurationFormat.Relative(server.LastHeartbeat)}")
+                    }
+                </span>
             </div>
-        }
-        @if (_jobs is null)
-        {
-            <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
-        }
-        else
-        {
-            var server = _jobs.Servers.FirstOrDefault();
-            var running = server is not null && DateTimeOffset.UtcNow - server.LastHeartbeat < HeartbeatTimeout;
-
-            <div class="stats">
-                <div class="card stat">
-                    <span class="stat-label">Worker</span>
-                    <span class="stat-val @(running ? "" : "alert")">@(running ? "Running" : "Not running")</span>
-                    <span class="stat-sub">
-                        @if (server is null)
-                        {
-                            @:Never started against this database
-                        }
-                        else if (running)
-                        {
-                            @($"On {server.Host}, last heartbeat {DurationFormat.Relative(server.LastHeartbeat)}")
-                        }
-                        else
-                        {
-                            @($"Last seen on {server.Host} {DurationFormat.Relative(server.LastHeartbeat)}")
-                        }
-                    </span>
-                </div>
-                <div class="card stat">
-                    <span class="stat-label">Failed runs</span>
-                    <span class="stat-val @(FailedRuns > 0 ? "alert" : "")">@FailedRuns</span>
-                    <span class="stat-sub">In the last @_jobs.RecentRuns.Count runs</span>
-                </div>
-                <div class="card stat">
-                    <span class="stat-label">Emails, last 24 hours</span>
-                    <span class="stat-val">@(_notifications?.Counts.Sum(c => c.Last24Hours) ?? 0)</span>
-                    <span class="stat-sub">@(_notifications?.Counts.Sum(c => c.Last7Days) ?? 0) in the last 7 days</span>
-                </div>
-                <div class="card stat">
-                    <span class="stat-label">Emails, all time</span>
-                    <span class="stat-val">@(_notifications?.Counts.Sum(c => c.AllTime) ?? 0)</span>
-                    <span class="stat-sub">Updated @DurationFormat.Relative(_refreshedAt)</span>
-                </div>
+            <div class="card stat">
+                <span class="stat-label">Failed runs</span>
+                <span class="stat-val @(FailedRuns > 0 ? "alert" : "")">@FailedRuns</span>
+                <span class="stat-sub">In the last @_jobs.RecentRuns.Count runs</span>
             </div>
+            <div class="card stat">
+                <span class="stat-label">Emails, last 24 hours</span>
+                <span class="stat-val">@(_notifications?.Counts.Sum(c => c.Last24Hours) ?? 0)</span>
+                <span class="stat-sub">@(_notifications?.Counts.Sum(c => c.Last7Days) ?? 0) in the last 7 days</span>
+            </div>
+            <div class="card stat">
+                <span class="stat-label">Emails, all time</span>
+                <span class="stat-val">@(_notifications?.Counts.Sum(c => c.AllTime) ?? 0)</span>
+                <span class="stat-sub">Updated @DurationFormat.Relative(_refreshedAt)</span>
+            </div>
+        </div>
 
-            <section class="card" aria-labelledby="wk-jobs">
-                <div class="pad-sm card-head" style="margin:0">
-                    <h2 id="wk-jobs" class="card-title">Scheduled Jobs</h2>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="RefreshAsync" disabled="@_refreshing">@((MarkupString)IconLibrary.Render("refresh", 16))Refresh</button>
+        <section class="card" aria-labelledby="wk-jobs">
+            <div class="pad-sm card-head" style="margin:0">
+                <h2 id="wk-jobs" class="card-title">Scheduled Jobs</h2>
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="RefreshAsync" disabled="@_refreshing">@((MarkupString)IconLibrary.Render("refresh", 16))Refresh</button>
+            </div>
+            @if (_jobs.RecurringJobs.Count == 0)
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("task", 26))</span>
+                    <h3>No scheduled jobs yet</h3>
+                    <p>Start TopSupport.Worker once and its five jobs appear here.</p>
                 </div>
-                @if (_jobs.RecurringJobs.Count == 0)
-                {
-                    <div class="empty">
-                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("task", 26))</span>
-                        <h3>No scheduled jobs yet</h3>
-                        <p>Start TopSupport.Worker once and its five jobs appear here.</p>
-                    </div>
-                }
-                else
-                {
-                    <div class="tbl-wrap">
-                        <table class="tbl">
-                            <caption class="sr-only">The worker's scheduled jobs</caption>
-                            <thead>
-                                <tr><th><span>Job</span></th><th><span>Schedule</span></th><th><span>Last run</span></th><th><span>Result</span></th><th><span>Next run</span></th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var job in _jobs.RecurringJobs.OrderBy(j => JobOrder(j.Id)))
-                                {
-                                    <tr>
-                                        <td><strong>@JobTitle(job.Id)</strong><span class="cell-sub">@JobDescription(job.Id)</span></td>
-                                        <td class="nowrap">@Schedule(job.Cron)<span class="cell-sub">@job.TimeZone</span></td>
-                                        <td class="nowrap num-tab">@(job.LastRun is { } last ? DurationFormat.DateTime(last) : "Not run yet")@if (job.LastRun is { } l) {<span class="cell-sub">@DurationFormat.Relative(l)</span>}</td>
-                                        <td>
-                                            <span class="tag @StateClass(job.ScheduleError is null ? job.LastState : "Failed")">@StateLabel(job.ScheduleError is null ? job.LastState : "Failed")</span>
-                                            @if ((job.ScheduleError ?? job.LastError) is { } err)
-                                            {
-                                                <span class="cell-sub" style="color:var(--red)">@Shorten(err)</span>
-                                            }
-                                        </td>
-                                        <td class="nowrap num-tab">@(job.NextRun is { } next ? DurationFormat.DateTime(next) : "—")@if (job.NextRun is { } nextRun) {<span class="cell-sub">@Until(nextRun)</span>}</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-                <p class="hint pad-sm" style="margin:0">To run a job now or retry a failed one, open the Hangfire dashboard on the worker's host (http://localhost:5280/hangfire; on EC2 through an SSM port-forward, see TopSupport.Worker/README.md).</p>
-            </section>
-
-            <section class="card" aria-labelledby="wk-emails">
-                <div class="pad-sm"><h2 id="wk-emails" class="card-title" style="margin:0">Emails Sent</h2></div>
-                <div class="filters">
-                    <div class="field grow">
-                        <label class="field-label" for="wk-q">Search</label>
-                        <div class="search">
-                            @((MarkupString)IconLibrary.Render("search", 16))
-                            <input class="input" id="wk-q" type="search" maxlength="@FieldLimits.SearchText" value="@_search" placeholder="Recipient, ticket number or subject"
-                                   @oninput="OnSearchInput" />
-                        </div>
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="wk-type">Email</label>
-                        <select class="input" id="wk-type" value="@_type" @onchange="OnTypeChanged">
-                            <option value="">All emails</option>
-                            @foreach (var (key, label) in WorkerEmailTypes.All)
+            }
+            else
+            {
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <caption class="sr-only">The worker's scheduled jobs</caption>
+                        <thead>
+                            <tr><th><span>Job</span></th><th><span>Schedule</span></th><th><span>Last run</span></th><th><span>Result</span></th><th><span>Next run</span></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var job in _jobs.RecurringJobs.OrderBy(j => JobOrder(j.Id)))
                             {
-                                var count = _notifications?.Counts.FirstOrDefault(c => c.EventType == key)?.AllTime ?? 0;
-                                <option value="@key">@label (@count)</option>
+                                <tr>
+                                    <td><strong>@JobTitle(job.Id)</strong><span class="cell-sub">@JobDescription(job.Id)</span></td>
+                                    <td class="nowrap">@Schedule(job.Cron)<span class="cell-sub">@job.TimeZone</span></td>
+                                    <td class="nowrap num-tab">@(job.LastRun is { } last ? DurationFormat.DateTime(last) : "Not run yet")@if (job.LastRun is { } l) {<span class="cell-sub">@DurationFormat.Relative(l)</span>}</td>
+                                    <td>
+                                        <span class="tag @StateClass(job.ScheduleError is null ? job.LastState : "Failed")">@StateLabel(job.ScheduleError is null ? job.LastState : "Failed")</span>
+                                        @if ((job.ScheduleError ?? job.LastError) is { } err)
+                                        {
+                                            <span class="cell-sub" style="color:var(--red)">@Shorten(err)</span>
+                                        }
+                                    </td>
+                                    <td class="nowrap num-tab">@(job.NextRun is { } next ? DurationFormat.DateTime(next) : "—")@if (job.NextRun is { } nextRun) {<span class="cell-sub">@Until(nextRun)</span>}</td>
+                                </tr>
                             }
-                        </select>
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <p class="hint pad-sm" style="margin:0">To run a job now or retry a failed one, open the Hangfire dashboard on the worker's host (http://localhost:5280/hangfire; on EC2 through an SSM port-forward, see TopSupport.Worker/README.md).</p>
+        </section>
+
+        <section class="card" aria-labelledby="wk-emails">
+            <div class="pad-sm"><h2 id="wk-emails" class="card-title" style="margin:0">Emails Sent</h2></div>
+            <div class="filters">
+                <div class="field grow">
+                    <label class="field-label" for="wk-q">Search</label>
+                    <div class="search">
+                        @((MarkupString)IconLibrary.Render("search", 16))
+                        <input class="input" id="wk-q" type="search" maxlength="@FieldLimits.SearchText" value="@_search" placeholder="Recipient, ticket number or subject"
+                               @oninput="OnSearchInput" />
                     </div>
                 </div>
-
-                @if (_notifications is { Items.Count: > 0 } n)
-                {
-                    var pages = Math.Max(1, (int)Math.Ceiling(n.Total / (double)PageSize));
-                    var from = (_page - 1) * PageSize + 1;
-                    var to = Math.Min(n.Total, _page * PageSize);
-                    <div class="tbl-wrap">
-                        <table class="tbl">
-                            <caption class="sr-only">Emails sent by the worker, newest first</caption>
-                            <thead>
-                                <tr><th><span>Sent</span></th><th><span>Email</span></th><th><span>To</span></th><th><span>Ticket</span></th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in n.Items)
-                                {
-                                    <tr>
-                                        <td class="nowrap num-tab">@DurationFormat.DateTime(item.SentAt)<span class="cell-sub">@DurationFormat.Relative(item.SentAt)</span></td>
-                                        <td><span class="tag @TypeClass(item.EventType)">@WorkerEmailTypes.Label(item.EventType)</span></td>
-                                        <td>@item.Recipient</td>
-                                        <td>
-                                            @if (item.TicketNumber is not null)
-                                            {
-                                                <a href="@($"agent-tickets/{Uri.EscapeDataString(item.TicketId)}")">#@item.TicketNumber</a>
-                                                <span class="cell-sub">@item.Subject</span>
-                                            }
-                                            else if (item.TicketId.Length == 0)
-                                            {
-                                                <span class="cell-sub">@DigestTeam(item.EventKey)</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="cell-sub">@item.TicketId (deleted)</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="tbl-foot">
-                        <span class="num-tab">Showing @from&ndash;@to of @n.Total</span>
-                        @if (pages > 1)
+                <div class="field">
+                    <label class="field-label" for="wk-type">Email</label>
+                    <select class="input" id="wk-type" value="@_type" @onchange="OnTypeChanged">
+                        <option value="">All emails</option>
+                        @foreach (var (key, label) in WorkerEmailTypes.All)
                         {
-                            <nav class="pagination" aria-label="Pages">
-                                <button type="button" class="opt" disabled="@(_page == 1)" aria-label="Previous page" @onclick="@(() => GoToPageAsync(_page - 1))">@((MarkupString)IconLibrary.Render("back", 14, 2.5))</button>
-                                <span class="num-tab" style="padding:0 8px">Page @_page of @pages</span>
-                                <button type="button" class="opt" disabled="@(_page == pages)" aria-label="Next page" @onclick="@(() => GoToPageAsync(_page + 1))">@((MarkupString)IconLibrary.Render("chevron", 14, 2.5))</button>
-                            </nav>
+                            var count = _notifications?.Counts.FirstOrDefault(c => c.EventType == key)?.AllTime ?? 0;
+                            <option value="@key">@label (@count)</option>
                         }
-                    </div>
-                }
-                else if (_notifications is not null)
-                {
-                    <div class="empty">
-                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("mail", 26))</span>
-                        <h3>@(_search.Length > 0 || _type.Length > 0 ? "No emails match" : "No emails sent yet")</h3>
-                        <p>@(_search.Length > 0 || _type.Length > 0 ? "Change or clear the filters." : "The worker records every email it sends here.")</p>
-                    </div>
-                }
-            </section>
+                    </select>
+                </div>
+            </div>
 
-            <section class="card" aria-labelledby="wk-runs">
-                <div class="pad-sm"><h2 id="wk-runs" class="card-title" style="margin:0">Recent Runs</h2></div>
-                @if (_jobs.RecentRuns.Count == 0)
-                {
-                    <div class="empty"><h3>No runs yet</h3></div>
-                }
-                else
-                {
-                    <div class="tbl-wrap">
-                        <table class="tbl">
-                            <caption class="sr-only">The worker's most recent job runs, newest first</caption>
-                            <thead>
-                                <tr><th><span>Run</span></th><th><span>Job</span></th><th><span>Started</span></th><th><span>Took</span></th><th><span>Result</span></th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var run in _jobs.RecentRuns)
-                                {
-                                    <tr>
-                                        <td class="num-tab">#@run.JobId</td>
-                                        <td>@JobTitle(run.RecurringJobId)</td>
-                                        <td class="nowrap num-tab">@DurationFormat.DateTime(run.CreatedAt)<span class="cell-sub">@DurationFormat.Relative(run.CreatedAt)</span></td>
-                                        <td class="num-tab">@(run.DurationMs is { } ms ? FormatMs(ms) : "—")</td>
-                                        <td>
-                                            <span class="tag @StateClass(run.State)">@StateLabel(run.State)</span>
-                                            @if (run.Error is { } err)
-                                            {
-                                                <span class="cell-sub" style="color:var(--red)">@Shorten(err)</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </section>
-        }
-    </div>
-</RoleGate>
+            @if (_notifications is { Items.Count: > 0 } n)
+            {
+                var pages = Math.Max(1, (int)Math.Ceiling(n.Total / (double)PageSize));
+                var from = (_page - 1) * PageSize + 1;
+                var to = Math.Min(n.Total, _page * PageSize);
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <caption class="sr-only">Emails sent by the worker, newest first</caption>
+                        <thead>
+                            <tr><th><span>Sent</span></th><th><span>Email</span></th><th><span>To</span></th><th><span>Ticket</span></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in n.Items)
+                            {
+                                <tr>
+                                    <td class="nowrap num-tab">@DurationFormat.DateTime(item.SentAt)<span class="cell-sub">@DurationFormat.Relative(item.SentAt)</span></td>
+                                    <td><span class="tag @TypeClass(item.EventType)">@WorkerEmailTypes.Label(item.EventType)</span></td>
+                                    <td>@item.Recipient</td>
+                                    <td>
+                                        @if (item.TicketNumber is not null)
+                                        {
+                                            <a href="@($"agent-tickets/{Uri.EscapeDataString(item.TicketId)}")">#@item.TicketNumber</a>
+                                            <span class="cell-sub">@item.Subject</span>
+                                        }
+                                        else if (item.TicketId.Length == 0)
+                                        {
+                                            <span class="cell-sub">@DigestTeam(item.EventKey)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="cell-sub">@item.TicketId (deleted)</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="tbl-foot">
+                    <span class="num-tab">Showing @from&ndash;@to of @n.Total</span>
+                    @if (pages > 1)
+                    {
+                        <nav class="pagination" aria-label="Pages">
+                            <button type="button" class="opt" disabled="@(_page == 1)" aria-label="Previous page" @onclick="@(() => GoToPageAsync(_page - 1))">@((MarkupString)IconLibrary.Render("back", 14, 2.5))</button>
+                            <span class="num-tab" style="padding:0 8px">Page @_page of @pages</span>
+                            <button type="button" class="opt" disabled="@(_page == pages)" aria-label="Next page" @onclick="@(() => GoToPageAsync(_page + 1))">@((MarkupString)IconLibrary.Render("chevron", 14, 2.5))</button>
+                        </nav>
+                    }
+                </div>
+            }
+            else if (_notifications is not null)
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("mail", 26))</span>
+                    <h3>@(_search.Length > 0 || _type.Length > 0 ? "No emails match" : "No emails sent yet")</h3>
+                    <p>@(_search.Length > 0 || _type.Length > 0 ? "Change or clear the filters." : "The worker records every email it sends here.")</p>
+                </div>
+            }
+        </section>
+
+        <section class="card" aria-labelledby="wk-runs">
+            <div class="pad-sm"><h2 id="wk-runs" class="card-title" style="margin:0">Recent Runs</h2></div>
+            @if (_jobs.RecentRuns.Count == 0)
+            {
+                <div class="empty"><h3>No runs yet</h3></div>
+            }
+            else
+            {
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <caption class="sr-only">The worker's most recent job runs, newest first</caption>
+                        <thead>
+                            <tr><th><span>Run</span></th><th><span>Job</span></th><th><span>Started</span></th><th><span>Took</span></th><th><span>Result</span></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var run in _jobs.RecentRuns)
+                            {
+                                <tr>
+                                    <td class="num-tab">#@run.JobId</td>
+                                    <td>@JobTitle(run.RecurringJobId)</td>
+                                    <td class="nowrap num-tab">@DurationFormat.DateTime(run.CreatedAt)<span class="cell-sub">@DurationFormat.Relative(run.CreatedAt)</span></td>
+                                    <td class="num-tab">@(run.DurationMs is { } ms ? FormatMs(ms) : "—")</td>
+                                    <td>
+                                        <span class="tag @StateClass(run.State)">@StateLabel(run.State)</span>
+                                        @if (run.Error is { } err)
+                                        {
+                                            <span class="cell-sub" style="color:var(--red)">@Shorten(err)</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
 
 @code {
     private const int PageSize = 25;

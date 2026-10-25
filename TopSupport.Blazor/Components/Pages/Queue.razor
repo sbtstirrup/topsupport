@@ -12,151 +12,149 @@
 @inject NavigationManager Nav
 @implements IDisposable
 
-<RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
-    <div class="stack">
-        <div class="row between">
+<div class="stack">
+    <div class="row between">
+        <div class="row">
+            @if (QueueName != "overdue" && _overdueCount > 0)
+            {
+                <button type="button" class="tag overdue" style="cursor:pointer;min-height:32px" @onclick="@(() => Nav.NavigateTo("/queue/overdue"))">
+                    @((MarkupString)IconLibrary.Render("clock", 13))@_overdueCount overdue
+                </button>
+            }
+            <span class="hint">@(_result?.TotalCount ?? 0) of @_baseCount tickets</span>
+        </div>
+        <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/new-ticket"))">
+            @((MarkupString)IconLibrary.Render("plus", 16))New Ticket
+        </button>
+    </div>
+
+    <section class="card" aria-label="@QueueTitle tickets">
+        <div class="filters">
+            <div class="field grow">
+                <label class="field-label" for="qf-q">Search</label>
+                <div class="search">
+                    @((MarkupString)IconLibrary.Render("search", 16))
+                    <input class="input" id="qf-q" type="search" value="@_searchText"
+                           maxlength="@TopSupport.Models.Admin.FieldLimits.SearchText"
+                           @oninput="@(e => OnSearchChanged(e.Value?.ToString()))"
+                           placeholder="Number, subject, requester or details" />
+                </div>
+            </div>
+            <div class="field">
+                <label class="field-label" for="qf-status">Status</label>
+                <select class="input" id="qf-status" value="@_status" @onchange="@(e => OnStatusChanged(e.Value?.ToString()))">
+                    <option value="">Any status</option>
+                    @foreach (var s in Enum.GetValues<TicketStatus>())
+                    {
+                        <option value="@s">@EnumDisplay.Label(s)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label class="field-label" for="qf-priority">Priority</label>
+                <select class="input" id="qf-priority" value="@_priority" @onchange="@(e => OnPriorityChanged(e.Value?.ToString()))">
+                    <option value="">Any priority</option>
+                    @foreach (var p in Enum.GetValues<TicketPriority>())
+                    {
+                        <option value="@p">@EnumDisplay.Label(p)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label class="field-label" for="qf-topic">Help topic</label>
+                <select class="input" id="qf-topic" value="@_topic" @onchange="@(e => OnTopicChanged(e.Value?.ToString()))">
+                    <option value="">Any topic</option>
+                    @foreach (var t in TicketTopics.TOPICS)
+                    {
+                        <option value="@t.Id">@t.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label class="field-label" for="qf-dept">Department</label>
+                <select class="input" id="qf-dept" value="@_department" @onchange="@(e => OnDepartmentChanged(e.Value?.ToString()))">
+                    <option value="">Any department</option>
+                    @foreach (var d in TicketTopics.DEPTS)
+                    {
+                        <option value="@d">@d</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label class="field-label" for="qf-assignee">Assignee</label>
+                <select class="input" id="qf-assignee" value="@_assignee" @onchange="@(e => OnAssigneeChanged(e.Value?.ToString()))">
+                    <option value="">Anyone</option>
+                    <option value="me">Me</option>
+                    <option value="none">No agent assigned</option>
+                    <optgroup label="Agents">
+                        @foreach (var a in _agents.Where(a => a.Active))
+                        {
+                            <option value="@("a:" + a.Id)">@a.Name</option>
+                        }
+                    </optgroup>
+                    <optgroup label="Teams">
+                        @foreach (var t in _teams)
+                        {
+                            <option value="@("t:" + t.Id)">@t.Name</option>
+                        }
+                    </optgroup>
+                </select>
+            </div>
             <div class="row">
-                @if (QueueName != "overdue" && _overdueCount > 0)
+                @if (HasActiveFilters)
                 {
-                    <button type="button" class="tag overdue" style="cursor:pointer;min-height:32px" @onclick="@(() => Nav.NavigateTo("/queue/overdue"))">
-                        @((MarkupString)IconLibrary.Render("clock", 13))@_overdueCount overdue
+                    <button type="button" class="btn btn-ghost" @onclick="ClearFilters">
+                        @((MarkupString)IconLibrary.Render("x", 16))Clear Filters
                     </button>
                 }
-                <span class="hint">@(_result?.TotalCount ?? 0) of @_baseCount tickets</span>
             </div>
-            <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/new-ticket"))">
-                @((MarkupString)IconLibrary.Render("plus", 16))New Ticket
-            </button>
         </div>
 
-        <section class="card" aria-label="@QueueTitle tickets">
-            <div class="filters">
-                <div class="field grow">
-                    <label class="field-label" for="qf-q">Search</label>
-                    <div class="search">
-                        @((MarkupString)IconLibrary.Render("search", 16))
-                        <input class="input" id="qf-q" type="search" value="@_searchText"
-                               maxlength="@TopSupport.Models.Admin.FieldLimits.SearchText"
-                               @oninput="@(e => OnSearchChanged(e.Value?.ToString()))"
-                               placeholder="Number, subject, requester or details" />
-                    </div>
-                </div>
-                <div class="field">
-                    <label class="field-label" for="qf-status">Status</label>
-                    <select class="input" id="qf-status" value="@_status" @onchange="@(e => OnStatusChanged(e.Value?.ToString()))">
-                        <option value="">Any status</option>
-                        @foreach (var s in Enum.GetValues<TicketStatus>())
-                        {
-                            <option value="@s">@EnumDisplay.Label(s)</option>
-                        }
-                    </select>
-                </div>
-                <div class="field">
-                    <label class="field-label" for="qf-priority">Priority</label>
-                    <select class="input" id="qf-priority" value="@_priority" @onchange="@(e => OnPriorityChanged(e.Value?.ToString()))">
-                        <option value="">Any priority</option>
-                        @foreach (var p in Enum.GetValues<TicketPriority>())
-                        {
-                            <option value="@p">@EnumDisplay.Label(p)</option>
-                        }
-                    </select>
-                </div>
-                <div class="field">
-                    <label class="field-label" for="qf-topic">Help topic</label>
-                    <select class="input" id="qf-topic" value="@_topic" @onchange="@(e => OnTopicChanged(e.Value?.ToString()))">
-                        <option value="">Any topic</option>
-                        @foreach (var t in TicketTopics.TOPICS)
-                        {
-                            <option value="@t.Id">@t.Label</option>
-                        }
-                    </select>
-                </div>
-                <div class="field">
-                    <label class="field-label" for="qf-dept">Department</label>
-                    <select class="input" id="qf-dept" value="@_department" @onchange="@(e => OnDepartmentChanged(e.Value?.ToString()))">
-                        <option value="">Any department</option>
-                        @foreach (var d in TicketTopics.DEPTS)
-                        {
-                            <option value="@d">@d</option>
-                        }
-                    </select>
-                </div>
-                <div class="field">
-                    <label class="field-label" for="qf-assignee">Assignee</label>
-                    <select class="input" id="qf-assignee" value="@_assignee" @onchange="@(e => OnAssigneeChanged(e.Value?.ToString()))">
-                        <option value="">Anyone</option>
-                        <option value="me">Me</option>
-                        <option value="none">No agent assigned</option>
-                        <optgroup label="Agents">
-                            @foreach (var a in _agents.Where(a => a.Active))
-                            {
-                                <option value="@("a:" + a.Id)">@a.Name</option>
-                            }
-                        </optgroup>
-                        <optgroup label="Teams">
-                            @foreach (var t in _teams)
-                            {
-                                <option value="@("t:" + t.Id)">@t.Name</option>
-                            }
-                        </optgroup>
-                    </select>
-                </div>
-                <div class="row">
-                    @if (HasActiveFilters)
-                    {
-                        <button type="button" class="btn btn-ghost" @onclick="ClearFilters">
-                            @((MarkupString)IconLibrary.Render("x", 16))Clear Filters
-                        </button>
-                    }
-                </div>
+        @if (_selectedIds.Count > 0)
+        {
+            <div class="bulkbar" role="region" aria-label="Bulk actions">
+                <span>@_selectedIds.Count selected</span>
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkAssign">@((MarkupString)IconLibrary.Render("user", 14))Assign</button>
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkChangeStatus">Change Status</button>
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkChangePriority">Change Priority</button>
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkClose">@((MarkupString)IconLibrary.Render("lock", 14))Close</button>
+                <button type="button" class="btn btn-ghost btn-sm" @onclick="@(() => SetSelected(new HashSet<string>()))">Clear Selection</button>
             </div>
+        }
 
-            @if (_selectedIds.Count > 0)
-            {
-                <div class="bulkbar" role="region" aria-label="Bulk actions">
-                    <span>@_selectedIds.Count selected</span>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkAssign">@((MarkupString)IconLibrary.Render("user", 14))Assign</button>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkChangeStatus">Change Status</button>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkChangePriority">Change Priority</button>
-                    <button type="button" class="btn btn-secondary btn-sm" @onclick="BulkClose">@((MarkupString)IconLibrary.Render("lock", 14))Close</button>
-                    <button type="button" class="btn btn-ghost btn-sm" @onclick="@(() => SetSelected(new HashSet<string>()))">Clear Selection</button>
-                </div>
-            }
-
-            @if (_loading)
-            {
-                <div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div>
-            }
-            else if (_baseCount == 0)
-            {
-                <div class="empty">
-                    <span class="empty-icon">@((MarkupString)IconLibrary.Render(QueueName == "overdue" ? "check" : "inbox", 26))</span>
-                    <h3>@(QueueName == "overdue" ? "Nothing is overdue" : "This queue is empty")</h3>
-                    <p>@(QueueName == "overdue" ? "Every open ticket has had a response within its target." : "Tickets will appear here as they arrive.")</p>
-                </div>
-            }
-            else if ((_result?.TotalCount ?? 0) == 0)
-            {
-                <div class="empty">
-                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
-                    <h3>No tickets match these filters</h3>
-                    <p>Change or clear the filters to see more tickets.</p>
-                    <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
-                </div>
-            }
-            else
-            {
-                <QueueTable Tickets="_result!.Items" TotalCount="_result.TotalCount" ColumnSet="QueueTableColumnSet.Agent"
-                            SelectedIds="_selectedIds" SelectedIdsChanged="SetSelected"
-                            SortKey="_sortKey" SortKeyChanged="@(k => OnSortKeyChanged(k))"
-                            SortDirection="_sortDir" SortDirectionChanged="@(d => OnSortDirChanged(d))"
-                            PageNumber="_page" PageNumberChanged="@(p => OnPageChanged(p))" PageSize="_pageSize"
-                            OnRowClick="@(id => Nav.NavigateTo($"/agent-tickets/{id}"))"
-                            ActorNameResolver="ResolveActorName" TeamNameResolver="ResolveTeamName" />
-            }
-        </section>
-    </div>
-</RoleGate>
+        @if (_loading)
+        {
+            <div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div>
+        }
+        else if (_baseCount == 0)
+        {
+            <div class="empty">
+                <span class="empty-icon">@((MarkupString)IconLibrary.Render(QueueName == "overdue" ? "check" : "inbox", 26))</span>
+                <h3>@(QueueName == "overdue" ? "Nothing is overdue" : "This queue is empty")</h3>
+                <p>@(QueueName == "overdue" ? "Every open ticket has had a response within its target." : "Tickets will appear here as they arrive.")</p>
+            </div>
+        }
+        else if ((_result?.TotalCount ?? 0) == 0)
+        {
+            <div class="empty">
+                <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
+                <h3>No tickets match these filters</h3>
+                <p>Change or clear the filters to see more tickets.</p>
+                <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
+            </div>
+        }
+        else
+        {
+            <QueueTable Tickets="_result!.Items" TotalCount="_result.TotalCount" ColumnSet="QueueTableColumnSet.Agent"
+                        SelectedIds="_selectedIds" SelectedIdsChanged="SetSelected"
+                        SortKey="_sortKey" SortKeyChanged="@(k => OnSortKeyChanged(k))"
+                        SortDirection="_sortDir" SortDirectionChanged="@(d => OnSortDirChanged(d))"
+                        PageNumber="_page" PageNumberChanged="@(p => OnPageChanged(p))" PageSize="_pageSize"
+                        OnRowClick="@(id => Nav.NavigateTo($"/agent-tickets/{id}"))"
+                        ActorNameResolver="ResolveActorName" TeamNameResolver="ResolveTeamName" />
+        }
+    </section>
+</div>
 
 @code {
     [Parameter] public string QueueName { get; set; } = "open";

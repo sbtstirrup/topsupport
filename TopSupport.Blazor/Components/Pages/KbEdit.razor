@@ -10,88 +10,86 @@
 
 @* Port of PAGES.kbedit + ACT['ka-save'] / ACT['ka-del'] in topsupport-app.js. Id "new" creates
    an article; any other Id edits that article. Field ids follow fid('ka.<field>'). *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    @if (_kb is null)
-    {
-        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
-    }
-    else if (!IsNew && _article is null)
-    {
-        <div class="card">
-            <div class="empty">
-                <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
-                <h3>Article not found</h3>
-                <p>It may have been deleted.</p>
-                <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/kb"))">Back to Knowledge Base</button>
+@if (_kb is null)
+{
+    <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+}
+else if (!IsNew && _article is null)
+{
+    <div class="card">
+        <div class="empty">
+            <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
+            <h3>Article not found</h3>
+            <p>It may have been deleted.</p>
+            <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/kb"))">Back to Knowledge Base</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="side-col">
+        <form class="card pad stack-16" novalidate aria-label="Article editor" @onsubmit:preventDefault="true">
+            <div class="field">
+                <label class="field-label" for="f-ka-title">Title<span class="star" aria-hidden="true"> *</span></label>
+                <input class="input @(TitleError is null ? "" : "invalid")" id="f-ka-title" type="text" maxlength="@FieldLimits.KbTitle" @bind="_title" @bind:event="oninput"
+                       aria-required="true" aria-invalid="@(TitleError is null ? null : "true")" aria-describedby="@(TitleError is null ? null : "f-ka-title-e")" />
+                @if (TitleError is not null)
+                {
+                    <span class="field-err" id="f-ka-title-e">@((MarkupString)IconLibrary.Render("alert", 14))@TitleError</span>
+                }
             </div>
-        </div>
-    }
-    else
-    {
-        <div class="side-col">
-            <form class="card pad stack-16" novalidate aria-label="Article editor" @onsubmit:preventDefault="true">
+
+            <div class="field-grid">
                 <div class="field">
-                    <label class="field-label" for="f-ka-title">Title<span class="star" aria-hidden="true"> *</span></label>
-                    <input class="input @(TitleError is null ? "" : "invalid")" id="f-ka-title" type="text" maxlength="@FieldLimits.KbTitle" @bind="_title" @bind:event="oninput"
-                           aria-required="true" aria-invalid="@(TitleError is null ? null : "true")" aria-describedby="@(TitleError is null ? null : "f-ka-title-e")" />
-                    @if (TitleError is not null)
-                    {
-                        <span class="field-err" id="f-ka-title-e">@((MarkupString)IconLibrary.Render("alert", 14))@TitleError</span>
-                    }
+                    <label class="field-label" for="f-ka-cat">Category</label>
+                    <select class="input" id="f-ka-cat" @bind="_categoryId">
+                        @foreach (var c in _kb.Categories)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
                 </div>
-
-                <div class="field-grid">
-                    <div class="field">
-                        <label class="field-label" for="f-ka-cat">Category</label>
-                        <select class="input" id="f-ka-cat" @bind="_categoryId">
-                            @foreach (var c in _kb.Categories)
-                            {
-                                <option value="@c.Id">@c.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="f-ka-status">Status</label>
-                        <select class="input" id="f-ka-status" @bind="_status">
-                            @foreach (var s in KbArticleStatuses.All)
-                            {
-                                <option value="@s">@s</option>
-                            }
-                        </select>
-                    </div>
+                <div class="field">
+                    <label class="field-label" for="f-ka-status">Status</label>
+                    <select class="input" id="f-ka-status" @bind="_status">
+                        @foreach (var s in KbArticleStatuses.All)
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
                 </div>
+            </div>
 
-                <div class="field full">
-                    <label class="field-label" for="f-ka-body">Article Text<span class="star" aria-hidden="true"> *</span></label>
-                    <textarea class="input @(BodyError is null ? "" : "invalid")" id="f-ka-body" rows="12" maxlength="@FieldLimits.KbBody" @bind="_body" @bind:event="oninput"
-                              aria-required="true" aria-invalid="@(BodyError is null ? null : "true")" aria-describedby="@(BodyError is null ? null : "f-ka-body-e")"></textarea>
-                    @if (BodyError is not null)
-                    {
-                        <span class="field-err" id="f-ka-body-e">@((MarkupString)IconLibrary.Render("alert", 14))@BodyError</span>
-                    }
-                </div>
+            <div class="field full">
+                <label class="field-label" for="f-ka-body">Article Text<span class="star" aria-hidden="true"> *</span></label>
+                <textarea class="input @(BodyError is null ? "" : "invalid")" id="f-ka-body" rows="12" maxlength="@FieldLimits.KbBody" @bind="_body" @bind:event="oninput"
+                          aria-required="true" aria-invalid="@(BodyError is null ? null : "true")" aria-describedby="@(BodyError is null ? null : "f-ka-body-e")"></textarea>
+                @if (BodyError is not null)
+                {
+                    <span class="field-err" id="f-ka-body-e">@((MarkupString)IconLibrary.Render("alert", 14))@BodyError</span>
+                }
+            </div>
 
-                <div class="row">
-                    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-                        @((MarkupString)IconLibrary.Render("save", 16))Save Article
+            <div class="row">
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @((MarkupString)IconLibrary.Render("save", 16))Save Article
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/kb"))">Cancel</button>
+                @if (!IsNew)
+                {
+                    <button type="button" class="btn btn-ghost" @onclick="ConfirmDelete">
+                        @((MarkupString)IconLibrary.Render("trash", 16))Delete
                     </button>
-                    <button type="button" class="btn btn-secondary" @onclick="@(() => Nav.NavigateTo("/kb"))">Cancel</button>
-                    @if (!IsNew)
-                    {
-                        <button type="button" class="btn btn-ghost" @onclick="ConfirmDelete">
-                            @((MarkupString)IconLibrary.Render("trash", 16))Delete
-                        </button>
-                    }
-                </div>
-            </form>
+                }
+            </div>
+        </form>
 
-            <aside class="card panel">
-                <h2 class="panel-title">Writing Tips</h2>
-                <p class="hint" style="line-height:1.6">Start with the task in the title, for example “Connect to the VPN”. Use short numbered steps and the exact names of buttons and menus.</p>
-            </aside>
-        </div>
-    }
-</RoleGate>
+        <aside class="card panel">
+            <h2 class="panel-title">Writing Tips</h2>
+            <p class="hint" style="line-height:1.6">Start with the task in the title, for example “Connect to the VPN”. Use short numbered steps and the exact names of buttons and menus.</p>
+        </aside>
+    </div>
+}
 
 @code {
     [Parameter] public string Id { get; set; } = string.Empty;

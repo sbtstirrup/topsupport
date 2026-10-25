@@ -9,110 +9,108 @@
 @inject ToastState Toasts
 @inject IJSRuntime JS
 
-<RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
-    <div class="side-col" style="grid-template-columns:300px minmax(0,1fr)">
-        <section class="card panel" aria-labelledby="cn-list-h">
-            <div class="panel-title">
-                <h2 id="cn-list-h" style="font-size:15px">Library (@_responses.Count)</h2>
-                <button type="button" class="btn btn-primary btn-sm" @onclick="NewResponse">
-                    @((MarkupString)IconLibrary.Render("plus", 14))New
-                </button>
-            </div>
-            @if (_responses.Count == 0)
-            {
-                <p class="hint">Create one to save time on common replies.</p>
-            }
-            else
-            {
-                @foreach (var c in _responses)
-                {
-                    <button type="button" class="list-item @(_selectedId == c.Id ? "active" : "")"
-                            aria-current="@(_selectedId == c.Id ? "true" : null)" @onclick="@(() => Pick(c))">
-                        @((MarkupString)IconLibrary.Render("note", 18))
-                        <span style="flex:1;min-width:0">
-                            <strong style="font-size:14px">@c.Title</strong>
-                            <span class="cell-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@Preview(c.Body)</span>
-                        </span>
-                    </button>
-                }
-            }
-        </section>
-
-        <div class="side-col">
-            <form class="card pad stack-16" novalidate aria-labelledby="cn-h" @onsubmit:preventDefault="true">
-                <h2 id="cn-h" class="card-title" style="margin:0">@(_isNew ? "New Canned Response" : "Edit Canned Response")</h2>
-
-                <div class="field full">
-                    <label class="field-label" for="cn-title">Title<span class="star" aria-hidden="true"> *</span></label>
-                    <input class="input @(_titleError is null ? "" : "invalid")" id="cn-title" type="text" maxlength="@FieldLimits.CannedTitle"
-                           placeholder="For example Courier collection booked" @bind="_title" @bind:event="oninput" />
-                    @if (_titleError is not null)
-                    {
-                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_titleError</span>
-                    }
-                </div>
-
-                <div class="field full">
-                    <label class="field-label" for="cn-body">Message<span class="star" aria-hidden="true"> *</span></label>
-                    <textarea class="input @(_bodyError is null ? "" : "invalid")" id="cn-body" rows="10" placeholder="Hi {recipient.first}," maxlength="@MaxBodyLength"
-                              @ref="_bodyRef" @bind="_body" @bind:event="oninput"></textarea>
-                    @if (_bodyError is not null)
-                    {
-                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_bodyError</span>
-                    }
-                </div>
-
-                <div class="stack-8">
-                    <span class="section-title">Preview with sample ticket</span>
-                    <div class="msg">
-                        <div class="msg-body">@((MarkupString)RenderPreviewHtml())</div>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
-                        @((MarkupString)IconLibrary.Render("save", 16))@(_isNew ? "Create Response" : "Save Changes")
-                    </button>
-                    @if (!_isNew)
-                    {
-                        <button type="button" class="btn btn-ghost" @onclick="@(() => _confirmingDelete = true)" disabled="@_saving">
-                            @((MarkupString)IconLibrary.Render("trash", 16))Delete
-                        </button>
-                    }
-                </div>
-
-                @if (_confirmingDelete)
-                {
-                    <div class="notice alert">
-                        @((MarkupString)IconLibrary.Render("alert", 18))
-                        <span>
-                            <span class="notice-title">Delete “@_title”?</span>
-                            This will be removed for every agent. Replies already sent are not changed.
-                            <div class="row" style="margin-top:8px">
-                                <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => _confirmingDelete = false)">Cancel</button>
-                                <button type="button" class="btn btn-primary btn-sm" @onclick="DeleteAsync" disabled="@_saving">Delete</button>
-                            </div>
-                        </span>
-                    </div>
-                }
-            </form>
-
-            <aside class="card panel" aria-labelledby="ph-h">
-                <h2 class="panel-title" id="ph-h">Placeholders</h2>
-                <p class="hint" style="margin-bottom:10px">Click Insert to add one at the cursor.</p>
-                <div class="ph-list">
-                    @foreach (var p in Placeholders)
-                    {
-                        <div class="ph">
-                            <span><code>@p.Token</code><span class="cell-sub">@p.Description</span></span>
-                            <button type="button" @onclick="@(() => InsertPlaceholderAsync(p.Token))" aria-label="Insert @p.Token">Insert</button>
-                        </div>
-                    }
-                </div>
-            </aside>
+<div class="side-col" style="grid-template-columns:300px minmax(0,1fr)">
+    <section class="card panel" aria-labelledby="cn-list-h">
+        <div class="panel-title">
+            <h2 id="cn-list-h" style="font-size:15px">Library (@_responses.Count)</h2>
+            <button type="button" class="btn btn-primary btn-sm" @onclick="NewResponse">
+                @((MarkupString)IconLibrary.Render("plus", 14))New
+            </button>
         </div>
+        @if (_responses.Count == 0)
+        {
+            <p class="hint">Create one to save time on common replies.</p>
+        }
+        else
+        {
+            @foreach (var c in _responses)
+            {
+                <button type="button" class="list-item @(_selectedId == c.Id ? "active" : "")"
+                        aria-current="@(_selectedId == c.Id ? "true" : null)" @onclick="@(() => Pick(c))">
+                    @((MarkupString)IconLibrary.Render("note", 18))
+                    <span style="flex:1;min-width:0">
+                        <strong style="font-size:14px">@c.Title</strong>
+                        <span class="cell-sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@Preview(c.Body)</span>
+                    </span>
+                </button>
+            }
+        }
+    </section>
+
+    <div class="side-col">
+        <form class="card pad stack-16" novalidate aria-labelledby="cn-h" @onsubmit:preventDefault="true">
+            <h2 id="cn-h" class="card-title" style="margin:0">@(_isNew ? "New Canned Response" : "Edit Canned Response")</h2>
+
+            <div class="field full">
+                <label class="field-label" for="cn-title">Title<span class="star" aria-hidden="true"> *</span></label>
+                <input class="input @(_titleError is null ? "" : "invalid")" id="cn-title" type="text" maxlength="@FieldLimits.CannedTitle"
+                       placeholder="For example Courier collection booked" @bind="_title" @bind:event="oninput" />
+                @if (_titleError is not null)
+                {
+                    <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_titleError</span>
+                }
+            </div>
+
+            <div class="field full">
+                <label class="field-label" for="cn-body">Message<span class="star" aria-hidden="true"> *</span></label>
+                <textarea class="input @(_bodyError is null ? "" : "invalid")" id="cn-body" rows="10" placeholder="Hi {recipient.first}," maxlength="@MaxBodyLength"
+                          @ref="_bodyRef" @bind="_body" @bind:event="oninput"></textarea>
+                @if (_bodyError is not null)
+                {
+                    <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@_bodyError</span>
+                }
+            </div>
+
+            <div class="stack-8">
+                <span class="section-title">Preview with sample ticket</span>
+                <div class="msg">
+                    <div class="msg-body">@((MarkupString)RenderPreviewHtml())</div>
+                </div>
+            </div>
+
+            <div class="row">
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">
+                    @((MarkupString)IconLibrary.Render("save", 16))@(_isNew ? "Create Response" : "Save Changes")
+                </button>
+                @if (!_isNew)
+                {
+                    <button type="button" class="btn btn-ghost" @onclick="@(() => _confirmingDelete = true)" disabled="@_saving">
+                        @((MarkupString)IconLibrary.Render("trash", 16))Delete
+                    </button>
+                }
+            </div>
+
+            @if (_confirmingDelete)
+            {
+                <div class="notice alert">
+                    @((MarkupString)IconLibrary.Render("alert", 18))
+                    <span>
+                        <span class="notice-title">Delete “@_title”?</span>
+                        This will be removed for every agent. Replies already sent are not changed.
+                        <div class="row" style="margin-top:8px">
+                            <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => _confirmingDelete = false)">Cancel</button>
+                            <button type="button" class="btn btn-primary btn-sm" @onclick="DeleteAsync" disabled="@_saving">Delete</button>
+                        </div>
+                    </span>
+                </div>
+            }
+        </form>
+
+        <aside class="card panel" aria-labelledby="ph-h">
+            <h2 class="panel-title" id="ph-h">Placeholders</h2>
+            <p class="hint" style="margin-bottom:10px">Click Insert to add one at the cursor.</p>
+            <div class="ph-list">
+                @foreach (var p in Placeholders)
+                {
+                    <div class="ph">
+                        <span><code>@p.Token</code><span class="cell-sub">@p.Description</span></span>
+                        <button type="button" @onclick="@(() => InsertPlaceholderAsync(p.Token))" aria-label="Insert @p.Token">Insert</button>
+                    </div>
+                }
+            </div>
+        </aside>
     </div>
-</RoleGate>
+</div>
 
 @code {
     private static readonly (string Token, string Description)[] Placeholders =

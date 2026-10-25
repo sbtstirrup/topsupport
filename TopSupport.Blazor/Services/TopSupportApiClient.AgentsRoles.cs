@@ -10,13 +10,13 @@ public partial class TopSupportApiClient
 
     /// <summary>Every agent including inactive ones (the lookup endpoint returns active only).</summary>
     public async Task<IReadOnlyList<AgentDto>> GetAdminAgentsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<AgentDto>>("api/admin/agents", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<AgentDto>>("api/admin/agents", cancellationToken);
 
     public async Task<IReadOnlyList<TeamDto>> GetAdminTeamsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TeamDto>>("api/admin/teams", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<TeamDto>>("api/admin/teams", cancellationToken);
 
     public async Task<ActiveTicketCountsDto> GetAgentTeamActiveTicketCountsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<ActiveTicketCountsDto>("api/admin/agents/active-ticket-counts", cancellationToken) ?? new();
+        => await GetRequiredAsync<ActiveTicketCountsDto>("api/admin/agents/active-ticket-counts", cancellationToken);
 
     public async Task<AgentAdminSaveResult> SaveAgentAsync(AgentSaveRequest request, CancellationToken cancellationToken = default)
     {
@@ -27,7 +27,7 @@ public partial class TopSupportApiClient
         }
 
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? throw EmptyBody(response);
     }
 
     public async Task<AgentPasswordResetResult> ResetAgentPasswordAsync(string agentId, CancellationToken cancellationToken = default)
@@ -46,23 +46,23 @@ public partial class TopSupportApiClient
         }
 
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? throw EmptyBody(response);
     }
 
     public async Task<TeamDeleteResult> CheckTeamDeleteAsync(string teamId, CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<TeamDeleteResult>($"api/admin/teams/{Uri.EscapeDataString(teamId)}/delete-check", cancellationToken) ?? new();
+        => await GetRequiredAsync<TeamDeleteResult>($"api/admin/teams/{Uri.EscapeDataString(teamId)}/delete-check", cancellationToken);
 
     public async Task<TeamDeleteResult> DeleteTeamAsync(string teamId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.DeleteAsync($"api/admin/teams/{Uri.EscapeDataString(teamId)}", cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return await response.Content.ReadFromJsonAsync<TeamDeleteResult>(cancellationToken) ?? new();
+        return await response.Content.ReadFromJsonAsync<TeamDeleteResult>(cancellationToken) ?? throw EmptyBody(response);
     }
 
     // ---------------- Roles and Permissions (RolePermissionsController) ----------------
 
     public async Task<IReadOnlyList<RolePermissionDto>> GetRolePermissionsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<RolePermissionDto>>("api/admin/permissions", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<RolePermissionDto>>("api/admin/permissions", cancellationToken);
 
     public async Task SetRolePermissionAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default)
     {

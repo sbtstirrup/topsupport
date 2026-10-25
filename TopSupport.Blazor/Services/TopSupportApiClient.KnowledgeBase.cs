@@ -12,10 +12,10 @@ public partial class TopSupportApiClient
     // ---------------- Knowledge base (KnowledgeBaseController) ----------------
 
     public async Task<KnowledgeBaseDto> GetKnowledgeBaseAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<KnowledgeBaseDto>("api/kb", cancellationToken) ?? new();
+        => await GetRequiredAsync<KnowledgeBaseDto>("api/kb", cancellationToken);
 
     public async Task<IReadOnlyList<KbArticleDto>> GetPopularKbArticlesAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<KbArticleDto>>("api/kb/popular", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<KbArticleDto>>("api/kb/popular", cancellationToken);
 
     /// <summary>Creates the article when <paramref name="id"/> is null, otherwise updates it.</summary>
     public async Task<KbArticleSaveResult> SaveKbArticleAsync(string? id, SaveKbArticleRequest request, CancellationToken cancellationToken = default)

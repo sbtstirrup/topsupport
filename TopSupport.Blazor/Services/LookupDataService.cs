@@ -6,16 +6,12 @@ namespace TopSupport.Blazor.Services;
 /// Caches the small, rarely-changing lookup pools (agents/teams/users) per-circuit so pages
 /// like PersonCombo/queue filters/assignment modals don't each re-fetch the same data. Scoped
 /// (one instance per Blazor Server circuit). Assets are per-user (no "all assets" endpoint --
-/// see LookupController), so they're cached per userId rather than as one pool.
-///
-/// Subscribes to SessionState.Changed and clears its cache on role switch, since a different
-/// signed-in account could in principle see different/updated lookup data (and simply keeps
-/// the demo's "nothing goes stale across a role swap" expectation).
+/// see LookupController), so they're cached per userId rather than as one pool. Signing in as
+/// someone else is a full page load, which starts a new circuit and so a new cache.
 /// </summary>
-public class LookupDataService : IDisposable
+public class LookupDataService
 {
     private readonly TopSupportApiClient _api;
-    private readonly SessionState _session;
 
     // Every user including deleted ones (so FindUser can still name a deleted requester on an old
     // ticket); GetUsersAsync hands out only the non-deleted ones, for pickers.
@@ -29,11 +25,9 @@ public class LookupDataService : IDisposable
     private Task<IReadOnlyList<AgentDto>>? _agentsTask;
     private Task<IReadOnlyList<TeamDto>>? _teamsTask;
 
-    public LookupDataService(TopSupportApiClient api, SessionState session)
+    public LookupDataService(TopSupportApiClient api)
     {
         _api = api;
-        _session = session;
-        _session.Changed += ClearCache;
     }
 
     public async Task<IReadOnlyList<UserDto>> GetUsersAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -78,18 +72,4 @@ public class LookupDataService : IDisposable
     private async Task<IReadOnlyList<UserDto>> FetchUsersAsync(CancellationToken ct) => await _api.GetAllUsersIncludingDeletedAsync(ct);
     private async Task<IReadOnlyList<AgentDto>> FetchAgentsAsync(CancellationToken ct) => await _api.GetAgentsAsync(ct);
     private async Task<IReadOnlyList<TeamDto>> FetchTeamsAsync(CancellationToken ct) => await _api.GetTeamsAsync(ct);
-
-    private void ClearCache()
-    {
-        _users = null;
-        _activeUsers = null;
-        _agents = null;
-        _teams = null;
-        _usersTask = null;
-        _agentsTask = null;
-        _teamsTask = null;
-        _assetsByUser.Clear();
-    }
-
-    public void Dispose() => _session.Changed -= ClearCache;
 }

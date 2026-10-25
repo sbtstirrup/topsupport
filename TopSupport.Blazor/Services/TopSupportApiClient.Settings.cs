@@ -11,7 +11,7 @@ public partial class TopSupportApiClient
     // ---------------- Security + site settings (SettingsController) ----------------
 
     public async Task<SecuritySettingsDto> GetSecuritySettingsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<SecuritySettingsDto>("api/settings/security", cancellationToken) ?? new();
+        => await GetRequiredAsync<SecuritySettingsDto>("api/settings/security", cancellationToken);
 
     public async Task<SettingsSaveOutcome> SaveSecuritySettingsAsync(SecuritySettingsDto settings, CancellationToken cancellationToken = default)
     {
@@ -26,7 +26,7 @@ public partial class TopSupportApiClient
     }
 
     public async Task<SiteSettingsDto> GetSiteSettingsAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<SiteSettingsDto>("api/settings/site", cancellationToken) ?? new();
+        => await GetRequiredAsync<SiteSettingsDto>("api/settings/site", cancellationToken);
 
     public async Task<SettingsSaveOutcome> SaveSiteSettingsAsync(SiteSettingsDto settings, CancellationToken cancellationToken = default)
     {

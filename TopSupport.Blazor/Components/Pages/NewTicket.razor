@@ -13,151 +13,149 @@
 @inject NavigationManager Nav
 @inject ToastState Toasts
 
-<RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
-    <div class="side-col">
-        <form class="card pad stack-16" novalidate aria-describedby="nt-intro">
-            <p class="lede" id="nt-intro" style="margin:0">Fields marked <span class="star">*</span> are required.</p>
+<div class="side-col">
+    <form class="card pad stack-16" novalidate aria-describedby="nt-intro">
+        <p class="lede" id="nt-intro" style="margin:0">Fields marked <span class="star">*</span> are required.</p>
 
-            @if (_errors.Count > 0)
-            {
-                <div class="err" role="alert" id="nt-errsum" tabindex="-1">
-                    <strong>@(_errors.Count == 1 ? "Fix 1 thing before you continue" : $"Fix {_errors.Count} things before you continue")</strong>
-                    <ul>
-                        @foreach (var kv in _errors)
+        @if (_errors.Count > 0)
+        {
+            <div class="err" role="alert" id="nt-errsum" tabindex="-1">
+                <strong>@(_errors.Count == 1 ? "Fix 1 thing before you continue" : $"Fix {_errors.Count} things before you continue")</strong>
+                <ul>
+                    @foreach (var kv in _errors)
+                    {
+                        <li>@kv.Value</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="field-grid">
+            <PersonCombo Value="@_requesterId" ValueChanged="OnRequesterChanged" Label="Requester" Required="true" FullWidth="true"
+                         Hint="The person asking for help. Replies go to them."
+                         Pool="UserPool" ErrorMessage="@ErrorFor("requester")" />
+
+            <div class="field full">
+                <label class="field-label" for="nt-topic">Help Topic <span class="star" aria-hidden="true">*</span></label>
+                <span class="hint">The form below changes to match the topic you choose.</span>
+                <select class="input @(ErrorFor("topic") is not null ? "invalid" : "")" id="nt-topic" value="@_topicId" @onchange="OnTopicChanged">
+                    <option value="">Choose a help topic</option>
+                    @foreach (var group in _topics.GroupBy(t => t.Group))
+                    {
+                        @if (string.IsNullOrEmpty(group.Key))
                         {
-                            <li>@kv.Value</li>
-                        }
-                    </ul>
-                </div>
-            }
-
-            <div class="field-grid">
-                <PersonCombo Value="@_requesterId" ValueChanged="OnRequesterChanged" Label="Requester" Required="true" FullWidth="true"
-                             Hint="The person asking for help. Replies go to them."
-                             Pool="UserPool" ErrorMessage="@ErrorFor("requester")" />
-
-                <div class="field full">
-                    <label class="field-label" for="nt-topic">Help Topic <span class="star" aria-hidden="true">*</span></label>
-                    <span class="hint">The form below changes to match the topic you choose.</span>
-                    <select class="input @(ErrorFor("topic") is not null ? "invalid" : "")" id="nt-topic" value="@_topicId" @onchange="OnTopicChanged">
-                        <option value="">Choose a help topic</option>
-                        @foreach (var group in _topics.GroupBy(t => t.Group))
-                        {
-                            @if (string.IsNullOrEmpty(group.Key))
+                            @foreach (var t in group)
                             {
+                                <option value="@t.Id">@t.Label</option>
+                            }
+                        }
+                        else
+                        {
+                            <optgroup label="@group.Key">
                                 @foreach (var t in group)
                                 {
                                     <option value="@t.Id">@t.Label</option>
                                 }
-                            }
-                            else
-                            {
-                                <optgroup label="@group.Key">
-                                    @foreach (var t in group)
-                                    {
-                                        <option value="@t.Id">@t.Label</option>
-                                    }
-                                </optgroup>
-                            }
+                            </optgroup>
                         }
-                    </select>
-                    @if (ErrorFor("topic") is { } topicErr)
+                    }
+                </select>
+                @if (ErrorFor("topic") is { } topicErr)
+                {
+                    <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@topicErr</span>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_topicId))
+        {
+            <div class="field-grid">
+                <div class="field full">
+                    <label class="field-label" for="nt-subject">Subject <span class="star" aria-hidden="true">*</span></label>
+                    <input class="input @(ErrorFor("subject") is not null ? "invalid" : "")" id="nt-subject" type="text"
+                           maxlength="@FieldLimits.TicketSubject"
+                           value="@_subject" @onchange="@(e => _subject = e.Value?.ToString() ?? "")"
+                           placeholder="A short summary, for example “Laptop will not charge”" />
+                    @if (ErrorFor("subject") is { } subjErr)
                     {
-                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@topicErr</span>
+                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@subjErr</span>
                     }
                 </div>
-            </div>
 
+                <label class="full" style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;margin-bottom:-6px">
+                    <input type="checkbox" checked="@(!string.IsNullOrEmpty(_requesterId) && _affectedId == _requesterId)"
+                           disabled="@string.IsNullOrEmpty(_requesterId)"
+                           @onchange="OnAffectedSameChanged"
+                           style="width:18px;height:18px;margin:0;accent-color:var(--green)" />
+                    Affected user is the requester@(RequesterUser is not null ? $" ({RequesterUser.Name})" : "")
+                </label>
+
+                <PersonCombo Value="@_affectedId" ValueChanged="OnAffectedChanged" Label="Affected User" Required="true" FullWidth="true"
+                             Hint="Defaults to the requester. Change it if you are asking for someone else."
+                             Pool="UserPool" ErrorMessage="@ErrorFor("affected")" />
+
+                @if (AffectedUser is not null)
+                {
+                    <div class="readonly-details full" aria-label="Affected user details">
+                        <div><span>Office</span><strong>@AffectedUser.Office</strong></div>
+                        <div><span>Department</span><strong>@AffectedUser.Department</strong></div>
+                        <div><span>Phone</span><strong>@AffectedUser.Phone</strong></div>
+                    </div>
+                }
+
+                @foreach (var descriptor in _fieldSchema)
+                {
+                    <DynamicTopicField Descriptor="descriptor" Value="GetFieldValue(descriptor.Key)"
+                                        ValueChanged="@(v => SetFieldValue(descriptor.Key, v))"
+                                        AllValues="_fieldValues" Errors="_errors" FullWidth="true"
+                                        OnUploadFile="UploadStagedFileAsync" />
+                }
+            </div>
+        }
+        else
+        {
+            <div class="notice">@((MarkupString)IconLibrary.Render("info", 18))<span>Choose a help topic to see the questions for it.</span></div>
+        }
+
+        <div class="row" style="padding-top:6px;border-top:1px solid var(--line-4)">
+            <button type="button" class="btn btn-primary" @onclick="SubmitAsync" disabled="@_submitting">
+                @((MarkupString)IconLibrary.Render("send", 16))Create Ticket
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="ResetForm">Reset</button>
+            <button type="button" class="btn btn-ghost" @onclick="@(() => Nav.NavigateTo("/queue/open"))">Cancel</button>
+        </div>
+    </form>
+
+    <aside class="card pad-sm stack-8" aria-label="What happens next">
+        <span class="section-title">What happens next</span>
+        <div class="row">
             @if (!string.IsNullOrEmpty(_topicId))
             {
-                <div class="field-grid">
-                    <div class="field full">
-                        <label class="field-label" for="nt-subject">Subject <span class="star" aria-hidden="true">*</span></label>
-                        <input class="input @(ErrorFor("subject") is not null ? "invalid" : "")" id="nt-subject" type="text"
-                               maxlength="@FieldLimits.TicketSubject"
-                               value="@_subject" @onchange="@(e => _subject = e.Value?.ToString() ?? "")"
-                               placeholder="A short summary, for example “Laptop will not charge”" />
-                        @if (ErrorFor("subject") is { } subjErr)
-                        {
-                            <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@subjErr</span>
-                        }
-                    </div>
-
-                    <label class="full" style="display:flex;align-items:center;gap:8px;font-weight:600;cursor:pointer;margin-bottom:-6px">
-                        <input type="checkbox" checked="@(!string.IsNullOrEmpty(_requesterId) && _affectedId == _requesterId)"
-                               disabled="@string.IsNullOrEmpty(_requesterId)"
-                               @onchange="OnAffectedSameChanged"
-                               style="width:18px;height:18px;margin:0;accent-color:var(--green)" />
-                        Affected user is the requester@(RequesterUser is not null ? $" ({RequesterUser.Name})" : "")
-                    </label>
-
-                    <PersonCombo Value="@_affectedId" ValueChanged="OnAffectedChanged" Label="Affected User" Required="true" FullWidth="true"
-                                 Hint="Defaults to the requester. Change it if you are asking for someone else."
-                                 Pool="UserPool" ErrorMessage="@ErrorFor("affected")" />
-
-                    @if (AffectedUser is not null)
-                    {
-                        <div class="readonly-details full" aria-label="Affected user details">
-                            <div><span>Office</span><strong>@AffectedUser.Office</strong></div>
-                            <div><span>Department</span><strong>@AffectedUser.Department</strong></div>
-                            <div><span>Phone</span><strong>@AffectedUser.Phone</strong></div>
-                        </div>
-                    }
-
-                    @foreach (var descriptor in _fieldSchema)
-                    {
-                        <DynamicTopicField Descriptor="descriptor" Value="GetFieldValue(descriptor.Key)"
-                                            ValueChanged="@(v => SetFieldValue(descriptor.Key, v))"
-                                            AllValues="_fieldValues" Errors="_errors" FullWidth="true"
-                                            OnUploadFile="UploadStagedFileAsync" />
-                    }
-                </div>
+                <PriorityBadge Priority="PreviewPriority" />
             }
             else
             {
-                <div class="notice">@((MarkupString)IconLibrary.Render("info", 18))<span>Choose a help topic to see the questions for it.</span></div>
+                <span class="tag tag-grey">Priority set by your answers</span>
             }
-
-            <div class="row" style="padding-top:6px;border-top:1px solid var(--line-4)">
-                <button type="button" class="btn btn-primary" @onclick="SubmitAsync" disabled="@_submitting">
-                    @((MarkupString)IconLibrary.Render("send", 16))Create Ticket
-                </button>
-                <button type="button" class="btn btn-secondary" @onclick="ResetForm">Reset</button>
-                <button type="button" class="btn btn-ghost" @onclick="@(() => Nav.NavigateTo("/queue/open"))">Cancel</button>
-            </div>
-        </form>
-
-        <aside class="card pad-sm stack-8" aria-label="What happens next">
-            <span class="section-title">What happens next</span>
-            <div class="row">
-                @if (!string.IsNullOrEmpty(_topicId))
-                {
-                    <PriorityBadge Priority="PreviewPriority" />
-                }
-                else
-                {
-                    <span class="tag tag-grey">Priority set by your answers</span>
-                }
-            </div>
-            <p style="font-size:14px;line-height:1.55;color:var(--ink-2)">
-                @if (!string.IsNullOrEmpty(_topicId))
-                {
-                    <text>We aim to respond within <strong>@(TopSupport.Services.Tickets.TicketSla.SlaHours[PreviewPriority]) hours</strong>. @(HasImpactField ? "Priority comes from your answer about how much this is affecting work." : "This topic uses Normal priority.")</text>
-                }
-                else
-                {
-                    <text>Choose a help topic and answer the questions. We set the priority from how much the problem affects work.</text>
-                }
-            </p>
+        </div>
+        <p style="font-size:14px;line-height:1.55;color:var(--ink-2)">
             @if (!string.IsNullOrEmpty(_topicId))
             {
-                <div class="kv"><span>Team</span><strong>@(SelectedTopic?.Department == "Infrastructure" ? "Infrastructure" : "Service Desk")</strong></div>
-                <div class="kv"><span>Department</span><strong>@SelectedTopic?.Department</strong></div>
+                <text>We aim to respond within <strong>@(TopSupport.Services.Tickets.TicketSla.SlaHours[PreviewPriority]) hours</strong>. @(HasImpactField ? "Priority comes from your answer about how much this is affecting work." : "This topic uses Normal priority.")</text>
             }
-            <div class="kv"><span>Urgent help</span><strong>Call ext. 4400</strong></div>
-        </aside>
-    </div>
-</RoleGate>
+            else
+            {
+                <text>Choose a help topic and answer the questions. We set the priority from how much the problem affects work.</text>
+            }
+        </p>
+        @if (!string.IsNullOrEmpty(_topicId))
+        {
+            <div class="kv"><span>Team</span><strong>@(SelectedTopic?.Department == "Infrastructure" ? "Infrastructure" : "Service Desk")</strong></div>
+            <div class="kv"><span>Department</span><strong>@SelectedTopic?.Department</strong></div>
+        }
+        <div class="kv"><span>Urgent help</span><strong>Call ext. 4400</strong></div>
+    </aside>
+</div>
 
 @code {
     private IReadOnlyList<TicketTopic> _topics = Array.Empty<TicketTopic>();

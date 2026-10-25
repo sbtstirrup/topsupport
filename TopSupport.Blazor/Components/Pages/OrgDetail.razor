@@ -12,114 +12,112 @@
 @inject NavigationManager Nav
 
 @* Port of PAGES.org in topsupport-app.js: organisation details, members and their open tickets. *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    @if (!_loaded)
-    {
-        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
-    }
-    else if (_org is null)
-    {
-        <div class="empty">
-            <span class="empty-icon">@((MarkupString)IconLibrary.Render("building", 26))</span>
-            <h3>Organisation not found</h3>
-            <p></p>
+@if (!_loaded)
+{
+    <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+}
+else if (_org is null)
+{
+    <div class="empty">
+        <span class="empty-icon">@((MarkupString)IconLibrary.Render("building", 26))</span>
+        <h3>Organisation not found</h3>
+        <p></p>
+    </div>
+}
+else
+{
+    var o = _org;
+    <div class="stack">
+        <div class="row">
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => Nav.NavigateTo("/orgs"))">@((MarkupString)IconLibrary.Render("back", 15))All Organisations</button>
+            <button type="button" class="btn btn-secondary btn-sm" @onclick="EditOrg">@((MarkupString)IconLibrary.Render("edit", 15))Edit Organisation</button>
         </div>
-    }
-    else
-    {
-        var o = _org;
-        <div class="stack">
-            <div class="row">
-                <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => Nav.NavigateTo("/orgs"))">@((MarkupString)IconLibrary.Render("back", 15))All Organisations</button>
-                <button type="button" class="btn btn-secondary btn-sm" @onclick="EditOrg">@((MarkupString)IconLibrary.Render("edit", 15))Edit Organisation</button>
-            </div>
-            <section class="card pad-sm">
-                <div class="kv"><span>Address</span><strong>@o.Address</strong></div>
-                <div class="kv"><span>Main phone</span><strong>@o.Phone</strong></div>
-                <div class="kv"><span>Notes</span><strong>@o.Note</strong></div>
-            </section>
+        <section class="card pad-sm">
+            <div class="kv"><span>Address</span><strong>@o.Address</strong></div>
+            <div class="kv"><span>Main phone</span><strong>@o.Phone</strong></div>
+            <div class="kv"><span>Notes</span><strong>@o.Note</strong></div>
+        </section>
 
-            <section class="card" aria-labelledby="om-h">
-                <div class="pad-sm"><h2 id="om-h" class="card-title" style="margin:0">Members (@_members.Count)</h2></div>
-                @if (_members.Count > 0)
-                {
-                    <div class="tbl-wrap">
-                        <table class="tbl">
-                            <thead><tr><th><span>Name</span></th><th><span>Job title</span></th><th><span>Department</span></th><th><span>Office</span></th><th><span>Phone</span></th><th><span>Open tickets</span></th></tr></thead>
-                            <tbody>
-                                @foreach (var u in _members)
-                                {
-                                    <tr>
-                                        <td class="who">
-                                            <a href="@($"/users/{Uri.EscapeDataString(u.Id)}")" style="font-weight:700;color:var(--ink)">@u.Name</a>
-                                            <span class="cell-sub">@u.Email</span>
-                                        </td>
-                                        <td>@u.JobTitle</td>
-                                        <td>@u.Department</td>
-                                        <td>@u.Office</td>
-                                        <td class="nowrap">@u.Phone</td>
-                                        <td class="num-tab">@u.OpenTicketCount</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-                else
-                {
-                    <div class="empty">
-                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("users", 26))</span>
-                        <h3>No members</h3>
-                        <p>Users assigned to this organisation will appear here.</p>
-                    </div>
-                }
-            </section>
+        <section class="card" aria-labelledby="om-h">
+            <div class="pad-sm"><h2 id="om-h" class="card-title" style="margin:0">Members (@_members.Count)</h2></div>
+            @if (_members.Count > 0)
+            {
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th><span>Name</span></th><th><span>Job title</span></th><th><span>Department</span></th><th><span>Office</span></th><th><span>Phone</span></th><th><span>Open tickets</span></th></tr></thead>
+                        <tbody>
+                            @foreach (var u in _members)
+                            {
+                                <tr>
+                                    <td class="who">
+                                        <a href="@($"/users/{Uri.EscapeDataString(u.Id)}")" style="font-weight:700;color:var(--ink)">@u.Name</a>
+                                        <span class="cell-sub">@u.Email</span>
+                                    </td>
+                                    <td>@u.JobTitle</td>
+                                    <td>@u.Department</td>
+                                    <td>@u.Office</td>
+                                    <td class="nowrap">@u.Phone</td>
+                                    <td class="num-tab">@u.OpenTicketCount</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("users", 26))</span>
+                    <h3>No members</h3>
+                    <p>Users assigned to this organisation will appear here.</p>
+                </div>
+            }
+        </section>
 
-            <section class="card" aria-labelledby="ot-h">
-                <div class="pad-sm"><h2 id="ot-h" class="card-title" style="margin:0">Open Tickets (@_tickets.Count)</h2></div>
-                @if (_tickets.Count > 0)
-                {
-                    <div class="tbl-wrap">
-                        <table class="tbl">
-                            <thead><tr><th><span>Ticket #</span></th><th><span>Subject</span></th><th><span>Requester</span></th><th><span>Created</span></th><th><span>Status</span></th><th><span>Priority</span></th><th><span>Assigned to</span></th></tr></thead>
-                            <tbody>
-                                @foreach (var t in _tickets)
-                                {
-                                    <tr>
-                                        <td class="tnum">#@t.Number</td>
-                                        <td class="subj">
-                                            <a href="@($"/agent-tickets/{Uri.EscapeDataString(t.Id)}")">@t.Subject</a>
-                                            <span class="cell-sub">@(TicketTopics.Find(t.Topic)?.Label ?? t.Topic)</span>
-                                        </td>
-                                        <td>
-                                            @Lookup.FindUser(t.RequesterUserId)?.Name
-                                            @if (t.AffectedUserId != t.RequesterUserId)
-                                            {
-                                                <span class="cell-sub">For @Short(Lookup.FindUser(t.AffectedUserId)?.Name)</span>
-                                            }
-                                        </td>
-                                        <td class="nowrap">@FormatDate(t.Created)</td>
-                                        <td><StatusBadge Status="t.Status" /></td>
-                                        <td><PriorityBadge Priority="t.Priority" /></td>
-                                        <td>@AssigneeLabel(t)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-                else
-                {
-                    <div class="empty">
-                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("ticket", 26))</span>
-                        <h3>No open tickets</h3>
-                        <p>Open tickets raised by or for members will appear here.</p>
-                    </div>
-                }
-            </section>
-        </div>
-    }
-</RoleGate>
+        <section class="card" aria-labelledby="ot-h">
+            <div class="pad-sm"><h2 id="ot-h" class="card-title" style="margin:0">Open Tickets (@_tickets.Count)</h2></div>
+            @if (_tickets.Count > 0)
+            {
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th><span>Ticket #</span></th><th><span>Subject</span></th><th><span>Requester</span></th><th><span>Created</span></th><th><span>Status</span></th><th><span>Priority</span></th><th><span>Assigned to</span></th></tr></thead>
+                        <tbody>
+                            @foreach (var t in _tickets)
+                            {
+                                <tr>
+                                    <td class="tnum">#@t.Number</td>
+                                    <td class="subj">
+                                        <a href="@($"/agent-tickets/{Uri.EscapeDataString(t.Id)}")">@t.Subject</a>
+                                        <span class="cell-sub">@(TicketTopics.Find(t.Topic)?.Label ?? t.Topic)</span>
+                                    </td>
+                                    <td>
+                                        @Lookup.FindUser(t.RequesterUserId)?.Name
+                                        @if (t.AffectedUserId != t.RequesterUserId)
+                                        {
+                                            <span class="cell-sub">For @NameFormat.Short(Lookup.FindUser(t.AffectedUserId)?.Name)</span>
+                                        }
+                                    </td>
+                                    <td class="nowrap">@DurationFormat.Date(t.Created)</td>
+                                    <td><StatusBadge Status="t.Status" /></td>
+                                    <td><PriorityBadge Priority="t.Priority" /></td>
+                                    <td>@AssigneeLabel(t)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("ticket", 26))</span>
+                    <h3>No open tickets</h3>
+                    <p>Open tickets raised by or for members will appear here.</p>
+                </div>
+            }
+        </section>
+    </div>
+}
 
 @code {
     [Parameter] public string Id { get; set; } = string.Empty;
@@ -162,16 +160,4 @@
         => t.AssignedAgentId is not null ? _agents.FirstOrDefault(a => a.Id == t.AssignedAgentId)?.Name ?? string.Empty
             : t.AssignedTeamId is not null ? Lookup.FindTeam(t.AssignedTeamId)?.Name ?? string.Empty
             : "Unassigned";
-
-    /// <summary>short(n) in the demo: "Amira Patel" -> "A. Patel".</summary>
-    private static string Short(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 1 ? parts[0][0] + ". " + parts[^1] : parts[0];
-    }
-
-    /// <summary>fmtDate() in the demo: "05/Mar/2026".</summary>
-    private static string FormatDate(DateTimeOffset value)
-        => value.ToLocalTime().ToString("dd'/'MMM'/'yyyy", CultureInfo.InvariantCulture);
 }

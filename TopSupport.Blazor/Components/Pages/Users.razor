@@ -8,123 +8,121 @@
 
 @* Port of PAGES.users in topsupport-app.js: search/filter/sort/page the end users, with
    create/edit/lock/reset/delete actions (UserAccountActions). *@
-<RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <UserAccountActions @ref="_actions" Orgs="_orgs" OnChanged="ReloadAsync" />
-    @if (!_loaded)
-    {
-        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
-    }
-    else
-    {
-        <div class="stack">
-            <div class="row between">
-                <span class="hint">@_users.Count users · @_users.Count(u => u.Locked) locked</span>
-                <div class="row">
-                    <button type="button" class="btn btn-primary" @onclick="@(() => _actions!.Edit(null))">@((MarkupString)IconLibrary.Render("plus", 16))Create User</button>
-                </div>
+<UserAccountActions @ref="_actions" Orgs="_orgs" OnChanged="ReloadAsync" />
+@if (!_loaded)
+{
+    <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+}
+else
+{
+    <div class="stack">
+        <div class="row between">
+            <span class="hint">@_users.Count users · @_users.Count(u => u.Locked) locked</span>
+            <div class="row">
+                <button type="button" class="btn btn-primary" @onclick="@(() => _actions!.Edit(null))">@((MarkupString)IconLibrary.Render("plus", 16))Create User</button>
             </div>
-            <section class="card" aria-label="Users">
-                <div class="filters">
-                    <div class="field grow">
-                        <label class="field-label" for="us-q">Search</label>
-                        <div class="search">
-                            @((MarkupString)IconLibrary.Render("search", 16))
-                            <input class="input" id="us-q" type="search" value="@_q" placeholder="Name, email, username or department" maxlength="@FieldLimits.SearchText" @oninput="OnSearch" />
-                        </div>
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="us-org">Organisation</label>
-                        <select class="input" id="us-org" value="@_org" @onchange="@(e => _org = e.Value?.ToString() ?? string.Empty)">
-                            <option value="">All organisations</option>
-                            @foreach (var o in _orgs)
-                            {
-                                <option value="@o.Id">@o.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="us-status">Status</label>
-                        <select class="input" id="us-status" value="@_status" @onchange="@(e => _status = e.Value?.ToString() ?? string.Empty)">
-                            <option value="">Any status</option>
-                            <option value="active">Active</option>
-                            <option value="locked">Locked</option>
-                        </select>
-                    </div>
-                    @if (HasFilters)
-                    {
-                        <button type="button" class="btn btn-ghost" @onclick="ClearFilters">@((MarkupString)IconLibrary.Render("x", 16))Clear Filters</button>
-                    }
-                </div>
-
-                @{ var rows = SortedRows(); }
-                @if (rows.Count > 0)
-                {
-                    var pages = Math.Max(1, (int)Math.Ceiling(rows.Count / (double)PerPage));
-                    if (_page > pages) _page = pages;
-                    <div class="tbl-wrap">
-                        <table class="tbl">
-                            <caption class="sr-only">Users</caption>
-                            <thead>
-                                <tr>
-                                    @SortHeader("Name", "name")
-                                    <th scope="col"><span>Username</span></th>
-                                    @SortHeader("Organisation", "org")
-                                    @SortHeader("Department", "dept")
-                                    @SortHeader("Open tickets", "open")
-                                    @SortHeader("Status", "status")
-                                    <th scope="col"><span>Actions</span></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var u in rows.Skip((_page - 1) * PerPage).Take(PerPage))
-                                {
-                                    <tr>
-                                        <td class="who">
-                                            <a href="@($"/users/{Uri.EscapeDataString(u.Id)}")" style="font-weight:700;color:var(--ink)">@u.Name</a>
-                                            <span class="cell-sub">@u.Email</span>
-                                        </td>
-                                        <td><code>@u.Username</code></td>
-                                        <td>@OrgName(u.OrgId)</td>
-                                        <td>@u.Department<span class="cell-sub">@u.JobTitle</span></td>
-                                        <td class="num-tab">@u.OpenTicketCount</td>
-                                        <td>
-                                            @if (u.Locked)
-                                            {
-                                                <span class="tag tag-red">@((MarkupString)IconLibrary.Render("lock", 12, 2.5))Locked</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="tag tag-green">Active</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <div class="row" style="flex-wrap:nowrap;gap:6px">
-                                                @ActionButton("edit", "Edit " + u.Name, () => { _actions!.Edit(u); return Task.CompletedTask; })
-                                                @ActionButton(u.Locked ? "unlock" : "lock", (u.Locked ? "Unlock " : "Lock ") + u.Name, () => _actions!.ToggleLockAsync(u))
-                                                @ActionButton("key", "Reset password for " + u.Name, () => { _actions!.Reset(u); return Task.CompletedTask; })
-                                                @ActionButton("trash", "Delete " + u.Name, () => _actions!.DeleteAsync(u))
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                    @Pager(rows.Count, pages)
-                }
-                else
-                {
-                    <div class="empty">
-                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("users", 26))</span>
-                        <h3>No users match</h3>
-                        <p>Try a different search or clear the filters.</p>
-                        <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
-                    </div>
-                }
-            </section>
         </div>
-    }
-</RoleGate>
+        <section class="card" aria-label="Users">
+            <div class="filters">
+                <div class="field grow">
+                    <label class="field-label" for="us-q">Search</label>
+                    <div class="search">
+                        @((MarkupString)IconLibrary.Render("search", 16))
+                        <input class="input" id="us-q" type="search" value="@_q" placeholder="Name, email, username or department" maxlength="@FieldLimits.SearchText" @oninput="OnSearch" />
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="us-org">Organisation</label>
+                    <select class="input" id="us-org" value="@_org" @onchange="@(e => _org = e.Value?.ToString() ?? string.Empty)">
+                        <option value="">All organisations</option>
+                        @foreach (var o in _orgs)
+                        {
+                            <option value="@o.Id">@o.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="us-status">Status</label>
+                    <select class="input" id="us-status" value="@_status" @onchange="@(e => _status = e.Value?.ToString() ?? string.Empty)">
+                        <option value="">Any status</option>
+                        <option value="active">Active</option>
+                        <option value="locked">Locked</option>
+                    </select>
+                </div>
+                @if (HasFilters)
+                {
+                    <button type="button" class="btn btn-ghost" @onclick="ClearFilters">@((MarkupString)IconLibrary.Render("x", 16))Clear Filters</button>
+                }
+            </div>
+
+            @{ var rows = SortedRows(); }
+            @if (rows.Count > 0)
+            {
+                var pages = Math.Max(1, (int)Math.Ceiling(rows.Count / (double)PerPage));
+                if (_page > pages) _page = pages;
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <caption class="sr-only">Users</caption>
+                        <thead>
+                            <tr>
+                                @SortHeader("Name", "name")
+                                <th scope="col"><span>Username</span></th>
+                                @SortHeader("Organisation", "org")
+                                @SortHeader("Department", "dept")
+                                @SortHeader("Open tickets", "open")
+                                @SortHeader("Status", "status")
+                                <th scope="col"><span>Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in rows.Skip((_page - 1) * PerPage).Take(PerPage))
+                            {
+                                <tr>
+                                    <td class="who">
+                                        <a href="@($"/users/{Uri.EscapeDataString(u.Id)}")" style="font-weight:700;color:var(--ink)">@u.Name</a>
+                                        <span class="cell-sub">@u.Email</span>
+                                    </td>
+                                    <td><code>@u.Username</code></td>
+                                    <td>@OrgName(u.OrgId)</td>
+                                    <td>@u.Department<span class="cell-sub">@u.JobTitle</span></td>
+                                    <td class="num-tab">@u.OpenTicketCount</td>
+                                    <td>
+                                        @if (u.Locked)
+                                        {
+                                            <span class="tag tag-red">@((MarkupString)IconLibrary.Render("lock", 12, 2.5))Locked</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="tag tag-green">Active</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="row" style="flex-wrap:nowrap;gap:6px">
+                                            @ActionButton("edit", "Edit " + u.Name, () => { _actions!.Edit(u); return Task.CompletedTask; })
+                                            @ActionButton(u.Locked ? "unlock" : "lock", (u.Locked ? "Unlock " : "Lock ") + u.Name, () => _actions!.ToggleLockAsync(u))
+                                            @ActionButton("key", "Reset password for " + u.Name, () => { _actions!.Reset(u); return Task.CompletedTask; })
+                                            @ActionButton("trash", "Delete " + u.Name, () => _actions!.DeleteAsync(u))
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @Pager(rows.Count, pages)
+            }
+            else
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("users", 26))</span>
+                    <h3>No users match</h3>
+                    <p>Try a different search or clear the filters.</p>
+                    <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
+                </div>
+            }
+        </section>
+    </div>
+}
 
 @code {
     private const int PerPage = 12; // UPER in the demo

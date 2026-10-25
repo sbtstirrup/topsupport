@@ -17,11 +17,11 @@ public partial class TopSupportApiClient
     // ---------------- Admin: Users (UsersController) ----------------
 
     public async Task<IReadOnlyList<UserListItemDto>> GetUserListAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<UserListItemDto>>("api/users", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<UserListItemDto>>("api/users", cancellationToken);
 
     /// <summary>Every user including deleted ones (LookupDataService uses this to name people on old tickets).</summary>
     public async Task<IReadOnlyList<UserDto>> GetAllUsersIncludingDeletedAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<UserDto>>("api/users/all", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<UserDto>>("api/users/all", cancellationToken);
 
     public async Task<UserDto?> GetUserAsync(string id, CancellationToken cancellationToken = default)
     {
@@ -63,7 +63,7 @@ public partial class TopSupportApiClient
     // ---------------- Admin: Organisations (OrgsController) ----------------
 
     public async Task<IReadOnlyList<OrgListItemDto>> GetOrgListAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<OrgListItemDto>>("api/orgs", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<OrgListItemDto>>("api/orgs", cancellationToken);
 
     public async Task<OrgDto?> GetOrgAsync(string id, CancellationToken cancellationToken = default)
     {
@@ -74,7 +74,7 @@ public partial class TopSupportApiClient
     }
 
     public async Task<IReadOnlyList<TicketDto>> GetOrgOpenTicketsAsync(string id, CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TicketDto>>($"api/orgs/{Uri.EscapeDataString(id)}/open-tickets", cancellationToken) ?? new();
+        => await GetRequiredAsync<List<TicketDto>>($"api/orgs/{Uri.EscapeDataString(id)}/open-tickets", cancellationToken);
 
     /// <summary>Creates (id empty) or updates an organisation.</summary>
     public async Task<UserOrgSaveResult<OrgDto>> SaveOrgAsync(string? id, SaveOrgRequest request, CancellationToken cancellationToken = default)

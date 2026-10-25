@@ -11,91 +11,89 @@
 @inject TopSupportApiClient Api
 @inject NavigationManager Nav
 
-<RoleGate AllowedRoles="new[] { AppRole.User }">
-    @if (!_loaded)
-    {
-        <div class="card"><div class="empty"><p>Loading your tickets&hellip;</p></div></div>
-    }
-    else if (_all.Count == 0)
-    {
-        <div class="card">
-            <div class="empty">
-                <span class="empty-icon">@((MarkupString)IconLibrary.Render("ticket", 26))</span>
-                <h3>You haven't raised any tickets yet</h3>
-                <p>When you raise a ticket, or someone raises one for you, it appears here.</p>
-                <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/raise"))">
-                    @((MarkupString)IconLibrary.Render("plus", 16))Raise a Ticket
-                </button>
-            </div>
+@if (!_loaded)
+{
+    <div class="card"><div class="empty"><p>Loading your tickets&hellip;</p></div></div>
+}
+else if (_all.Count == 0)
+{
+    <div class="card">
+        <div class="empty">
+            <span class="empty-icon">@((MarkupString)IconLibrary.Render("ticket", 26))</span>
+            <h3>You haven't raised any tickets yet</h3>
+            <p>When you raise a ticket, or someone raises one for you, it appears here.</p>
+            <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/raise"))">
+                @((MarkupString)IconLibrary.Render("plus", 16))Raise a Ticket
+            </button>
         </div>
-    }
-    else
-    {
-        <div class="stack">
-            <div class="row between">
-                <div class="tabs" role="tablist" aria-label="Ticket status">
-                    @foreach (var tab in new[] { "open", "closed" })
-                    {
-                        <button type="button" class="tab" role="tab" aria-selected="@(_tab == tab)" @onclick="@(() => SetTab(tab))">
-                            @(tab == "open" ? "Open" : "Closed")<span class="count">@(tab == "open" ? OpenCount : ClosedCount)</span>
-                        </button>
-                    }
+    </div>
+}
+else
+{
+    <div class="stack">
+        <div class="row between">
+            <div class="tabs" role="tablist" aria-label="Ticket status">
+                @foreach (var tab in new[] { "open", "closed" })
+                {
+                    <button type="button" class="tab" role="tab" aria-selected="@(_tab == tab)" @onclick="@(() => SetTab(tab))">
+                        @(tab == "open" ? "Open" : "Closed")<span class="count">@(tab == "open" ? OpenCount : ClosedCount)</span>
+                    </button>
+                }
+            </div>
+            <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/raise"))">
+                @((MarkupString)IconLibrary.Render("plus", 16))Raise a Ticket
+            </button>
+        </div>
+
+        <section class="card" aria-label="Tickets">
+            <div class="filters">
+                <div class="field grow">
+                    <label class="field-label" for="mt-q">Search</label>
+                    <div class="search">
+                        @((MarkupString)IconLibrary.Render("search", 16))
+                        <input class="input" id="mt-q" type="search" value="@_search" placeholder="Ticket number, subject or details"
+                               @oninput="OnSearchChanged" />
+                    </div>
                 </div>
-                <button type="button" class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/raise"))">
-                    @((MarkupString)IconLibrary.Render("plus", 16))Raise a Ticket
-                </button>
+                <div class="field">
+                    <label class="field-label" for="mt-topic">Help Topic</label>
+                    <select class="input" id="mt-topic" value="@(_topicFilter ?? "")" @onchange="OnTopicFilterChanged">
+                        <option value="">All topics (@TabRows.Count)</option>
+                        @foreach (var t in _topics)
+                        {
+                            <option value="@t.Id">@t.Label (@TabRows.Count(x => x.Topic == t.Id))</option>
+                        }
+                    </select>
+                </div>
+                @if (HasActiveFilters)
+                {
+                    <button type="button" class="btn btn-ghost" @onclick="ClearFilters">
+                        @((MarkupString)IconLibrary.Render("x", 16))Clear All Filters
+                    </button>
+                }
             </div>
 
-            <section class="card" aria-label="Tickets">
-                <div class="filters">
-                    <div class="field grow">
-                        <label class="field-label" for="mt-q">Search</label>
-                        <div class="search">
-                            @((MarkupString)IconLibrary.Render("search", 16))
-                            <input class="input" id="mt-q" type="search" value="@_search" placeholder="Ticket number, subject or details"
-                                   @oninput="OnSearchChanged" />
-                        </div>
-                    </div>
-                    <div class="field">
-                        <label class="field-label" for="mt-topic">Help Topic</label>
-                        <select class="input" id="mt-topic" value="@(_topicFilter ?? "")" @onchange="OnTopicFilterChanged">
-                            <option value="">All topics (@TabRows.Count)</option>
-                            @foreach (var t in _topics)
-                            {
-                                <option value="@t.Id">@t.Label (@TabRows.Count(x => x.Topic == t.Id))</option>
-                            }
-                        </select>
-                    </div>
-                    @if (HasActiveFilters)
-                    {
-                        <button type="button" class="btn btn-ghost" @onclick="ClearFilters">
-                            @((MarkupString)IconLibrary.Render("x", 16))Clear All Filters
-                        </button>
-                    }
+            @if (FilteredRows.Count == 0)
+            {
+                <div class="empty">
+                    <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
+                    <h3>No tickets match your filters</h3>
+                    <p>Try a different word or topic, or clear the filters.</p>
+                    <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
                 </div>
-
-                @if (FilteredRows.Count == 0)
-                {
-                    <div class="empty">
-                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("search", 26))</span>
-                        <h3>No tickets match your filters</h3>
-                        <p>Try a different word or topic, or clear the filters.</p>
-                        <button type="button" class="btn btn-secondary" @onclick="ClearFilters">Clear Filters</button>
-                    </div>
-                }
-                else
-                {
-                    <QueueTable Tickets="PageRows" TotalCount="FilteredRows.Count" ColumnSet="QueueTableColumnSet.User"
-                                SortKey="@_sortKey" SortKeyChanged="OnSortKeyChanged"
-                                SortDirection="@_sortDir" SortDirectionChanged="OnSortDirChanged"
-                                PageNumber="_page" PageNumberChanged="OnPageChanged" PageSize="_pageSize"
-                                OnRowClick="@(id => Nav.NavigateTo($"/tickets/{id}"))"
-                                ActorNameResolver="@ResolveActorName" TeamNameResolver="@ResolveTeamName" />
-                }
-            </section>
-        </div>
-    }
-</RoleGate>
+            }
+            else
+            {
+                <QueueTable Tickets="PageRows" TotalCount="FilteredRows.Count" ColumnSet="QueueTableColumnSet.User"
+                            SortKey="@_sortKey" SortKeyChanged="OnSortKeyChanged"
+                            SortDirection="@_sortDir" SortDirectionChanged="OnSortDirChanged"
+                            PageNumber="_page" PageNumberChanged="OnPageChanged" PageSize="_pageSize"
+                            OnRowClick="@(id => Nav.NavigateTo($"/tickets/{id}"))"
+                            ActorNameResolver="@ResolveActorName" TeamNameResolver="@ResolveTeamName" />
+            }
+        </section>
+    </div>
+}
 
 @code {
     private bool _loaded;

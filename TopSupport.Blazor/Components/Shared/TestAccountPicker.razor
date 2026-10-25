@@ -132,7 +132,7 @@
                         var isCurrent = a.AccountId == Session.AccountId;
                         <button type="submit" name="accountId" value="@a.AccountId" class="tap-row @(isCurrent ? "current" : "")"
                                 disabled="@(isCurrent || !a.CanSignIn)" aria-current="@(isCurrent ? "true" : null)">
-                            <span class="avatar @(role == AppRole.User ? "" : "agent")" aria-hidden="true">@Initials(a.Name)</span>
+                            <span class="avatar @(role == AppRole.User ? "" : "agent")" aria-hidden="true">@NameFormat.Initials(a.Name)</span>
                             <span class="tap-who">
                                 <span class="tap-name">@a.Name</span>
                                 <span class="tap-sub">@a.Username@(a.Detail is null ? "" : " · " + a.Detail)</span>
@@ -157,7 +157,4 @@
             </form>
         }
     </div>;
-
-    private static string Initials(string name)
-        => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
 }

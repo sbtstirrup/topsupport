@@ -8,62 +8,60 @@
 
 @* Port of PAGES.profile / ACT['pf-save'] / ACT['pf-pw'] / pwRules() in topsupport-app.js, for
    whichever account is signed in (a Users row for the end user, an Agents row otherwise). *@
-<RoleGate AllowedRoles="new[] { AppRole.User, AppRole.Agent, AppRole.Admin }">
-    @if (_profile is not null && _security is not null)
-    {
-        var rules = ProfileRules.PasswordRules(_security, _nw, _cf, _nw != _cur);
-        var met = rules.Count(r => r.Met);
+@if (_profile is not null && _security is not null)
+{
+    var rules = ProfileRules.PasswordRules(_security, _nw, _cf, _nw != _cur);
+    var met = rules.Count(r => r.Met);
 
-        <div class="two-col">
-            <form class="card pad stack-16" novalidate aria-labelledby="pf-h" @onsubmit:preventDefault="true">
-                <div class="row">
-                    <span class="avatar@(_profile.IsAgent ? " agent" : "") lg" aria-hidden="true">@Initials(_profile.Name)</span>
-                    <div>
-                        <h2 id="pf-h" class="card-title" style="margin:0">Contact Details</h2>
-                        <span class="hint">@SubTitle()</span>
-                    </div>
+    <div class="two-col">
+        <form class="card pad stack-16" novalidate aria-labelledby="pf-h" @onsubmit:preventDefault="true">
+            <div class="row">
+                <span class="avatar@(_profile.IsAgent ? " agent" : "") lg" aria-hidden="true">@NameFormat.Initials(_profile.Name)</span>
+                <div>
+                    <h2 id="pf-h" class="card-title" style="margin:0">Contact Details</h2>
+                    <span class="hint">@SubTitle()</span>
                 </div>
-                <div class="field-grid">
-                    @Field("name", "Name", "text", true, true, "name", FieldLimits.PersonName, _errs, () => _name, v => _name = v)
-                    @Field("email", "Email", "email", true, true, "email", FieldLimits.Email, _errs, () => _email, v => _email = v)
-                    @Field("phone", "Phone", "tel", false, false, "tel", FieldLimits.Phone, _errs, () => _phone, v => _phone = v)
-                </div>
-                <div class="row">
-                    <button type="button" class="btn btn-primary" @onclick="SaveDetailsAsync" disabled="@_saving">
-                        @((MarkupString)IconLibrary.Render("save", 16))Save Details
-                    </button>
-                </div>
-            </form>
+            </div>
+            <div class="field-grid">
+                @Field("name", "Name", "text", true, true, "name", FieldLimits.PersonName, _errs, () => _name, v => _name = v)
+                @Field("email", "Email", "email", true, true, "email", FieldLimits.Email, _errs, () => _email, v => _email = v)
+                @Field("phone", "Phone", "tel", false, false, "tel", FieldLimits.Phone, _errs, () => _phone, v => _phone = v)
+            </div>
+            <div class="row">
+                <button type="button" class="btn btn-primary" @onclick="SaveDetailsAsync" disabled="@_saving">
+                    @((MarkupString)IconLibrary.Render("save", 16))Save Details
+                </button>
+            </div>
+        </form>
 
-            <form class="card pad stack-16" novalidate aria-labelledby="pw-h" @onsubmit:preventDefault="true">
-                <h2 id="pw-h" class="card-title" style="margin:0">Change Password</h2>
-                @Field("cur", "Current Password", "password", true, true, "current-password", FieldLimits.Password, _pwErrs, () => _cur, v => _cur = v)
-                @Field("nw", "New Password", "password", true, true, "new-password", FieldLimits.Password, _pwErrs, () => _nw, v => _nw = v)
-                @Field("cf", "Confirm New Password", "password", true, true, "new-password", FieldLimits.Password, _pwErrs, () => _cf, v => _cf = v)
-                <div class="stack-8">
-                    <div class="row between">
-                        <span class="section-title">Password rules</span>
-                        <span class="hint num-tab" aria-live="polite">@met of @rules.Count met</span>
-                    </div>
-                    <div class="prog" aria-hidden="true"><div style="width:@((met * 100.0 / rules.Count).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div></div>
-                    <ul class="rules">
-                        @foreach (var r in rules)
-                        {
-                            <li class="@(r.Met ? "ok" : "")">
-                                <span class="dot">@if (r.Met) {@((MarkupString)IconLibrary.Render("check", 12, 3.5))}</span>@r.Label<span class="sr-only">@(r.Met ? " (met)" : " (not met)")</span>
-                            </li>
-                        }
-                    </ul>
+        <form class="card pad stack-16" novalidate aria-labelledby="pw-h" @onsubmit:preventDefault="true">
+            <h2 id="pw-h" class="card-title" style="margin:0">Change Password</h2>
+            @Field("cur", "Current Password", "password", true, true, "current-password", FieldLimits.Password, _pwErrs, () => _cur, v => _cur = v)
+            @Field("nw", "New Password", "password", true, true, "new-password", FieldLimits.Password, _pwErrs, () => _nw, v => _nw = v)
+            @Field("cf", "Confirm New Password", "password", true, true, "new-password", FieldLimits.Password, _pwErrs, () => _cf, v => _cf = v)
+            <div class="stack-8">
+                <div class="row between">
+                    <span class="section-title">Password rules</span>
+                    <span class="hint num-tab" aria-live="polite">@met of @rules.Count met</span>
                 </div>
-                <div class="row">
-                    <button type="button" class="btn btn-primary" @onclick="ChangePasswordAsync" disabled="@_saving">
-                        @((MarkupString)IconLibrary.Render("key", 16))Change Password
-                    </button>
-                </div>
-            </form>
-        </div>
-    }
-</RoleGate>
+                <div class="prog" aria-hidden="true"><div style="width:@((met * 100.0 / rules.Count).ToString(System.Globalization.CultureInfo.InvariantCulture))%"></div></div>
+                <ul class="rules">
+                    @foreach (var r in rules)
+                    {
+                        <li class="@(r.Met ? "ok" : "")">
+                            <span class="dot">@if (r.Met) {@((MarkupString)IconLibrary.Render("check", 12, 3.5))}</span>@r.Label<span class="sr-only">@(r.Met ? " (met)" : " (not met)")</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+            <div class="row">
+                <button type="button" class="btn btn-primary" @onclick="ChangePasswordAsync" disabled="@_saving">
+                    @((MarkupString)IconLibrary.Render("key", 16))Change Password
+                </button>
+            </div>
+        </form>
+    </div>
+}
 
 @code {
     // S.forms.pf: contact details, the three password inputs, and per-form field errors.
@@ -96,12 +94,6 @@
     }
 
     // initialsOf(name) in the demo.
-    private static string Initials(string name)
-    {
-        var parts = name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length == 0 ? "?" : string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
-    }
-
     private string SubTitle() => _profile!.IsAgent
         ? _profile.JobTitle + " · " + _profile.Departments
         : _profile.JobTitle + " · " + _profile.Department + " · " + _profile.Office;

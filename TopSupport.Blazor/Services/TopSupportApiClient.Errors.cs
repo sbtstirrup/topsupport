@@ -44,6 +44,14 @@ public partial class TopSupportApiClient
 
     private sealed record ValidationProblemBody(Dictionary<string, string[]>? Errors, string? Detail);
 
+    /// <summary>GET and deserialize; an empty body is an error, never empty data.</summary>
+    private async Task<T> GetRequiredAsync<T>(string url, CancellationToken cancellationToken)
+        => await _httpClient.GetFromJsonAsync<T>(url, cancellationToken)
+            ?? throw new HttpRequestException($"The Api returned an empty body for GET {url}.");
+
+    private static HttpRequestException EmptyBody(HttpResponseMessage response)
+        => new($"The Api returned an empty body for {response.RequestMessage?.Method} {response.RequestMessage?.RequestUri?.AbsolutePath}.", null, response.StatusCode);
+
     /// <summary>EnsureSuccessStatusCode, but throws ApiProblemException carrying the Api's error message.</summary>
     private static async Task EnsureSuccessWithMessageAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {

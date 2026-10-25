@@ -9,6 +9,10 @@ namespace TopSupport.Blazor.Services;
 /// </summary>
 public static class DurationFormat
 {
+    /// <summary>fmtDate() in the demo: "05/Mar/2026".</summary>
+    public static string Date(DateTimeOffset value)
+        => value.ToLocalTime().ToString("dd'/'MMM'/'yyyy", CultureInfo.InvariantCulture);
+
     /// <summary>fmtDur(ms): "45m", "3h 20m" (minutes only under 10h), "26h", "3d 4h".</summary>
     public static string Duration(TimeSpan span)
     {
