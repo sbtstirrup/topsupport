@@ -118,11 +118,11 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 // ACT.signout: a form post (with an antiforgery token) from the shell's Sign out buttons. Audits
-// the sign-out in the Api, then drops the cookie; the Api token simply expires. The antiforgery
-// middleware only records the token check for an endpoint that binds no form, so it's enforced here.
-app.MapPost("/account/signout", async (HttpContext context, TopSupportApiClient api, ILogger<Program> logger) =>
+// the sign-out in the Api, then drops the cookie; the Api token simply expires. The token is checked
+// here: the antiforgery middleware doesn't reject a request to an endpoint that binds no form.
+app.MapPost("/account/signout", async (HttpContext context, TopSupportApiClient api, IAntiforgery antiforgery, ILogger<Program> logger) =>
 {
-    if (context.Features.Get<IAntiforgeryValidationFeature>() is not { IsValid: true }) return Results.BadRequest();
+    if (!await antiforgery.IsRequestValidAsync(context)) return Results.BadRequest();
 
     if (context.User.Identity?.IsAuthenticated == true)
     {
@@ -143,7 +143,7 @@ app.MapPost("/account/signout", async (HttpContext context, TopSupportApiClient 
 
     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.LocalRedirect("~/");
-}).WithMetadata(new RequireAntiforgeryTokenAttribute());
+});
 
 // Where the error boundary sends a page whose Api call got a 401. Signs out only once the Api
 // confirms it refuses the token (so a link here can't sign anyone out), then asks them to sign in.
