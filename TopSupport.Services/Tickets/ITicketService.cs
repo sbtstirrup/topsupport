@@ -73,14 +73,27 @@ public interface ITicketService
 
     Task BulkAssignAsync(IEnumerable<string> ticketIds, string kind, string id, TicketActorRef assignedBy, CancellationToken cancellationToken = default);
 
-    /// <summary>Bulk-close: sets every ticket's status to Resolved (the demo's Close modal default).</summary>
-    Task BulkCloseAsync(IEnumerable<string> ticketIds, TicketActorRef changedBy, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Bulk-close (ACT['close-go']): adds the optional internal note, then sets each ticket to
+    /// <paramref name="status"/> (Resolved or Closed). Tickets already Closed, or already at that
+    /// status, are skipped. Returns how many tickets were closed.
+    /// </summary>
+    Task<int> BulkCloseAsync(IEnumerable<string> ticketIds, string status, string? note, TicketActorRef changedBy, CancellationToken cancellationToken = default);
 
-    Task<TicketTaskDto> AddTaskAsync(string ticketId, string text, string assigneeAgentId, DateOnly? due, CancellationToken cancellationToken = default);
+    Task<TicketTaskDto> AddTaskAsync(string ticketId, string text, string assigneeAgentId, DateOnly? due, TicketActorRef addedBy, CancellationToken cancellationToken = default);
 
-    Task SetTaskDoneAsync(string taskId, bool done, CancellationToken cancellationToken = default);
+    /// <summary>Throws KeyNotFoundException when the ticket, or that task on it, doesn't exist.</summary>
+    Task<TicketTaskDto> SetTaskDoneAsync(string ticketId, string taskId, bool done, TicketActorRef changedBy, CancellationToken cancellationToken = default);
 
-    /// <summary>10MB max per file — larger uploads throw AttachmentTooLargeException, mapped to 400 by the Api.</summary>
+    /// <summary>
+    /// Validates and stores one file (see TicketAttachmentRules): the ticket must exist
+    /// (KeyNotFoundException) and not be Closed (TicketClosedException); the extension must be
+    /// allow-listed, the file non-empty and at most 10MB (AttachmentTooLargeException), and the
+    /// ticket under its file-count/total-size caps; a timelineEntryId must be on the same ticket
+    /// and, for an end user, one of their own replies. Other failures throw ArgumentException. The
+    /// file name is sanitised and <paramref name="contentType"/> is ignored -- the stored type
+    /// comes from the extension. Audited as "Attached file".
+    /// </summary>
     Task<TicketAttachmentDto> AddAttachmentAsync(
         string ticketId,
         string? timelineEntryId,
@@ -93,4 +106,7 @@ public interface ITicketService
     Task<IReadOnlyList<TicketAttachmentDto>> GetAttachmentsAsync(string ticketId, CancellationToken cancellationToken = default);
 
     Task<TicketAttachmentContentDto?> GetAttachmentContentAsync(string attachmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>The ticket an attachment belongs to, or null when the attachment doesn't exist.</summary>
+    Task<string?> GetAttachmentTicketIdAsync(string attachmentId, CancellationToken cancellationToken = default);
 }

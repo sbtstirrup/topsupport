@@ -1,0 +1,11 @@
+@page "/home"
+@attribute [Authorize]
+@inject NavigationManager Nav
+@inject SessionState Session
+
+@* The signed-in account's home (homeOf(role) in topsupport-app.js). The auth cookie's
+   AccessDeniedPath: a prerendered request for a page the role can't see lands here. *@
+
+@code {
+    protected override void OnInitialized() => Nav.NavigateTo(Session.HomeRoute());
+}

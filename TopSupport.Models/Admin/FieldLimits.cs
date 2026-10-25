@@ -24,6 +24,13 @@ public static partial class FieldLimits
     public const int SiteBody = 2_000;
     public const int CannedTitle = 200;
     public const int SearchText = 200;
+    public const int TaskText = 300;
+    public const int TicketSubject = 300;
+    public const int TopicText = 500;
+    public const int TopicTextArea = 5_000;
+
+    /// <summary>Caps a ticket's serialized per-topic answers (dbo.Tickets.FieldsJson is NVARCHAR(MAX)).</summary>
+    public const int TopicFieldsJson = 16_000;
 
     /// <summary>Caps the PBKDF2 input so a huge password can't be used to burn CPU.</summary>
     public const int Password = 128;

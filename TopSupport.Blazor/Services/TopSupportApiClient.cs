@@ -22,9 +22,16 @@ public partial class TopSupportApiClient
 {
     private readonly HttpClient _httpClient;
 
-    public TopSupportApiClient(HttpClient httpClient)
+    // Each typed-client instance gets its own HttpClient, created in the signed-in user's circuit
+    // (or request) scope, so the user's Api bearer token can go on its default headers.
+    // Sign-in and sign-out are full page loads, which start a new circuit with the new user.
+    public TopSupportApiClient(HttpClient httpClient, SessionState session)
     {
         _httpClient = httpClient;
+        if (session.ApiToken is { } token)
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
     }
 
     /// <summary>Calls GET /api/health -- the one real end-to-end call wired up in the skeleton pass.</summary>
@@ -87,42 +94,42 @@ public partial class TopSupportApiClient
     public async Task<TicketDto> AddAgentReplyAsync(string ticketId, AddAgentReplyRequest request, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/tickets/{ticketId}/replies/agent", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ChangeStatusAsync(string ticketId, string status, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/status", new { status, changedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ChangePriorityAsync(string ticketId, string priority, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/priority", new { priority, changedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ChangeTopicAsync(string ticketId, string topic, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/topic", new { topic, changedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> AssignTicketAsync(string ticketId, AssignTicketRequest assignment, TicketActorRef assignedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/assign", new { assignment, assignedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ClaimTicketAsync(string ticketId, string agentId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/tickets/{ticketId}/claim", new { agentId }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
@@ -130,41 +137,47 @@ public partial class TopSupportApiClient
     {
         var response = await _httpClient.PostAsJsonAsync("api/tickets/bulk/status",
             new { request = new { ticketIds = ticketIds.ToList(), status }, changedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
     }
 
     public async Task BulkChangePriorityAsync(IEnumerable<string> ticketIds, string priority, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("api/tickets/bulk/priority",
             new { request = new { ticketIds = ticketIds.ToList(), priority }, changedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
     }
 
     public async Task BulkAssignAsync(IEnumerable<string> ticketIds, string kind, string id, TicketActorRef assignedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("api/tickets/bulk/assign",
             new { request = new { ticketIds = ticketIds.ToList(), kind, id }, assignedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
     }
 
-    public async Task BulkCloseAsync(IEnumerable<string> ticketIds, TicketActorRef changedBy, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// POST api/tickets/bulk/close -- ACT['close-go']: the optional internal note and the close
+    /// (Resolved or Closed) happen together server-side, after every ticket id has been validated,
+    /// so a failing close never leaves notes behind. Already-Closed tickets are skipped.
+    /// </summary>
+    public async Task BulkCloseAsync(IEnumerable<string> ticketIds, string status, string? note, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("api/tickets/bulk/close",
-            new { request = new { ticketIds = ticketIds.ToList() }, changedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+            new { request = new { ticketIds = ticketIds.ToList(), status, note }, changedBy }, cancellationToken);
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
     }
 
     public async Task<TicketTaskDto> AddTaskAsync(string ticketId, string text, string assigneeAgentId, DateOnly? due, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/tickets/{ticketId}/tasks", new { text, assigneeAgentId, due }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketTaskDto>(cancellationToken))!;
     }
 
-    public async Task SetTaskDoneAsync(string taskId, bool done, CancellationToken cancellationToken = default)
+    public async Task<TicketTaskDto> SetTaskDoneAsync(string ticketId, string taskId, bool done, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/tasks/{taskId}/done", new { done }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/tasks/{taskId}/done", new { done }, cancellationToken);
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<TicketTaskDto>(cancellationToken))!;
     }
 
     public async Task<IReadOnlyList<TicketAttachmentDto>> GetAttachmentsAsync(string ticketId, CancellationToken cancellationToken = default)
@@ -190,8 +203,47 @@ public partial class TopSupportApiClient
         if (timelineEntryId is not null) form.Add(new StringContent(timelineEntryId), "timelineEntryId");
 
         var response = await _httpClient.PostAsync($"api/tickets/{ticketId}/attachments", form, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            // A rejected file is a 400 with { message } (or ProblemDetails' detail): surface that text.
+            throw new HttpRequestException(await ReadUploadErrorAsync(response, cancellationToken), null, response.StatusCode);
+        }
+
         return (await response.Content.ReadFromJsonAsync<TicketAttachmentDto>(cancellationToken))!;
+    }
+
+    /// <summary>Uploads a file staged in memory (see StagedAttachment) once the ticket/reply it belongs to exists.</summary>
+    public Task<TicketAttachmentDto> UploadAttachmentAsync(
+        string ticketId, TopSupport.Blazor.Models.StagedAttachment staged, string uploadedByType, string? uploadedById,
+        string? timelineEntryId = null, CancellationToken cancellationToken = default)
+        => UploadAttachmentAsync(ticketId, staged.Reference.Name, staged.Reference.ContentType, new MemoryStream(staged.Content, writable: false),
+            uploadedByType, uploadedById, timelineEntryId, cancellationToken);
+
+    private static async Task<string> ReadUploadErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        const string fallback = "The file could not be uploaded.";
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return "That ticket could not be found.";
+        if (response.StatusCode == System.Net.HttpStatusCode.RequestEntityTooLarge) return TicketAttachmentRules.TooLargeMessage;
+
+        try
+        {
+            using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            foreach (var name in new[] { "message", "detail" })
+            {
+                if (body.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                    body.RootElement.TryGetProperty(name, out var value) &&
+                    value.ValueKind == System.Text.Json.JsonValueKind.String &&
+                    !string.IsNullOrWhiteSpace(value.GetString()))
+                {
+                    return value.GetString()!;
+                }
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+
+        return fallback;
     }
 
     /// <summary>Convenience overload that reads straight from an IBrowserFile (10MB cap applied by the caller).</summary>

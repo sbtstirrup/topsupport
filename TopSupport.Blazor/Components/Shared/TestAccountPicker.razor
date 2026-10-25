@@ -1,0 +1,163 @@
+@* The development-only test-account switcher (see Services/TestAccountSwitcher.cs). Lists every
+   seeded account grouped by role and signs in as the one you pick, without a password, through a
+   real form post to /account/test-switch (the auth cookie needs an HTTP response). Variant "Menu"
+   is the shell's top-bar dropdown; "Panel" is the list on the sign-in page. Renders nothing
+   unless the switcher is enabled. *@
+@using TopSupport.Services.Auth
+@inject TestAccountSwitcher Switcher
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject NavigationManager Nav
+
+@if (Switcher.IsEnabled)
+{
+    @if (Variant == PickerVariant.Menu)
+    {
+        <div class="rel tap-wrap">
+            <button type="button" class="tap-toggle" aria-haspopup="dialog" aria-expanded="@_open" @onclick="ToggleAsync">
+                <span class="tap-dot" aria-hidden="true"></span>@((MarkupString)IconLibrary.Render("users", 16))Test accounts
+            </button>
+            @if (_open)
+            {
+                <div class="tap-pop" role="dialog" aria-label="Switch test account" @onkeydown="OnKeyDown">
+                    @List
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <section class="tap-panel" aria-label="Test accounts">
+            @List
+        </section>
+    }
+}
+
+@code {
+    public enum PickerVariant { Menu, Panel }
+
+    [Parameter] public PickerVariant Variant { get; set; } = PickerVariant.Menu;
+
+    /// <summary>Where to go after switching; defaults to the current page.</summary>
+    [Parameter] public string? ReturnUrl { get; set; }
+
+    private IReadOnlyList<TestAccountItem>? _accounts;
+    private string? _loadError;
+    private string _search = string.Empty;
+    private bool _open;
+
+    private static readonly (AppRole Role, string Label)[] Groups =
+    {
+        (AppRole.Admin, "Admins"),
+        (AppRole.Agent, "Agents"),
+        (AppRole.User, "End users")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The menu loads when first opened; the sign-in panel loads straight away.
+        if (Switcher.IsEnabled && Variant == PickerVariant.Panel) await LoadAsync();
+    }
+
+    private async Task ToggleAsync()
+    {
+        _open = !_open;
+        if (_open && _accounts is null) await LoadAsync();
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _open = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _accounts = await Api.GetTestAccountsAsync();
+            if (_accounts.Count == 0) _loadError = "The Api has the test-account switcher turned off (Auth:TestAccountSwitcher:Enabled).";
+        }
+        catch (HttpRequestException)
+        {
+            _loadError = "Couldn't load the test accounts. Is the Api running?";
+        }
+    }
+
+    private string CurrentPath => ReturnUrl ?? "/" + Nav.ToBaseRelativePath(Nav.Uri);
+
+    private IEnumerable<TestAccountItem> Filtered(AppRole role)
+        => (_accounts ?? Array.Empty<TestAccountItem>())
+            .Where(a => a.Role == role)
+            .Where(a => _search.Length == 0
+                || a.Name.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || a.Username.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || (a.Detail?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
+                || (a.AgentRole?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    private RenderFragment List => @<div class="tap-body">
+        <div class="tap-head">
+            <strong>Test accounts</strong><span class="tag tag-amber">Development only</span>
+            <p class="tap-hint">Sign in as any seeded account without its password. Locked and inactive accounts can't sign in, as for real.</p>
+        </div>
+
+        @if (_loadError is not null)
+        {
+            <p class="tap-hint" role="alert">@_loadError</p>
+        }
+        else if (_accounts is null)
+        {
+            <p class="tap-hint">Loading&hellip;</p>
+        }
+        else
+        {
+            @if (RendererInfo.IsInteractive)
+            {
+                <div class="search tap-search">
+                    @((MarkupString)IconLibrary.Render("search", 16))
+                    <input class="input" type="search" placeholder="Name, username, role or department" aria-label="Search test accounts"
+                           maxlength="100" value="@_search" @oninput="@(e => _search = e.Value?.ToString()?.Trim() ?? string.Empty)" />
+                </div>
+            }
+
+            <form method="post" action="account/test-switch" class="tap-list">
+                <AntiforgeryToken />
+                <input type="hidden" name="returnUrl" value="@CurrentPath" />
+                @foreach (var (role, label) in Groups)
+                {
+                    var accounts = Filtered(role).ToList();
+                    if (accounts.Count == 0) continue;
+                    <div class="tap-group">@label <span>@accounts.Count</span></div>
+                    @foreach (var a in accounts)
+                    {
+                        var isCurrent = a.AccountId == Session.AccountId;
+                        <button type="submit" name="accountId" value="@a.AccountId" class="tap-row @(isCurrent ? "current" : "")"
+                                disabled="@(isCurrent || !a.CanSignIn)" aria-current="@(isCurrent ? "true" : null)">
+                            <span class="avatar @(role == AppRole.User ? "" : "agent")" aria-hidden="true">@Initials(a.Name)</span>
+                            <span class="tap-who">
+                                <span class="tap-name">@a.Name</span>
+                                <span class="tap-sub">@a.Username@(a.Detail is null ? "" : " · " + a.Detail)</span>
+                            </span>
+                            <span class="tap-tags">
+                                @if (a.AgentRole is { } agentRole && role != AppRole.Admin)
+                                {
+                                    <span class="tag tag-grey">@agentRole</span>
+                                }
+                                @if (isCurrent)
+                                {
+                                    <span class="tag tag-green">Signed in</span>
+                                }
+                                else if (a.Status is { } status)
+                                {
+                                    <span class="tag tag-red">@status</span>
+                                }
+                            </span>
+                        </button>
+                    }
+                }
+            </form>
+        }
+    </div>;
+
+    private static string Initials(string name)
+        => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+}

@@ -3,8 +3,6 @@
 @inject NavProvider NavProvider
 @inject PageHeadingState Heading
 @inject NavigationManager Nav
-@inject TopSupportApiClient Api
-@using TopSupport.Models.Admin
 
 <a class="skip" href="#main">Skip to content</a>
 <div class="app">
@@ -44,10 +42,14 @@
                 @((MarkupString)IconLibrary.Render("refresh"))
                 <span>Diagnostics</span>
             </button>
-            <button type="button" class="side-link" @onclick="SignOut">
-                @((MarkupString)IconLibrary.Render("logout"))
-                <span>Sign out</span>
-            </button>
+            @* ACT.signout: a real form post, so the auth cookie can be cleared (see /account/signout in Program.cs). *@
+            <form method="post" action="account/signout" style="display:contents">
+                <AntiforgeryToken />
+                <button type="submit" class="side-link">
+                    @((MarkupString)IconLibrary.Render("logout"))
+                    <span>Sign out</span>
+                </button>
+            </form>
         </div>
     </aside>
     <main class="main" id="main">
@@ -60,18 +62,8 @@
                 }
             </div>
             <div class="topbar-right">
-                <div class="role-switch">
-                    <label for="role-switch">Viewing as</label>
-                    <select class="input" id="role-switch" value="@(Session.Role?.ToString() ?? "")" @onchange="OnRoleChanged">
-                        @if (!Session.IsSignedIn)
-                        {
-                            <option value="">Signed out</option>
-                        }
-                        <option value="User">End user</option>
-                        <option value="Agent">Agent</option>
-                        <option value="Admin">Admin</option>
-                    </select>
-                </div>
+                @* Development only: switch to any seeded account (renders nothing otherwise). *@
+                <TestAccountPicker />
                 @if (Session.IsSignedIn)
                 {
                     <div class="rel acct-wrap">
@@ -82,7 +74,10 @@
                             <div class="menu-pop" role="menu">
                                 <div class="menu-meta"><strong style="color:var(--ink);font-size:14px">@Session.DisplayName</strong><br />@PortalLabel()</div>
                                 <button type="button" role="menuitem" @onclick="GoToProfile">My profile</button>
-                                <button type="button" role="menuitem" @onclick="SignOut">Sign out</button>
+                                <form method="post" action="account/signout" style="display:contents">
+                                    <AntiforgeryToken />
+                                    <button type="submit" role="menuitem">Sign out</button>
+                                </form>
                             </div>
                         }
                     </div>
@@ -150,43 +145,6 @@
     };
 
     private bool IsActive(string route) => Nav.Uri.EndsWith(route, StringComparison.OrdinalIgnoreCase);
-
-    private async Task OnRoleChanged(ChangeEventArgs e)
-    {
-        var value = e.Value?.ToString();
-        if (string.IsNullOrEmpty(value))
-        {
-            await SignOut();
-            return;
-        }
-
-        var role = Enum.Parse<AppRole>(value);
-        Session.SetRole(role);
-        // setRole(role) in the demo: audited as the newly selected account.
-        await Api.LogAuditAsync(Session.AccountId, $"Switched role to {RoleLabel(role)} (demo override)", "Role switcher", AuditCategories.SignIn);
-        Nav.NavigateTo(Session.HomeRoute());
-    }
-
-    private async Task SignOut()
-    {
-        _acctMenu = false;
-        // ACT.signout: audited before the session is cleared, as the account signing out.
-        if (Session.Role is { } role)
-        {
-            await Api.LogAuditAsync(Session.AccountId, "Signed out", role == AppRole.User ? "User portal" : "Agent portal", AuditCategories.SignIn);
-        }
-
-        Session.SetRole(null);
-        Nav.NavigateTo("/");
-    }
-
-    /// <summary>ROLE_LABEL in topsupport-app.js.</summary>
-    private static string RoleLabel(AppRole role) => role switch
-    {
-        AppRole.User => "End user",
-        AppRole.Agent => "Agent",
-        _ => "Admin"
-    };
 
     private static string Initials(string name)
     {

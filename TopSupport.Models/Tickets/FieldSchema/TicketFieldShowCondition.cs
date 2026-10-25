@@ -45,6 +45,18 @@ public class TicketFieldShowCondition
         {
             case null:
                 return false;
+            // Values posted to the Api arrive as JsonElement: apply JS truthiness to the JSON
+            // value itself, so "", [], false, 0 and null don't count as answered.
+            case System.Text.Json.JsonElement json:
+                return json.ValueKind switch
+                {
+                    System.Text.Json.JsonValueKind.String => json.GetString()!.Length > 0,
+                    System.Text.Json.JsonValueKind.Array => json.GetArrayLength() > 0,
+                    System.Text.Json.JsonValueKind.Number => json.TryGetDouble(out var n) && n != 0,
+                    System.Text.Json.JsonValueKind.True => true,
+                    System.Text.Json.JsonValueKind.Object => true,
+                    _ => false
+                };
             case string s:
                 return s.Length > 0;
             case System.Collections.IEnumerable enumerable and not string:

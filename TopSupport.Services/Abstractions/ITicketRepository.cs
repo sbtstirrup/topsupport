@@ -32,6 +32,13 @@ public interface ITicketRepository
     /// usp_Ticket_Assign's doc comment: the service layer pre-computes the correct pair.</summary>
     Task AssignAsync(string ticketId, string? assignedAgentId, string? assignedTeamId, DateTimeOffset updated, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Claim (usp_Ticket_ClaimIfUnchanged): assigns the agent/team pair only while the ticket's
+    /// agent is still <paramref name="expectedAgentId"/> (null = unassigned). False when another
+    /// request changed the assignee first, so two simultaneous claims can't both succeed.
+    /// </summary>
+    Task<bool> ClaimIfUnchangedAsync(string ticketId, string agentId, string? assignedTeamId, string? expectedAgentId, DateTimeOffset updated, CancellationToken cancellationToken = default);
+
     /// <summary>Inserts a timeline entry (usp_TicketTimelineEntry_Insert, which also bumps
     /// Tickets.Updated) and returns the entry as persisted.</summary>
     Task<TicketTimelineEntryDto> AppendTimelineEntryAsync(TicketTimelineEntryDto entry, CancellationToken cancellationToken = default);

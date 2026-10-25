@@ -1,4 +1,5 @@
 @page "/tickets/{Id}"
+@attribute [Authorize(Roles = "User")]
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
 @using TopSupport.Blazor.Components.Shared
@@ -12,6 +13,7 @@
 @inject LookupDataService Lookup
 @inject TopSupportApiClient Api
 @inject NavigationManager Nav
+@inject ToastState Toasts
 
 <RoleGate AllowedRoles="new[] { AppRole.User }">
     @if (!_loaded)
@@ -191,7 +193,7 @@
 
     private string _replyHtml = string.Empty;
     private string? _replyError;
-    private readonly List<(AttachmentRef Reference, IBrowserFile File)> _stagedReplyFiles = new();
+    private readonly List<StagedAttachment> _stagedReplyFiles = new();
     private List<AttachmentRef> _stagedReplyAttachments = new();
     private bool _isPostingReply;
 
@@ -328,17 +330,18 @@
         return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
     }
 
-    private Task<AttachmentRef> StageReplyFileAsync(IBrowserFile file)
+    /// <summary>Staged in memory only; uploaded after the reply is posted, anchored to it.</summary>
+    private async Task<AttachmentRef> StageReplyFileAsync(IBrowserFile file)
     {
-        var reference = new AttachmentRef(null, file.Name, file.Size, file.ContentType);
-        _stagedReplyFiles.Add((reference, file));
-        return Task.FromResult(reference);
+        var staged = await StagedAttachment.ReadAsync(file);
+        _stagedReplyFiles.Add(staged);
+        return staged.Reference;
     }
 
     private Task OnReplyAttachmentsChanged(List<AttachmentRef> files)
     {
         _stagedReplyAttachments = files;
-        _stagedReplyFiles.RemoveAll(f => !files.Contains(f.Reference));
+        _stagedReplyFiles.RemoveAll(s => !files.Any(f => ReferenceEquals(f, s.Reference)));
         return Task.CompletedTask;
     }
 
@@ -355,7 +358,7 @@
         if (_ticket is null || _isPostingReply) return;
 
         var plainText = System.Text.RegularExpressions.Regex.Replace(_replyHtml ?? string.Empty, "<[^>]*>", string.Empty).Trim();
-        if (string.IsNullOrEmpty(plainText) && !_replyHtml.Contains("<img", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrEmpty(plainText) && !(_replyHtml ?? string.Empty).Contains("<img", StringComparison.OrdinalIgnoreCase))
         {
             _replyError = "Write a message before posting.";
             return;
@@ -365,12 +368,29 @@
         _isPostingReply = true;
         try
         {
-            var request = new AddUserReplyRequest { UserId = Session.AccountId, Html = _replyHtml };
+            var request = new AddUserReplyRequest { UserId = Session.AccountId, Html = _replyHtml ?? string.Empty };
             var updated = await Api.AddUserReplyAsync(_ticket.Id, request);
 
-            foreach (var (_, file) in _stagedReplyFiles)
+            // Anchor the staged files to the new reply: the newest Reply by this user.
+            var entryId = updated.Timeline
+                .Where(e => e.Kind == TicketTimelineEntryKind.Reply && e.By.Type == "user" && e.By.Id == Session.AccountId)
+                .MaxBy(e => e.At)?.Id;
+            var failed = new List<string>();
+            foreach (var staged in _stagedReplyFiles)
             {
-                await Api.UploadAttachmentAsync(updated.Id, file, "user", Session.AccountId);
+                try
+                {
+                    await Api.UploadAttachmentAsync(updated.Id, staged, "user", Session.AccountId, entryId);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+                {
+                    failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
+                }
+            }
+
+            if (failed.Count > 0)
+            {
+                Toasts.Show($"Your reply was posted, but these files could not be attached: {string.Join(", ", failed)}.", isError: true);
             }
 
             // Refresh in place so the new reply (and any reopened status) appears immediately.

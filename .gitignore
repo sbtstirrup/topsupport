@@ -10,3 +10,6 @@ obj/
 
 # Local user secrets / overrides
 appsettings.*.local.json
+
+# docker-compose.worker.yml secrets
+.env

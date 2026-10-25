@@ -12,7 +12,7 @@ public partial class TopSupportApiClient
     public async Task<TicketDto> ChangeTicketPropertiesAsync(string ticketId, string status, string priority, string topic, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/properties", new { status, priority, topic, changedBy }, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 

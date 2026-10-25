@@ -1,6 +1,8 @@
 @page "/new-ticket"
+@attribute [Authorize(Roles = "Agent,Admin")]
 @using Microsoft.AspNetCore.Components.Forms
 @using TopSupport.Blazor.Models
+@using TopSupport.Models.Admin
 @using TopSupport.Models.Enums
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Tickets.FieldSchema
@@ -9,6 +11,7 @@
 @inject LookupDataService Lookup
 @inject SessionState Session
 @inject NavigationManager Nav
+@inject ToastState Toasts
 
 <RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
     <div class="side-col">
@@ -71,8 +74,9 @@
                     <div class="field full">
                         <label class="field-label" for="nt-subject">Subject <span class="star" aria-hidden="true">*</span></label>
                         <input class="input @(ErrorFor("subject") is not null ? "invalid" : "")" id="nt-subject" type="text"
+                               maxlength="@FieldLimits.TicketSubject"
                                value="@_subject" @onchange="@(e => _subject = e.Value?.ToString() ?? "")"
-                               placeholder="A short summary, for example &quot;Laptop will not charge&quot;" />
+                               placeholder="A short summary, for example “Laptop will not charge”" />
                         @if (ErrorFor("subject") is { } subjErr)
                         {
                             <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@subjErr</span>
@@ -168,7 +172,8 @@
     private readonly Dictionary<string, object?> _fieldValues = new();
     private Dictionary<string, string> _errors = new();
     private List<AttachmentRef> _stagedFiles = new();
-    private readonly Dictionary<AttachmentRef, IBrowserFile> _stagedBrowserFiles = new();
+    // Files picked in a Files-type field, read into memory when picked; uploaded once the ticket exists.
+    private readonly List<StagedAttachment> _stagedUploads = new();
     private bool _submitting;
 
     private TopSupport.Models.People.UserDto? RequesterUser => Lookup.FindUser(_requesterId);
@@ -275,10 +280,17 @@
     private async Task<AttachmentRef> UploadStagedFileAsync(IBrowserFile file)
     {
         // No ticket exists yet -- stage locally; actual upload happens after CreateTicketAsync succeeds.
-        var staged = new AttachmentRef(null, file.Name, file.Size, file.ContentType);
-        _stagedFiles.Add(staged);
-        await Task.CompletedTask;
-        return staged;
+        var staged = await StagedAttachment.ReadAsync(file);
+        _stagedUploads.Add(staged);
+        _stagedFiles.Add(staged.Reference);
+        return staged.Reference;
+    }
+
+    /// <summary>Staged files still listed in a Files-type field (one removed before submitting is never uploaded).</summary>
+    private IEnumerable<StagedAttachment> StagedFilesToUpload()
+    {
+        var kept = _fieldValues.Values.OfType<List<AttachmentRef>>().SelectMany(list => list).ToList();
+        return _stagedUploads.Where(s => kept.Any(k => ReferenceEquals(k, s.Reference)));
     }
 
     private void ResetForm()
@@ -291,6 +303,7 @@
         _fieldValues.Clear();
         _errors.Clear();
         _stagedFiles.Clear();
+        _stagedUploads.Clear();
         _fieldSchema = Array.Empty<TicketFieldDescriptor>();
     }
 
@@ -350,15 +363,44 @@
 
             // Current agent is the creator, not the requester -- per plan, actor type "agent" with SessionState.AccountId.
             var createdBy = new TicketActorRef { Type = "agent", Id = Session.AccountId };
-            var ticket = await Api.CreateTicketAsync(request, createdBy);
+            var response = await Api.CreateTicketRawAsync(request, createdBy);
 
-            // Upload staged files now that the ticket exists.
-            foreach (var staged in _stagedFiles)
+            // The Api is authoritative (unknown people, answers not in the list, bad dates...):
+            // show its field errors the same way as the checks above.
+            if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                if (_stagedBrowserFiles.TryGetValue(staged, out var browserFile))
+                var problem = await response.Content.ReadFromJsonAsync<ValidationProblemBody>();
+                _errors = problem?.Errors?.ToDictionary(kv => kv.Key, kv => kv.Value.FirstOrDefault() ?? "Invalid value.") ?? new();
+                if (_errors.Count == 0) _errors["form"] = "We couldn't create the ticket. Check the form and try again.";
+                return;
+            }
+
+            response.EnsureSuccessStatusCode();
+            var ticket = (await response.Content.ReadFromJsonAsync<TicketDto>())!;
+
+            // Upload staged files now that the ticket exists, anchored to this agent's "Created by ...
+            // on behalf of ..." event so the requester can see them (EndUserTicketAccess hides agent
+            // files that aren't anchored to a public entry). A failed upload never blocks opening the
+            // ticket -- it already exists, so resubmitting would raise a duplicate.
+            var createdEntryId = ticket.Timeline
+                .Where(e => e.Kind == TicketTimelineEntryKind.Event && e.By.Type == "agent" && e.By.Id == Session.AccountId)
+                .MinBy(e => e.At)?.Id;
+            var failed = new List<string>();
+            foreach (var staged in StagedFilesToUpload())
+            {
+                try
                 {
-                    await Api.UploadAttachmentAsync(ticket.Id, browserFile, "agent", Session.AccountId);
+                    await Api.UploadAttachmentAsync(ticket.Id, staged, "agent", Session.AccountId, createdEntryId);
                 }
+                catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+                {
+                    failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
+                }
+            }
+
+            if (failed.Count > 0)
+            {
+                Toasts.Show($"Ticket #{ticket.Number} was created, but these files could not be attached: {string.Join(", ", failed)}.", isError: true);
             }
 
             Nav.NavigateTo($"/agent-tickets/{ticket.Id}");
@@ -368,4 +410,6 @@
             _submitting = false;
         }
     }
+
+    private record ValidationProblemBody(Dictionary<string, string[]>? Errors);
 }

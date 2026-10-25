@@ -1,0 +1,41 @@
+# Local email testing for TopSupport.Worker.
+#
+#   docker compose -f docker-compose.worker.yml up -d            -> smtp4dev only (UI: http://localhost:5000)
+#   dotnet run --project TopSupport.Worker                       -> the worker, on your machine, using
+#                                                                   Windows auth to your local SQL Server
+#
+#   docker compose -f docker-compose.worker.yml --profile container up -d --build
+#                                                                -> also runs the worker in a container.
+# A Linux container can't use Windows (integrated) authentication, so the containerised worker
+# needs a SQL login: put TOPSUPPORT_SQL_CONNECTION in a .env file next to this one (git-ignored),
+# e.g. TOPSUPPORT_SQL_CONNECTION=Server=host.docker.internal,1433;Database=TopSupport;User Id=topsupport_worker;Password=...;TrustServerCertificate=True
+services:
+  smtp4dev:
+    image: rnwood/smtp4dev:3.15.0
+    ports:
+      - "5000:80"      # web UI
+      - "2525:25"      # SMTP, used by Email:Smtp:Port in appsettings.Development.json
+    restart: unless-stopped
+
+  worker:
+    profiles: ["container"]
+    build:
+      context: .
+      dockerfile: TopSupport.Worker/Dockerfile
+    depends_on:
+      - smtp4dev
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__TopSupport: ${TOPSUPPORT_SQL_CONNECTION:-}
+      Email__Smtp__Host: smtp4dev
+      Email__Smtp__Port: "25"
+      App__BaseUrl: https://localhost:7119
+      # Inside the container the dashboard must listen on all interfaces for the port mapping;
+      # the mapping below still only publishes it on the host's loopback address.
+      Dashboard__Port: "5280"
+      DOTNET_RUNNING_IN_CONTAINER: "true"
+    ports:
+      - "127.0.0.1:5280:5280"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

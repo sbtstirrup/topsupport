@@ -1,4 +1,5 @@
 @page "/roles"
+@attribute [Authorize(Roles = "Admin")]
 @using TopSupport.Models.Admin
 @using TopSupport.Models.People
 @using TopSupport.Models.Tickets.FieldSchema

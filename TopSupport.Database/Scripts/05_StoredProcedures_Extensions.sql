@@ -157,6 +157,28 @@ BEGIN
 END
 GO
 
+-- Claim (ACT['t-claim']) as a compare-and-set: only assigns while the ticket's agent is still the
+-- one the caller saw (@ExpectedAgentId, NULL = unassigned), so of two simultaneous claims exactly
+-- one updates a row. Returns Affected = 0 when someone else got there first.
+CREATE OR ALTER PROCEDURE dbo.usp_Ticket_ClaimIfUnchanged
+    @TicketId        NVARCHAR(50),
+    @AgentId         NVARCHAR(50),
+    @AssignedTeamId  NVARCHAR(50) = NULL,
+    @ExpectedAgentId NVARCHAR(50) = NULL,
+    @Updated         DATETIMEOFFSET
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE dbo.Tickets
+    SET AssignedAgentId = @AgentId, AssignedTeamId = @AssignedTeamId, Updated = @Updated
+    WHERE Id = @TicketId
+      AND ((@ExpectedAgentId IS NULL AND AssignedAgentId IS NULL) OR AssignedAgentId = @ExpectedAgentId);
+
+    SELECT @@ROWCOUNT AS Affected;
+END
+GO
+
 CREATE OR ALTER PROCEDURE dbo.usp_Ticket_NextNumber
 AS
 BEGIN
@@ -367,7 +389,9 @@ CREATE OR ALTER PROCEDURE dbo.usp_Ticket_SearchForQueue
     @Department      NVARCHAR(100) = NULL,
     @AssignedAgentId NVARCHAR(50)  = NULL,
     @AssignedTeamId  NVARCHAR(50)  = NULL,
-    @SearchText      NVARCHAR(200) = NULL
+    -- 200 searchable characters (FieldLimits.SearchText), LIKE-escaped by TicketRepository:
+    -- each %, _ or [ grows to 3 characters, so allow 3x before SQL Server would truncate.
+    @SearchText      NVARCHAR(600) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;

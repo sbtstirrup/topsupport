@@ -24,6 +24,10 @@ sqlcmd -S . -E -f 65001 -i Scripts/09_Admin_AgentsRoles.sql
 sqlcmd -S . -E -f 65001 -i Scripts/10_Admin_SecuritySiteProfile.sql
 sqlcmd -S . -E -f 65001 -i Scripts/11_Admin_KnowledgeBase.sql
 sqlcmd -S . -E -f 65001 -i Scripts/12_Admin_Dashboard.sql
+sqlcmd -S . -E -f 65001 -i Scripts/13_Auth_SignIn.sql
+sqlcmd -S . -E -f 65001 -i Scripts/14_Attachments.sql
+sqlcmd -S . -E -f 65001 -i Scripts/15_Worker.sql
+sqlcmd -S . -E -f 65001 -i Scripts/16_Dev_TestAccounts.sql
 sqlcmd -S . -E -f 65001 -i Scripts/99_SeedData.sql
 ```
 
@@ -58,24 +62,28 @@ Every script is written to be safely re-run (`IF OBJECT_ID(...) IS NULL`, `CREAT
 | `10_Admin_SecuritySiteProfile.sql` | `AppSettings` key/value table (security password rules and site page text) plus My Profile procs. |
 | `11_Admin_KnowledgeBase.sql` | `KbCategories`/`KbArticles` tables, KB procs and the demo's 4 categories and 8 articles. |
 | `12_Admin_Dashboard.sql` | Proc that derives each ticket's closed-at time for the dashboard charts. |
+| `13_Auth_SignIn.sql` | Real sign-in: `FailedSignIns` on `Users`/`Agents` (lockout after the security setting `lockoutAttempts`), the username lookup proc, and failed-sign-in procs. Redefines `usp_Account_SetPasswordHash` and `usp_User_SetLocked` so an admin reset or unlock also clears the failed count, so run it after `07_` and `08_`. |
+| `14_Attachments.sql` | `usp_TicketAttachment_GetTicketId`: the ticket an attachment belongs to, so the download endpoint checks end-user visibility against that one ticket instead of loading all of the caller's tickets. |
+| `15_Worker.sql` | The `worker` schema for TopSupport.Worker (the Hangfire job runner): `NotificationLog` (unique on ticket, event key and recipient, so no email is sent twice), `JobCursor`, and the read procs each job uses, plus `usp_AutoClose_CloseTicket`. Hangfire creates its own tables in the `jobs` schema. See `TopSupport.Worker/README.md`. |
+| `16_Dev_TestAccounts.sql` | `usp_Account_ListForTesting`: the accounts the development-only test-account switcher lists. The Api only exposes it in Development with `Auth:TestAccountSwitcher:Enabled` on. |
 | `99_SeedData.sql` | Full reference data ported from `buildSeed()` in the original `topsupport-app.js` demo: 12 users, 5 agents, 2 teams, 15 assets, 5 canned responses, and all 30 seed tickets with their complete timelines and leaver-checklist tasks. Also realigns `TicketNumberSeq` past the highest seeded ticket number so real ticket creation never collides with seed data. |
 
-## Why hand-rolled Identity tables, and what's still missing
+## Sign-in and the unused Identity tables
 
-ASP.NET Core Identity normally persists through EF Core's `UserStore`/`RoleStore`, which expect an
-EF `DbContext`. This PoC uses ADO.NET + stored procedures exclusively, so `01_Schema_Identity.sql`
-reproduces Identity's default table shape (`AspNetUsers`, `AspNetRoles`, `AspNetUserRoles`, etc.)
-by hand, with two TopSupport-specific columns added to `AspNetUsers`:
+Sign-in does not use ASP.NET Core Identity. `POST api/auth/sign-in` (AuthController →
+AuthService) looks the username up with `usp_Account_GetByUsername`, verifies the password against
+the PBKDF2 `PasswordHash` from `07_Admin_Accounts.sql` (a NULL hash still means the buildSeed()
+demo password), applies the lockout, and returns a signed bearer token (JWT, HMAC-SHA256) carrying
+the account id, name and role. Every other Api endpoint requires that token, and the admin and
+agent endpoints require the role. The Blazor app keeps the token in its encrypted, HttpOnly auth
+cookie and sends it on every Api call.
 
-- `AppRole` — which portal (`User` / `Agent` / `Admin`) the account signs into, matching `S.role`
-  in the original demo.
-- `DomainPersonId` — the `Users.Id` or `Agents.Id` row this login represents.
+The token signing key is the Api's `Auth:SigningKey` setting. `appsettings.Development.json`
+has a development-only key; any other environment must supply its own (at least 32 bytes) through
+user secrets, an environment variable (`Auth__SigningKey`) or a key vault, or the Api won't start.
 
-**This skeleton pass does not yet implement the custom store.** `TopSupport.Api/Identity` contains
-stub `IUserStore<ApplicationUser>` / `IRoleStore<ApplicationRole>` implementations that throw
-`NotImplementedException` on anything beyond construction. Implementing them (backed by ADO.NET
-calls against these tables, with stored procedures alongside `03_StoredProcedures_Core.sql`) is
-the next real task before sign-in works end to end.
+`01_Schema_Identity.sql` still creates the hand-rolled `AspNetUsers`/`AspNetRoles` tables from the
+first skeleton pass, but nothing uses them any more.
 
 ## Ticket `FieldsJson` column
 

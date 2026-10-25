@@ -16,10 +16,16 @@
     <File Path="TopSupport.Database/Scripts/10_Admin_SecuritySiteProfile.sql" />
     <File Path="TopSupport.Database/Scripts/11_Admin_KnowledgeBase.sql" />
     <File Path="TopSupport.Database/Scripts/12_Admin_Dashboard.sql" />
+    <File Path="TopSupport.Database/Scripts/13_Auth_SignIn.sql" />
+    <File Path="TopSupport.Database/Scripts/14_Attachments.sql" />
+    <File Path="TopSupport.Database/Scripts/15_Worker.sql" />
+    <File Path="TopSupport.Database/Scripts/16_Dev_TestAccounts.sql" />
     <File Path="TopSupport.Database/Scripts/99_SeedData.sql" />
   </Folder>
   <Project Path="TopSupport.Api/TopSupport.Api.csproj" />
   <Project Path="TopSupport.Blazor/TopSupport.Blazor.csproj" />
   <Project Path="TopSupport.Models/TopSupport.Models.csproj" />
   <Project Path="TopSupport.Services/TopSupport.Services.csproj" />
+  <Project Path="TopSupport.Worker.Tests/TopSupport.Worker.Tests.csproj" />
+  <Project Path="TopSupport.Worker/TopSupport.Worker.csproj" />
 </Solution>

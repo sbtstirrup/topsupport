@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- A Worker Service hosted on the web SDK only so it can serve the Hangfire dashboard on
+       localhost; it still runs as a Windows service or a systemd unit (see Program.cs). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>topsupport-worker-2f6c1b0e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Amazon.Extensions.Configuration.SystemsManager" Version="7.1.1" />
+    <PackageReference Include="AWSSDK.CloudWatch" Version="4.0.105.2" />
+    <PackageReference Include="AWSSDK.SimpleEmailV2" Version="4.0.106.2" />
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+    <PackageReference Include="Hangfire.Core" Version="1.8.25" />
+    <PackageReference Include="Hangfire.SqlServer" Version="1.8.25" />
+    <PackageReference Include="MailKit" Version="4.18.1" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.12" />
+    <!-- Pinned above the 11.0.1 Hangfire.Core pulls in transitively (NU1903, GHSA-5crp-9r3c-p9vr). -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- Pinned above the 9.0.18 that Microsoft.Data.SqlClient pulls in transitively (NU1903, GHSA-846f-f764-76mx), as in TopSupport.Api. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TopSupport.Models\TopSupport.Models.csproj" />
+    <ProjectReference Include="..\TopSupport.Services\TopSupport.Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TopSupport.Worker.Tests" />
+  </ItemGroup>
+
+</Project>

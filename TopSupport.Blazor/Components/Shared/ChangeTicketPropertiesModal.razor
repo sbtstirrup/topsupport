@@ -8,6 +8,7 @@
 @inject TopSupportApiClient Api
 @inject SessionState Session
 @inject ModalState Modal
+@inject ToastState Toasts
 
 <div class="modal-head">
     <h2>Change #@Ticket.Number</h2>
@@ -98,6 +99,10 @@
 
             await OnSaved.InvokeAsync();
             Modal.Close();
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

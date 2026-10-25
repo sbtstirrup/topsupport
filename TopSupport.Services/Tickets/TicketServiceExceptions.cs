@@ -22,6 +22,14 @@ public class TicketClosedException : Exception
     }
 }
 
+/// <summary>Thrown when a ticket changed under the caller (e.g. another agent claimed it first). Mapped to 409 by the Api.</summary>
+public class TicketConflictException : Exception
+{
+    public TicketConflictException(string message) : base(message)
+    {
+    }
+}
+
 /// <summary>Thrown when an attachment exceeds the 10MB per-file cap. Mapped to 400 by the Api.</summary>
 public class AttachmentTooLargeException : Exception
 {

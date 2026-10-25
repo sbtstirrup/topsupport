@@ -162,6 +162,29 @@ public class TicketRepository : ITicketRepository
             },
             cancellationToken);
 
+    public async Task<bool> ClaimIfUnchangedAsync(string ticketId, string agentId, string? assignedTeamId, string? expectedAgentId, DateTimeOffset updated, CancellationToken cancellationToken = default)
+    {
+        var affected = 0;
+        await _db.ExecuteReaderAsync(
+            "dbo.usp_Ticket_ClaimIfUnchanged",
+            cmd =>
+            {
+                cmd.Parameters.AddWithValue("@TicketId", ticketId);
+                cmd.Parameters.AddWithValue("@AgentId", agentId);
+                cmd.Parameters.AddWithValue("@AssignedTeamId", (object?)assignedTeamId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ExpectedAgentId", (object?)expectedAgentId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Updated", updated);
+            },
+            async (reader, ct) =>
+            {
+                if (await reader.ReadAsync(ct))
+                {
+                    affected = reader.GetInt32(reader.GetOrdinal("Affected"));
+                }
+            });
+        return affected > 0;
+    }
+
     public async Task<int> GetNextNumberAsync(CancellationToken cancellationToken = default)
     {
         int next = 0;
@@ -208,7 +231,10 @@ public class TicketRepository : ITicketRepository
                 cmd.Parameters.AddWithValue("@TicketId", task.TicketId);
                 cmd.Parameters.AddWithValue("@Text", task.Text);
                 cmd.Parameters.AddWithValue("@AssigneeAgentId", task.AssigneeAgentId);
-                cmd.Parameters.AddWithValue("@Due", task.Due.HasValue ? task.Due.Value.ToDateTime(TimeOnly.MinValue) : DBNull.Value);
+                // Explicitly DATE (not AddWithValue's DATETIME inference), so any DateOnly fits
+                // instead of dates before 1753 throwing SqlDateTime overflow.
+                cmd.Parameters.Add("@Due", System.Data.SqlDbType.Date).Value =
+                    task.Due.HasValue ? task.Due.Value.ToDateTime(TimeOnly.MinValue) : DBNull.Value;
                 cmd.Parameters.AddWithValue("@Done", task.Done);
             },
             cancellationToken);
@@ -266,7 +292,10 @@ public class TicketRepository : ITicketRepository
                 cmd.Parameters.AddWithValue("@Department", (object?)department ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@AssignedAgentId", (object?)assignedAgentId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@AssignedTeamId", (object?)assignedTeamId ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@SearchText", (object?)searchText ?? DBNull.Value);
+                // The proc wraps @SearchText in LIKE '%...%': escape the pattern characters so a
+                // search for "50%" or "a_b" matches literally ("[" first, before it's reused).
+                cmd.Parameters.AddWithValue("@SearchText", searchText is null ? DBNull.Value
+                    : (object)searchText.Replace("[", "[[]").Replace("%", "[%]").Replace("_", "[_]"));
             },
             async (reader, ct) =>
             {

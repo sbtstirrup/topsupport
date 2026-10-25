@@ -1,4 +1,5 @@
 @page "/agent-tickets/{Id}"
+@attribute [Authorize(Roles = "Agent,Admin")]
 @using TopSupport.Models.Enums
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Tickets.FieldSchema
@@ -8,6 +9,7 @@
 @inject LookupDataService Lookup
 @inject SessionState Session
 @inject ModalState ModalHost
+@inject ToastState Toasts
 
 <RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
     @if (_loading)
@@ -135,8 +137,8 @@
                                         Required="true" ErrorMessage="@_replyError"
                                         Placeholder="@(_replyMode == "note" ? "Notes for the team" : "Write your reply")" />
 
-                        <FileUploadDropzone Label="Attachments (Optional)" Attachments="_replyFiles" AttachmentsChanged="@(files => _replyFiles = files)"
-                                            OnUploadFile="UploadReplyFileAsync" />
+                        <FileUploadDropzone Label="Attachments (Optional)" Attachments="_replyFiles" AttachmentsChanged="OnReplyFilesChanged"
+                                            OnUploadFile="StageReplyFileAsync" />
 
                         <div class="row" style="align-items:flex-end">
                             @if (_replyMode != "note")
@@ -228,6 +230,7 @@
     private string _replyHtml = "";
     private string? _replyError;
     private List<TopSupport.Blazor.Models.AttachmentRef> _replyFiles = new();
+    private readonly List<TopSupport.Blazor.Models.StagedAttachment> _stagedReplyFiles = new();
     private string _statusAfterSending = "";
     private bool _sendingReply;
     private RichTextEditor? _editorRef;
@@ -276,7 +279,7 @@
             {
                 // Best-effort cross-reference per DevicePanel's doc comment: use the open queue as
                 // the candidate list (client-side filter-by-tag over whatever's already fetched).
-                var queueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "open", ActingAgentId = Session.AccountId, PageSize = 200 });
+                var queueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "open", ActingAgentId = Session.AccountId, PageSize = 100 });
                 _candidateTickets = queueResult.Items.Select(t => { t.Fields = NormalizeFields(t.Fields); return t; }).ToList();
             }
         }
@@ -315,17 +318,32 @@
     private async Task ClaimAsync()
     {
         if (_ticket is null) return;
-        await Api.ClaimTicketAsync(_ticket.Id, Session.AccountId);
-        _flashMessage = $"You claimed #{_ticket.Number}.";
+        try
+        {
+            await Api.ClaimTicketAsync(_ticket.Id, Session.AccountId);
+            _flashMessage = $"You claimed #{_ticket.Number}.";
+        }
+        catch (HttpRequestException ex)
+        {
+            // 409: another agent claimed or reassigned it first -- the reload below shows who has it.
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+        }
         await LoadTicketAsync();
     }
 
     private async Task ReopenAsync()
     {
         if (_ticket is null) return;
-        await Api.ChangeStatusAsync(_ticket.Id, nameof(TicketStatus.Open), ActingAgent);
-        _flashMessage = $"#{_ticket.Number} reopened.";
-        await LoadTicketAsync();
+        try
+        {
+            await Api.ChangeStatusAsync(_ticket.Id, nameof(TicketStatus.Open), ActingAgent);
+            _flashMessage = $"#{_ticket.Number} reopened.";
+            await LoadTicketAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+        }
     }
 
     private void OpenAssign()
@@ -372,10 +390,41 @@
         _replyError = null;
     }
 
-    private async Task<TopSupport.Blazor.Models.AttachmentRef> UploadReplyFileAsync(Microsoft.AspNetCore.Components.Forms.IBrowserFile file)
+    /// <summary>
+    /// Picked files are only staged (read into memory, nothing uploaded): they are uploaded after
+    /// the reply/note is saved, anchored to its new timeline entry, so a file on an internal note
+    /// is never visible to the requester. Removing a staged file just drops it.
+    /// </summary>
+    private async Task<TopSupport.Blazor.Models.AttachmentRef> StageReplyFileAsync(Microsoft.AspNetCore.Components.Forms.IBrowserFile file)
     {
-        var uploaded = await Api.UploadAttachmentAsync(_ticket!.Id, file, "agent", Session.AccountId);
-        return new TopSupport.Blazor.Models.AttachmentRef(uploaded.Id, uploaded.FileName, uploaded.SizeBytes, uploaded.ContentType);
+        var staged = await TopSupport.Blazor.Models.StagedAttachment.ReadAsync(file);
+        _stagedReplyFiles.Add(staged);
+        return staged.Reference;
+    }
+
+    private void OnReplyFilesChanged(List<TopSupport.Blazor.Models.AttachmentRef> files)
+    {
+        _replyFiles = files;
+        _stagedReplyFiles.RemoveAll(s => !files.Any(f => ReferenceEquals(f, s.Reference)));
+    }
+
+    /// <summary>Uploads the staged files anchored to <paramref name="timelineEntryId"/>; returns a message for any that failed.</summary>
+    private async Task<string?> UploadStagedReplyFilesAsync(string ticketId, string? timelineEntryId)
+    {
+        var failed = new List<string>();
+        foreach (var staged in _stagedReplyFiles.Where(s => _replyFiles.Any(f => ReferenceEquals(f, s.Reference))))
+        {
+            try
+            {
+                await Api.UploadAttachmentAsync(ticketId, staged, "agent", Session.AccountId, timelineEntryId);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+            {
+                failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
+            }
+        }
+
+        return failed.Count == 0 ? null : $" These files could not be attached: {string.Join(", ", failed)}.";
     }
 
     private void ClearReply()
@@ -383,6 +432,7 @@
         _replyHtml = "";
         _replyError = null;
         _replyFiles = new();
+        _stagedReplyFiles.Clear();
         _statusAfterSending = "";
         _editorRef?.SetHtmlAsync("");
     }
@@ -404,15 +454,31 @@
             var request = new AddAgentReplyRequest
             {
                 AgentId = Session.AccountId,
-                Html = _replyHtml,
+                Html = _replyHtml ?? string.Empty,
                 IsNote = _replyMode == "note",
                 StatusAfterSending = _replyMode == "note" || string.IsNullOrEmpty(_statusAfterSending) ? null : _statusAfterSending
             };
 
-            await Api.AddAgentReplyAsync(_ticket.Id, request);
-            _flashMessage = _replyMode == "note" ? "Internal note added." : $"Reply sent to {RequesterName}.";
+            var updated = await Api.AddAgentReplyAsync(_ticket.Id, request);
+
+            // The new entry is the newest Reply/Note by this agent; staged files are anchored to it.
+            var entryId = updated.Timeline
+                .Where(e => e.Kind is TicketTimelineEntryKind.Reply or TicketTimelineEntryKind.Note && e.By.Type == "agent" && e.By.Id == Session.AccountId)
+                .MaxBy(e => e.At)?.Id;
+            string? uploadProblem = null;
+            if (_stagedReplyFiles.Count > 0)
+            {
+                uploadProblem = entryId is null ? " The files could not be attached." : await UploadStagedReplyFilesAsync(_ticket.Id, entryId);
+            }
+
+            _flashMessage = (_replyMode == "note" ? "Internal note added." : $"Reply sent to {RequesterName}.") + uploadProblem;
             ClearReply();
             await LoadTicketAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            // e.g. the ticket was Closed meanwhile (400) or deleted (404): keep the draft so nothing is lost.
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

@@ -1,14 +1,15 @@
 @* Wraps Blazor's InputFile in the demo's .dropzone/.file-list markup (see dropzone() in
    topsupport-app.js). The parent page decides WHEN/HOW a selected file is actually persisted
-   by supplying OnUploadFile -- this lets the same component serve both "ticket already exists,
-   upload immediately" (TicketDetail/AgentTicketDetail reply attachments) and any flow that
-   wants to stage files locally before deciding to upload. 10MB/file cap enforced client-side
-   via OpenReadStream(maxAllowedSize). Attachments is two-way bound: @bind-Attachments.
+   by supplying OnUploadFile. Every current caller stages (StagedAttachment) and uploads only
+   once the ticket / reply / note exists, so reply and note files are anchored to their timeline
+   entry. The allow-list, empty-file, 10MB/file and files-per-ticket checks here mirror
+   TicketAttachmentRules for UX only -- the Api enforces them. Attachments is two-way bound.
 
    Removal before upload (Attachments entries with Id == null) just removes the local staged
    entry. Removal after upload is explicitly out of scope per the plan -- the remove button is
    not rendered for already-uploaded (Id != null) entries. *@
 @using TopSupport.Blazor.Models
+@using TopSupport.Models.Tickets
 
 <div class="field full">
     <span class="field-label" id="@_labelId">@Label</span>
@@ -20,7 +21,7 @@
         @((MarkupString)IconLibrary.Render("upload", 24))
         <strong>Drag files here or choose files</strong>
         <span class="hint">@(Hint ?? "Images, PDFs or documents up to 10 MB each")</span>
-        <InputFile id="@_id" multiple OnChange="OnFilesSelected" aria-labelledby="@_labelId" />
+        <InputFile id="@_id" multiple accept="@TicketAttachmentRules.AcceptAttribute" OnChange="OnFilesSelected" aria-labelledby="@_labelId" />
     </div>
     @if (!string.IsNullOrEmpty(_error))
     {
@@ -48,7 +49,9 @@
 </div>
 
 @code {
-    private const long MaxBytes = 10 * 1024 * 1024;
+    // Client-side copies of the server rules (TicketAttachmentRules) -- UX only; the Api enforces them.
+    private const long MaxBytes = TicketAttachmentRules.MaxFileSizeBytes;
+    private const int MaxFiles = TicketAttachmentRules.MaxFilesPerTicket;
 
     [Parameter] public string Label { get; set; } = "Attachments";
     [Parameter] public string? Hint { get; set; }
@@ -71,13 +74,28 @@
         _isUploading = true;
         StateHasChanged();
 
+        var errors = new List<string>();
         try
         {
-            foreach (var file in e.GetMultipleFiles())
+            // GetMultipleFiles() throws past its default of 10 files, so ask for exactly what was
+            // picked and keep only as many as still fit under the per-ticket cap.
+            var remaining = Math.Max(0, MaxFiles - Attachments.Count);
+            if (e.FileCount > remaining)
             {
-                if (file.Size > MaxBytes)
+                errors.Add(remaining == 0
+                    ? $"You can attach at most {MaxFiles} files."
+                    : $"You can attach at most {MaxFiles} files, so only the first {remaining} were added.");
+            }
+
+            foreach (var file in e.GetMultipleFiles(Math.Max(1, e.FileCount)).Take(remaining))
+            {
+                var problem = !TicketAttachmentRules.IsAllowed(file.Name) ? TicketAttachmentRules.TypeNotAllowedMessage
+                    : file.Size == 0 ? TicketAttachmentRules.EmptyFileMessage
+                    : file.Size > MaxBytes ? TicketAttachmentRules.TooLargeMessage
+                    : null;
+                if (problem is not null)
                 {
-                    _error = $"\"{file.Name}\" is larger than 10 MB and was not uploaded.";
+                    errors.Add($"\"{file.Name}\" was not added. {problem}");
                     continue;
                 }
 
@@ -88,7 +106,7 @@
                 }
                 catch (Exception ex)
                 {
-                    _error = $"\"{file.Name}\" could not be uploaded: {ex.Message}";
+                    errors.Add($"\"{file.Name}\" could not be added: {ex.Message}");
                 }
             }
 
@@ -96,6 +114,7 @@
         }
         finally
         {
+            _error = errors.Count == 0 ? null : string.Join(" ", errors);
             _isUploading = false;
             StateHasChanged();
         }

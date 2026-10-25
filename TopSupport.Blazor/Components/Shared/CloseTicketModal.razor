@@ -6,6 +6,7 @@
 @inject TopSupportApiClient Api
 @inject SessionState Session
 @inject ModalState Modal
+@inject ToastState Toasts
 
 <div class="modal-head">
     <h2>Close @(TicketIds.Count == 1 ? "ticket" : TicketIds.Count + " tickets")</h2>
@@ -32,7 +33,7 @@
     </fieldset>
     <div class="field full">
         <label class="field-label" for="@_noteId">Internal Note (Optional)</label>
-        <textarea class="input" id="@_noteId" rows="3" placeholder="Why is this being closed?" @bind="_note" @bind:event="oninput"></textarea>
+        <textarea class="input" id="@_noteId" rows="3" placeholder="Why is this being closed?" maxlength="@BulkCloseRequest.MaxNoteLength" @bind="_note" @bind:event="oninput"></textarea>
     </div>
 </div>
 <div class="modal-foot">
@@ -59,34 +60,17 @@
         {
             var actor = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
 
+            // One call: the Api validates every ticket first, then adds the note and closes each
+            // (ACT['close-go']), so a failed close can't leave orphaned notes behind.
             var note = _note.Trim();
-            if (note.Length > 0)
-            {
-                foreach (var id in TicketIds)
-                {
-                    await Api.AddAgentReplyAsync(id, new AddAgentReplyRequest
-                    {
-                        AgentId = Session.AccountId,
-                        Html = HtmlText.FromText(note),
-                        IsNote = true
-                    });
-                }
-            }
-
-            if (_status == TicketStatus.Resolved)
-            {
-                // BulkCloseAsync always sets Resolved server-side (see TicketService.BulkCloseAsync) --
-                // use it for the Resolved choice; the Closed choice goes through BulkChangeStatusAsync
-                // since there's no bulk "hard close" endpoint.
-                await Api.BulkCloseAsync(TicketIds, actor);
-            }
-            else
-            {
-                await Api.BulkChangeStatusAsync(TicketIds, TicketStatus.Closed.ToString(), actor);
-            }
+            await Api.BulkCloseAsync(TicketIds, _status.ToString(), note.Length > 0 ? note : null, actor);
 
             await OnClosed.InvokeAsync();
             Modal.Close();
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TopSupport.Api.Auth;
 using TopSupport.Models.Admin;
 using TopSupport.Models.People;
 using TopSupport.Models.Tickets;
@@ -6,9 +8,10 @@ using TopSupport.Services.Admin;
 
 namespace TopSupport.Api.Controllers;
 
-/// <summary>Admin Organisations screens: list, detail, open tickets, create/edit.</summary>
+/// <summary>Admin Organisations screens: list, detail, open tickets, create/edit. Admins only.</summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = Policies.Admin)]
 public class OrgsController : ControllerBase
 {
     private readonly IOrgAdminService _orgs;
@@ -35,11 +38,17 @@ public class OrgsController : ControllerBase
 
     [HttpPost]
     public Task<ActionResult<OrgDto>> Create(SaveOrgRequest request, CancellationToken cancellationToken)
-        => Run(() => _orgs.CreateAsync(request, cancellationToken));
+    {
+        request.ActorId = User.AccountId();
+        return Run(() => _orgs.CreateAsync(request, cancellationToken));
+    }
 
     [HttpPut("{id}")]
     public Task<ActionResult<OrgDto>> Update(string id, SaveOrgRequest request, CancellationToken cancellationToken)
-        => Run(() => _orgs.UpdateAsync(id, request, cancellationToken));
+    {
+        request.ActorId = User.AccountId();
+        return Run(() => _orgs.UpdateAsync(id, request, cancellationToken));
+    }
 
     private async Task<ActionResult<T>> Run<T>(Func<Task<T>> action)
     {

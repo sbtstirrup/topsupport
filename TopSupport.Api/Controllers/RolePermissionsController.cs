@@ -1,12 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TopSupport.Api.Auth;
 using TopSupport.Models.Admin;
 using TopSupport.Services.Admin;
 
 namespace TopSupport.Api.Controllers;
 
-/// <summary>Admin "Roles and Permissions" grid: read every cell, set one cell.</summary>
+/// <summary>Admin "Roles and Permissions" grid: read every cell, set one cell. Admins only.</summary>
 [ApiController]
 [Route("api/admin/permissions")]
+[Authorize(Policy = Policies.Admin)]
 public class RolePermissionsController : ControllerBase
 {
     private readonly IRolePermissionService _service;
@@ -23,6 +26,7 @@ public class RolePermissionsController : ControllerBase
     [HttpPut]
     public async Task<IActionResult> Set(SetRolePermissionRequest request, CancellationToken cancellationToken)
     {
+        request.ActorId = User.AccountId();
         try
         {
             await _service.SetAsync(request, cancellationToken);

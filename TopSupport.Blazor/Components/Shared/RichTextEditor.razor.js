@@ -30,8 +30,9 @@ export function appendHtml(element, html) {
 export function execCommand(element, command, value) {
     element.focus();
     if (command === "link") {
-        const url = window.prompt("Link address (https://)");
-        if (!url) return;
+        const url = (window.prompt("Link address (https://)") || "").trim();
+        // Same schemes the Api's TicketHtmlSanitizer keeps: never javascript: or data: links.
+        if (!/^(https?:\/\/|mailto:)/i.test(url)) return;
         document.execCommand("createLink", false, url);
         return;
     }

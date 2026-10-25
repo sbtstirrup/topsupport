@@ -1,4 +1,5 @@
 @page "/kb/{Id}/edit"
+@attribute [Authorize(Roles = "Admin")]
 @using TopSupport.Models.Admin
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api

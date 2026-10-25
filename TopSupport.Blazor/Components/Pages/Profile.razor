@@ -1,4 +1,5 @@
 @page "/profile"
+@attribute [Authorize]
 @using TopSupport.Models.Admin
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
@@ -85,7 +86,7 @@
         if (string.IsNullOrEmpty(Session.AccountId)) return;
 
         _security = await Api.GetSecuritySettingsAsync();
-        _profile = await Api.GetProfileAsync(Session.AccountId);
+        _profile = await Api.GetProfileAsync();
         if (_profile is not null)
         {
             _name = _profile.Name;

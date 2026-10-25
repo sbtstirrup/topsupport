@@ -1,36 +1,116 @@
 @page "/signin"
+@attribute [ExcludeFromInteractiveRouting]
 @layout Layout.PublicLayout
+@inject TopSupportApiClient Api
 @inject SessionState Session
 @inject NavigationManager Nav
-@inject TopSupportApiClient Api
+@inject IWebHostEnvironment Env
 @using TopSupport.Models.Admin
+
+@* Port of PAGES.signin / ACT.signin in topsupport-app.js. A static server-rendered form (not an
+   interactive page) so a successful sign-in can set the auth cookie on a real HTTP response.
+   The demo's "Role (Demo Only)" override is gone: you get your own account's role. *@
 
 <PageTitle>Sign in - TopSupport</PageTitle>
 
 <div class="signin-wrap">
-    <div class="card pad stack-16">
+    <EditForm Model="Input" FormName="signin" OnSubmit="SignInAsync" class="card pad stack-16" novalidate aria-labelledby="si-h">
         <div>
-            <h1 style="font-size:24px"><SiteText Field="SiteText.Part.SigninTitle" /></h1>
+            <h1 id="si-h" style="font-size:24px"><SiteText Field="SiteText.Part.SigninTitle" /></h1>
             <p class="lede" style="margin:6px 0 0"><SiteText Field="SiteText.Part.SigninBody" /></p>
         </div>
 
+        @if (SafeReturnUrl?.StartsWith("/raise", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            <div class="notice">@((MarkupString)IconLibrary.Render("info", 18))<span>Sign in to raise a ticket. Your name and email are filled in for you.</span></div>
+        }
+
+        @if (_error is not null)
+        {
+            <div class="err" role="alert" id="si-err" tabindex="-1" autofocus>@_error</div>
+        }
+
         <div class="field">
-            <span class="field-label">Choose a role to view as</span>
-            <span class="hint">Demo skeleton: no real credential check yet -- see TopSupport.Api/Identity/AdoUserStore.cs.</span>
-            <div class="opts" role="group">
-                <button type="button" class="opt @(Session.Role == AppRole.User ? "on" : "")" aria-pressed="@(Session.Role == AppRole.User)" @onclick="@(() => SignInAs(AppRole.User))">End user</button>
-                <button type="button" class="opt @(Session.Role == AppRole.Agent ? "on" : "")" aria-pressed="@(Session.Role == AppRole.Agent)" @onclick="@(() => SignInAs(AppRole.Agent))">Agent</button>
-                <button type="button" class="opt @(Session.Role == AppRole.Admin ? "on" : "")" aria-pressed="@(Session.Role == AppRole.Admin)" @onclick="@(() => SignInAs(AppRole.Admin))">Admin</button>
-            </div>
+            <label class="field-label" for="f-si-username">Username</label>
+            <InputText class="input" id="f-si-username" @bind-Value="Input.Username" autocomplete="username" placeholder="For example apatel" maxlength="100" autofocus="@(_error is null)" />
         </div>
+        <div class="field">
+            <label class="field-label" for="f-si-password">Password</label>
+            <InputText class="input" id="f-si-password" type="password" @bind-Value="Input.Password" autocomplete="current-password" maxlength="@FieldLimits.Password" />
+        </div>
+
+        <details>
+            <summary class="linkish">Forgotten password?</summary>
+            <div class="notice" style="margin-top:10px">@((MarkupString)IconLibrary.Render("mail", 18))<span>Email <strong>itsupport@topcashback.example</strong> or call ext. 4400. We will check who you are and send a temporary password.</span></div>
+        </details>
+
+        <button type="submit" class="btn btn-primary btn-lg">Sign in</button>
+
+        @if (Env.IsDevelopment())
+        {
+            @* The seeded buildSeed() accounts; development only. *@
+            <div class="demo-accts"><strong>Demo accounts</strong><br />
+                End user: <code>apatel</code> / <code>TopCashback1!</code><br />
+                Agent: <code>jmoore</code> / <code>ServiceDesk1!</code><br />
+                Admin: <code>nhussain</code> / <code>AdminDemo1!</code></div>
+        }
+    </EditForm>
+
+    @* Development only: one-click sign-in as any seeded account (renders nothing otherwise). *@
+    <div style="margin-top:16px">
+        <TestAccountPicker Variant="TestAccountPicker.PickerVariant.Panel" ReturnUrl="@(SafeReturnUrl ?? "/home")" />
     </div>
 </div>
 
 @code {
-    private async Task SignInAs(AppRole role)
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm] private SignInForm Input { get; set; } = default!;
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    /// <summary>Set by /account/test-switch when the picked test account couldn't sign in.</summary>
+    [SupplyParameterFromQuery] private string? SwitchError { get; set; }
+
+    private string? _error;
+
+    protected override void OnInitialized()
     {
-        Session.SetRole(role);
-        await Api.LogAuditAsync(Session.AccountId, "Signed in", role == AppRole.User ? "User portal" : "Agent portal", AuditCategories.SignIn);
-        Nav.NavigateTo(Session.HomeRoute());
+        Input ??= new();
+        _error ??= SwitchError;
+
+        // Already signed in (e.g. the back button): go straight to their home, as the demo does.
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && Session.IsSignedIn)
+        {
+            Nav.NavigateTo(Session.HomeRoute());
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        var (account, error) = await Api.SignInAsync(Input.Username, Input.Password);
+        if (account is null)
+        {
+            _error = error;
+            Input.Password = null;
+            return;
+        }
+
+        await AuthCookie.SignInAsync(HttpContext, account);
+
+        // The demo's S.params.next: back to the page that sent them here, if it's one of ours.
+        // Otherwise their role's home (computed from the response -- the cookie applies from the next request).
+        var home = account.Role switch { nameof(AppRole.User) => "/my-tickets", nameof(AppRole.Agent) => "/queue/open", _ => "/dashboard" };
+        Nav.NavigateTo(SafeReturnUrl is { } next && next != "/" ? next : home);
+    }
+
+    /// <summary>Only a local path: "/x" but not "//host" or "/\host" (an open redirect otherwise).</summary>
+    private string? SafeReturnUrl
+        => ReturnUrl is { Length: > 0 } url && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\')) ? url : null;
+
+    private sealed class SignInForm
+    {
+        public string? Username { get; set; }
+        public string? Password { get; set; }
     }
 }

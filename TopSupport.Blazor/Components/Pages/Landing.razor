@@ -1,6 +1,5 @@
 @page "/"
 @layout Layout.PublicLayout
-@inject NavigationManager Nav
 
 <PageTitle>TopSupport</PageTitle>
 
@@ -9,10 +8,10 @@
         <h1><SiteText Field="SiteText.Part.LandingTitle" /></h1>
         <p><SiteText Field="SiteText.Part.LandingBody" /></p>
         <div class="hero-actions">
-            <button type="button" class="btn btn-primary btn-lg" @onclick="@(() => Nav.NavigateTo("/signin"))">
+            <a class="btn btn-primary btn-lg" href="signin?returnUrl=%2Fraise">
                 @((MarkupString)IconLibrary.Render("plus", 20, 2.5)) Raise a Ticket
-            </button>
-            <button type="button" class="btn btn-secondary btn-lg" @onclick="@(() => Nav.NavigateTo("/signin"))">Sign in</button>
+            </a>
+            <a class="btn btn-secondary btn-lg" href="signin">Sign in</a>
         </div>
         <p class="login-help">Can't sign in? Email <strong>itsupport@topcashback.example</strong></p>
     </div>

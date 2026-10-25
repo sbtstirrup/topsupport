@@ -1,12 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TopSupport.Api.Auth;
 using TopSupport.Models.Tickets;
 using TopSupport.Services.Tickets;
 
 namespace TopSupport.Api.Controllers;
 
-/// <summary>Canned-response CRUD + placeholder preview against a real ticket.</summary>
+/// <summary>Canned-response CRUD + placeholder preview against a real ticket. Agents and admins only.</summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = Policies.Agent)]
 public class CannedResponsesController : ControllerBase
 {
     private readonly ICannedResponseService _cannedResponses;
@@ -22,15 +25,15 @@ public class CannedResponsesController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<CannedResponseDto>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _cannedResponses.GetAllAsync(cancellationToken));
 
-    // Mutations take an optional ?actorId= (the signed-in agent) so the audit entry is attributed.
+    // Mutations attribute the audit entry to the signed-in agent; any ?actorId= the caller sends is ignored.
     // Validation failures come back as 400 with a field key -> message map, like KnowledgeBaseController.
 
     [HttpPost]
-    public async Task<ActionResult<CannedResponseDto>> Create(CannedResponseDto response, [FromQuery] string? actorId, CancellationToken cancellationToken)
+    public async Task<ActionResult<CannedResponseDto>> Create(CannedResponseDto response, CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(await _cannedResponses.CreateAsync(response, actorId, cancellationToken));
+            return Ok(await _cannedResponses.CreateAsync(response, User.AccountId(), cancellationToken));
         }
         catch (CannedResponseValidationException ex)
         {
@@ -39,12 +42,12 @@ public class CannedResponsesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, CannedResponseDto response, [FromQuery] string? actorId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Update(string id, CannedResponseDto response, CancellationToken cancellationToken)
     {
         response.Id = id;
         try
         {
-            return await _cannedResponses.UpdateAsync(response, actorId, cancellationToken) ? Ok() : NotFound();
+            return await _cannedResponses.UpdateAsync(response, User.AccountId(), cancellationToken) ? Ok() : NotFound();
         }
         catch (CannedResponseValidationException ex)
         {
@@ -53,9 +56,10 @@ public class CannedResponsesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id, [FromQuery] string? actorId, CancellationToken cancellationToken)
-        => await _cannedResponses.DeleteAsync(id, actorId, cancellationToken) ? Ok() : NotFound();
+    public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
+        => await _cannedResponses.DeleteAsync(id, User.AccountId(), cancellationToken) ? Ok() : NotFound();
 
+    /// <summary>AgentId is ignored: placeholders are filled for the signed-in agent.</summary>
     public record PreviewRequest(string? TicketId, string? AgentId);
 
     [HttpPost("{id}/preview")]
@@ -69,7 +73,7 @@ public class CannedResponsesController : ControllerBase
             ? null
             : await _ticketService.GetTicketAsync(request.TicketId, cancellationToken);
 
-        var filled = await _cannedResponses.FillPlaceholdersAsync(response.Body, ticket, request.AgentId, cancellationToken);
+        var filled = await _cannedResponses.FillPlaceholdersAsync(response.Body, ticket, User.AccountId(), cancellationToken);
         return Ok(new { text = filled });
     }
 }

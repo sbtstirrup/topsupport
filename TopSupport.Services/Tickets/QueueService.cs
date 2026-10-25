@@ -1,3 +1,5 @@
+using System.Text.Json;
+using TopSupport.Models.Admin;
 using TopSupport.Models.Tickets;
 using TopSupport.Services.Abstractions;
 
@@ -11,15 +13,25 @@ namespace TopSupport.Services.Tickets;
 /// </summary>
 public class QueueService : IQueueService
 {
-    private readonly ITicketRepository _tickets;
+    /// <summary>Largest page the queue serves (the agent UI asks for 15; DevicePanel's lookup for up to 200 gets 100).</summary>
+    public const int MaxPageSize = 100;
 
-    public QueueService(ITicketRepository tickets)
+    private readonly ITicketRepository _tickets;
+    private readonly IUserRepository _users;
+
+    public QueueService(ITicketRepository tickets, IUserRepository users)
     {
         _tickets = tickets;
+        _users = users;
     }
 
     public async Task<TicketQueuePageResult> SearchAsync(TicketQueueRequest request, CancellationToken cancellationToken = default)
     {
+        // Free text is capped at FieldLimits.SearchText (the search box's maxlength) -- longer input is truncated.
+        var searchText = request.SearchText?.Trim();
+        if (searchText?.Length > FieldLimits.SearchText) searchText = searchText[..FieldLimits.SearchText].TrimEnd();
+        request.SearchText = string.IsNullOrEmpty(searchText) ? null : searchText;
+
         IReadOnlyList<TicketDto> source;
 
         // The 4 active-derived queues (open/mine/overdue/answered), and a plain unfiltered
@@ -53,13 +65,20 @@ public class QueueService : IQueueService
             _ => source
         };
 
-        filtered = ApplyFilters(filtered, request);
+        // Requester/affected names for the free-text match (applyFilters searches r.name/a.name too).
+        var userNames = request.SearchText is null
+            ? new Dictionary<string, string>()
+            : (await _users.GetAllActiveAsync(cancellationToken)).ToDictionary(u => u.Id, u => u.Name);
+
+        filtered = ApplyFilters(filtered, request, userNames);
 
         var sorted = ApplySort(filtered, request.SortKey, request.SortDescending).ToList();
 
         var page = Math.Max(1, request.Page);
-        var pageSize = Math.Max(1, request.PageSize);
-        var items = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var pageSize = Math.Clamp(request.PageSize, 1, MaxPageSize);
+        // long arithmetic: a huge Page must not overflow into a negative Skip.
+        var skip = (int)Math.Min(int.MaxValue, ((long)page - 1) * pageSize);
+        var items = sorted.Skip(skip).Take(pageSize).ToList();
 
         return new TicketQueuePageResult
         {
@@ -101,7 +120,7 @@ public class QueueService : IQueueService
     private static string? AssignedTeamIdFilter(string? assignee) =>
         assignee != null && assignee.StartsWith("t:", StringComparison.Ordinal) ? assignee[2..] : null;
 
-    private static IEnumerable<TicketDto> ApplyFilters(IEnumerable<TicketDto> list, TicketQueueRequest request)
+    private static IEnumerable<TicketDto> ApplyFilters(IEnumerable<TicketDto> list, TicketQueueRequest request, IReadOnlyDictionary<string, string> userNames)
     {
         var q = (request.SearchText ?? string.Empty).Trim().ToLowerInvariant();
 
@@ -122,8 +141,18 @@ public class QueueService : IQueueService
 
             if (q.Length > 0)
             {
+                // Fields come back from the repository's JSON deserialization as JsonElement, not
+                // string -- read string elements (the demo only searches string answers).
+                var fieldText = t.Fields.Values.Select(v => v switch
+                {
+                    string s => s,
+                    JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                    _ => null
+                }).Where(s => !string.IsNullOrEmpty(s));
                 var hay = ("#" + t.Number + " " + t.Subject + " " +
-                           string.Join(' ', t.Fields.Values.Where(v => v is string).Select(v => (string)v!)))
+                           userNames.GetValueOrDefault(t.RequesterUserId) + " " +
+                           userNames.GetValueOrDefault(t.AffectedUserId) + " " +
+                           string.Join(' ', fieldText))
                     .ToLowerInvariant();
                 if (!hay.Contains(q)) return false;
             }

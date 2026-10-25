@@ -1,11 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace TopSupport.Api.Controllers;
 
 /// <summary>Simple liveness check, used by the Blazor app's diagnostics page to prove the
-/// Blazor -> HTTP -> API path works end to end.</summary>
+/// Blazor -> HTTP -> API path works end to end. Anonymous.</summary>
 [ApiController]
 [Route("api/[controller]")]
+[AllowAnonymous]
 public class HealthController : ControllerBase
 {
     [HttpGet]

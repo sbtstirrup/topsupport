@@ -1,6 +1,7 @@
-@* Port of allowed(pg) in topsupport-app.js: redirects to /signin if nobody is "signed in"
-   (no role chosen via the skeleton's role switcher), or to that role's home route if the
-   current role isn't one of AllowedRoles. Wrap each role-restricted page's content in this. *@
+@* Port of allowed(pg) in topsupport-app.js: redirects to /signin (coming back here afterwards,
+   the demo's S.params.next) if nobody is signed in, or to the role's home route if the signed-in
+   role isn't one of AllowedRoles. UI only -- the Api enforces the same roles on every call.
+   Wrap each role-restricted page's content in this. *@
 @implements IDisposable
 @inject SessionState Session
 @inject NavigationManager Nav
@@ -35,7 +36,8 @@
         if (Session.Role is not { } role)
         {
             IsAllowed = false;
-            Nav.NavigateTo("/signin");
+            // forceLoad: the sign-in page is static (see SignIn.razor), so it needs a real page load.
+            Nav.NavigateTo("/signin?returnUrl=" + Uri.EscapeDataString("/" + Nav.ToBaseRelativePath(Nav.Uri)), forceLoad: true);
             return;
         }
 

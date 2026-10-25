@@ -1,10 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TopSupport.Api.Auth;
 using TopSupport.Models.Admin;
 using TopSupport.Services.Admin;
 
 namespace TopSupport.Api.Controllers;
 
-/// <summary>Security settings (password rules) and site page text. Reads are public: the rules drive My Profile and the text drives the landing/sign-in pages.</summary>
+/// <summary>
+/// Security settings (password rules) and site page text. Site text is anonymous (it drives the
+/// landing/sign-in pages); the password rules need any signed-in account (My Profile); saves are admins only.
+/// </summary>
 [ApiController]
 [Route("api/settings")]
 public class SettingsController : ControllerBase
@@ -21,11 +26,12 @@ public class SettingsController : ControllerBase
         => Ok(await _settings.GetSecurityAsync(cancellationToken));
 
     [HttpPut("security")]
+    [Authorize(Policy = Policies.Admin)]
     public async Task<ActionResult<SaveSecuritySettingsResult>> SaveSecurity(SaveSecuritySettingsRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var changed = await _settings.SaveSecurityAsync(request.ActorId, request.Settings, cancellationToken);
+            var changed = await _settings.SaveSecurityAsync(User.AccountId(), request.Settings, cancellationToken);
             return Ok(new SaveSecuritySettingsResult { Changed = changed });
         }
         catch (SettingsValidationException ex)
@@ -35,15 +41,17 @@ public class SettingsController : ControllerBase
     }
 
     [HttpGet("site")]
+    [AllowAnonymous]
     public async Task<ActionResult<SiteSettingsDto>> GetSite(CancellationToken cancellationToken)
         => Ok(await _settings.GetSiteAsync(cancellationToken));
 
     [HttpPut("site")]
+    [Authorize(Policy = Policies.Admin)]
     public async Task<IActionResult> SaveSite(SaveSiteSettingsRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            await _settings.SaveSiteAsync(request.ActorId, request.Settings, cancellationToken);
+            await _settings.SaveSiteAsync(User.AccountId(), request.Settings, cancellationToken);
             return Ok();
         }
         catch (SettingsValidationException ex)

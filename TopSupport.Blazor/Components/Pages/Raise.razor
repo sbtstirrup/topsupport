@@ -1,8 +1,10 @@
 @page "/raise"
+@attribute [Authorize(Roles = "User")]
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Forms
 @using TopSupport.Blazor.Components.Shared
 @using TopSupport.Blazor.Models
+@using TopSupport.Models.Admin
 @using TopSupport.Models.Enums
 @using TopSupport.Models.People
 @using TopSupport.Models.Tickets
@@ -12,6 +14,7 @@
 @inject LookupDataService Lookup
 @inject TopSupportApiClient Api
 @inject NavigationManager Nav
+@inject ToastState Toasts
 
 <RoleGate AllowedRoles="new[] { AppRole.User }">
     <div class="side-col">
@@ -79,7 +82,8 @@
                     <div class="field full">
                         <label class="field-label" for="raise-subject">Subject<span class="star" aria-hidden="true"> *</span></label>
                         <input class="input @(_errors.ContainsKey("subject") ? "invalid" : "")" id="raise-subject" type="text"
-                               value="@_subject" placeholder="A short summary, for example &quot;Laptop will not charge&quot;"
+                               maxlength="@FieldLimits.TicketSubject"
+                               value="@_subject" placeholder="A short summary, for example “Laptop will not charge”"
                                @onchange="@(e => _subject = e.Value?.ToString() ?? "")" />
                         @if (_errors.TryGetValue("subject", out var subjErr))
                         {
@@ -161,7 +165,7 @@
 
     /// <summary>Files chosen before the ticket exists: staged locally (AttachmentRef.Id == null)
     /// and only actually uploaded once CreateTicketAsync succeeds and a ticket id exists.</summary>
-    private readonly List<(AttachmentRef Reference, IBrowserFile File)> _stagedFiles = new();
+    private readonly List<StagedAttachment> _stagedFiles = new();
 
     private Dictionary<string, string> _errors = new();
     private Dictionary<string, string> _errorSummary = new();
@@ -241,11 +245,19 @@
         }
     }
 
-    private Task<AttachmentRef> StageFileAsync(IBrowserFile file)
+    private async Task<AttachmentRef> StageFileAsync(IBrowserFile file)
     {
-        var reference = new AttachmentRef(null, file.Name, file.Size, file.ContentType);
-        _stagedFiles.Add((reference, file));
-        return Task.FromResult(reference);
+        // Read now: the browser file can't be read later once the input changes again.
+        var staged = await StagedAttachment.ReadAsync(file);
+        _stagedFiles.Add(staged);
+        return staged.Reference;
+    }
+
+    /// <summary>Staged files still listed in a Files-type field (one removed before submitting is never uploaded).</summary>
+    private IEnumerable<StagedAttachment> StagedFilesToUpload()
+    {
+        var kept = _fields.Values.OfType<List<AttachmentRef>>().SelectMany(list => list).ToList();
+        return _stagedFiles.Where(s => kept.Any(k => ReferenceEquals(k, s.Reference)));
     }
 
     private void ResetForm()
@@ -293,9 +305,24 @@
             response.EnsureSuccessStatusCode();
             var ticket = (await response.Content.ReadFromJsonAsync<TicketDto>())!;
 
-            foreach (var (_, file) in _stagedFiles)
+            // The ticket exists now: a failed upload must still open it (with a toast), never leave
+            // the form up for a resubmit that would raise a duplicate ticket.
+            var failed = new List<string>();
+            foreach (var staged in StagedFilesToUpload())
             {
-                await Api.UploadAttachmentAsync(ticket.Id, file, "user", Session.AccountId);
+                try
+                {
+                    await Api.UploadAttachmentAsync(ticket.Id, staged, "user", Session.AccountId);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+                {
+                    failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
+                }
+            }
+
+            if (failed.Count > 0)
+            {
+                Toasts.Show($"Ticket #{ticket.Number} was raised, but these files could not be attached: {string.Join(", ", failed)}.", isError: true);
             }
 
             Nav.NavigateTo($"/tickets/{ticket.Id}?created=1");

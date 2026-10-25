@@ -7,8 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Microsoft.AspNetCore.Identity itself ships as part of the ASP.NET Core shared framework
-         in .NET 10 (Microsoft.NET.Sdk.Web implicitly references it): no PackageReference needed. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <!-- Pinned above the 9.0.18 that Microsoft.Data.SqlClient pulls in transitively (NU1903, GHSA-846f-f764-76mx). -->

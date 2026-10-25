@@ -1,0 +1,152 @@
+/* Development-only test-account switcher. Amber accents so it never looks like part of the real UI. */
+.tap-wrap {
+    position: relative;
+}
+
+.tap-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 4px 14px;
+    border: 1px dashed #c98a12;
+    border-radius: 999px;
+    background: #fff8e8;
+    color: #7a4f00;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.tap-toggle:hover {
+    background: #fdefcd;
+}
+
+.tap-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #e0a020;
+}
+
+.tap-pop {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(70vh, 640px);
+    overflow-y: auto;
+    background: var(--white);
+    border: 1px solid #e8c77a;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(20, 30, 40, .16);
+    z-index: 70;
+}
+
+.tap-panel {
+    border: 1px dashed #c98a12;
+    border-radius: 14px;
+    background: #fffcf3;
+}
+
+.tap-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tap-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.tap-hint {
+    width: 100%;
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-4);
+}
+
+.tap-search {
+    margin: 2px 0;
+}
+
+.tap-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tap-group {
+    margin-top: 8px;
+    padding: 0 6px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-4);
+}
+
+.tap-group span {
+    font-weight: 600;
+    color: var(--ink-5);
+}
+
+.tap-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 10px;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.tap-row:hover:not(:disabled) {
+    background: var(--fill-4);
+}
+
+.tap-row:disabled {
+    cursor: default;
+    color: inherit;
+}
+
+.tap-row:disabled:not(.current) {
+    opacity: .55;
+}
+
+.tap-row.current {
+    background: var(--green-soft);
+}
+
+.tap-who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.tap-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.tap-sub {
+    font-size: 12px;
+    color: var(--ink-4);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tap-tags {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}

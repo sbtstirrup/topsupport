@@ -11,13 +11,21 @@
     <link rel="stylesheet" href="@Assets["TopSupport.Blazor.styles.css"]" />
     <style>html,body{margin:0;background:#e9eaec}a{color:#1b8463}a:hover{color:#0d5c43}</style>
     <ImportMap />
-    <HeadOutlet @rendermode="InteractiveServer" />
+    <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="PageRenderMode" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    // The sign-in page is a static server-rendered form ([ExcludeFromInteractiveRouting]), because
+    // setting the auth cookie needs a real HTTP response; every other page is interactive.
+    private IComponentRenderMode? PageRenderMode => HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+}

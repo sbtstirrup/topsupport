@@ -1,7 +1,9 @@
-using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using TopSupport.Api;
+using TopSupport.Api.Auth;
 using TopSupport.Api.Data;
-using TopSupport.Api.Identity;
+using TopSupport.Models.Enums;
 using TopSupport.Services.Abstractions;
 using TopSupport.Services.Admin;
 using TopSupport.Services.Auth;
@@ -62,13 +64,39 @@ builder.Services.AddScoped<IOrgRepository, OrgRepository>();
 builder.Services.AddScoped<IUserAdminService, UserAdminService>();
 builder.Services.AddScoped<IOrgAdminService, OrgAdminService>();
 
-// ASP.NET Core Identity, backed by the skeleton ADO.NET stores in TopSupport.Api/Identity.
-// AdoUserStore/AdoRoleStore are not implemented yet (every member throws) -- see their doc
-// comments and TopSupport.Database/README.md for what's still needed before sign-in works.
-builder.Services.AddIdentityCore<ApplicationUser>()
-    .AddRoles<ApplicationRole>()
-    .AddUserStore<AdoUserStore>()
-    .AddRoleStore<AdoRoleStore>();
+// Sign-in issues a signed bearer token (AuthController); every endpoint requires one unless it
+// is [AllowAnonymous], and the admin/agent screens' endpoints also require the role.
+var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
+builder.Services.AddSingleton<JwtTokenService>();
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = JwtTokenService.ValidationParameters(authOptions);
+
+        // A valid signature isn't enough: refuse the token once its account is locked, deleted,
+        // deactivated or has a different role than the token says (e.g. an admin was demoted).
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal!;
+                var credentials = context.HttpContext.RequestServices.GetRequiredService<IAccountCredentialRepository>();
+                var status = await credentials.GetStatusAsync(principal.AccountId(), context.HttpContext.RequestAborted);
+                if (status is null || status.Locked || !status.Active
+                    || AuthService.RoleOf(status.AccountType, status.AgentRole) != principal.AppRole())
+                {
+                    context.Fail("The account is no longer allowed to sign in with this token.");
+                }
+            }
+        };
+    });
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+    .AddPolicy(Policies.Agent, p => p.RequireRole(nameof(AppRole.Agent), nameof(AppRole.Admin)))
+    .AddPolicy(Policies.Admin, p => p.RequireRole(nameof(AppRole.Admin)));
 
 var app = builder.Build();
 
@@ -102,6 +130,7 @@ else
 
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

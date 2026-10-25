@@ -5,6 +5,7 @@
 @inject TopSupportApiClient Api
 @inject SessionState Session
 @inject ModalState Modal
+@inject ToastState Toasts
 
 <div class="modal-head">
     <h2>@Title</h2>
@@ -81,6 +82,10 @@
 
             await OnApplied.InvokeAsync();
             Modal.Close();
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

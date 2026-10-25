@@ -46,9 +46,10 @@ public partial class TopSupportApiClient
 
     // ---------------- My Profile (ProfileController) ----------------
 
-    public async Task<ProfileDto?> GetProfileAsync(string accountId, CancellationToken cancellationToken = default)
+    /// <summary>The signed-in account's own profile (the Api takes the account from the token).</summary>
+    public async Task<ProfileDto?> GetProfileAsync(CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.GetAsync($"api/profile/{Uri.EscapeDataString(accountId)}", cancellationToken);
+        var response = await _httpClient.GetAsync("api/profile", cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<ProfileDto>(cancellationToken);

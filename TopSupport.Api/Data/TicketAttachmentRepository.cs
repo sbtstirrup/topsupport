@@ -103,6 +103,24 @@ public class TicketAttachmentRepository : ITicketAttachmentRepository
         return content;
     }
 
+    public async Task<string?> GetTicketIdAsync(string attachmentId, CancellationToken cancellationToken = default)
+    {
+        string? ticketId = null;
+
+        await _db.ExecuteReaderAsync(
+            "dbo.usp_TicketAttachment_GetTicketId",
+            cmd => cmd.Parameters.AddWithValue("@AttachmentId", attachmentId),
+            async (reader, ct) =>
+            {
+                if (await reader.ReadAsync(ct))
+                {
+                    ticketId = (string)reader["TicketId"];
+                }
+            });
+
+        return ticketId;
+    }
+
     private static TicketAttachmentDto ReadMetadata(SqlDataReader reader) => new()
     {
         Id = (string)reader["Id"],

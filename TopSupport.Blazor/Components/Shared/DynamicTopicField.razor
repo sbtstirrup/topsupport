@@ -12,6 +12,7 @@
 
    Renders nothing (no wrapper element at all) when Descriptor.ShowWhen evaluates false. *@
 @using TopSupport.Blazor.Models
+@using TopSupport.Models.Admin
 @using TopSupport.Models.Tickets.FieldSchema
 
 @if (ShouldShow)
@@ -25,7 +26,7 @@
                 {
                     <span class="hint">@Descriptor.Hint</span>
                 }
-                <input class="input @(HasError ? "invalid" : "")" id="@_id" type="text"
+                <input class="input @(HasError ? "invalid" : "")" id="@_id" type="text" maxlength="@FieldLimits.TopicText"
                        value="@AsString(Value)" placeholder="@Descriptor.Placeholder"
                        @onchange="@(e => SetValue(e.Value?.ToString()))" />
                 @ErrorMarkup
@@ -39,7 +40,7 @@
                 {
                     <span class="hint">@Descriptor.Hint</span>
                 }
-                <textarea class="input @(HasError ? "invalid" : "")" id="@_id" rows="@(Descriptor.Rows ?? 4)"
+                <textarea class="input @(HasError ? "invalid" : "")" id="@_id" rows="@(Descriptor.Rows ?? 4)" maxlength="@FieldLimits.TopicTextArea"
                           placeholder="@Descriptor.Placeholder"
                           @onchange="@(e => SetValue(e.Value?.ToString()))">@AsString(Value)</textarea>
                 @ErrorMarkup

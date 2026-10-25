@@ -7,6 +7,7 @@
 @inject TopSupportApiClient Api
 @inject SessionState Session
 @inject ModalState Modal
+@inject ToastState Toasts
 
 <div class="modal-head">
     <h2>@Title</h2>
@@ -85,6 +86,12 @@
 
             await OnAssigned.InvokeAsync();
             Modal.Close();
+        }
+        catch (HttpRequestException ex)
+        {
+            // e.g. "Choose an active agent." (400) or a ticket that no longer exists (404): nothing was
+            // changed server-side, so keep the modal open with the choice intact.
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

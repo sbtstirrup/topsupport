@@ -22,4 +22,7 @@ public interface ITicketAttachmentRepository
     Task<IReadOnlyList<TicketAttachmentDto>> GetMetadataByTicketAsync(string ticketId, CancellationToken cancellationToken = default);
 
     Task<TicketAttachmentContentDto?> GetContentAsync(string attachmentId, CancellationToken cancellationToken = default);
+
+    /// <summary>The ticket an attachment belongs to (usp_TicketAttachment_GetTicketId); null when it doesn't exist.</summary>
+    Task<string?> GetTicketIdAsync(string attachmentId, CancellationToken cancellationToken = default);
 }
