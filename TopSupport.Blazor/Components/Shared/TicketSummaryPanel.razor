@@ -75,7 +75,7 @@
     private string TopicLabel => TopicId is not null ? (TicketTopics.Find(TopicId)?.Label ?? TopicId) : "—";
     private string DepartmentValue => Ticket?.Department ?? (TopicId is not null ? TicketTopics.Find(TopicId)?.Department ?? "—" : "—");
     private DateTimeOffset CreatedValue => Ticket?.Created ?? DateTimeOffset.UtcNow;
-    private DateTimeOffset SlaDue => CreatedValue.AddHours(TopSupport.Services.Tickets.TicketSla.SlaHours[PriorityValue]);
+    private DateTimeOffset SlaDue => TopSupport.Services.Tickets.TicketSla.SlaDue(CreatedValue, PriorityValue);
 
     private string? RequesterUserId => Ticket?.RequesterUserId ?? PreviewRequesterUserId;
     private string? AffectedUserId => Ticket?.AffectedUserId ?? PreviewAffectedUserId;

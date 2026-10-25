@@ -162,6 +162,6 @@ else
 
     private string RoleOf(TicketDto t, string userId)
         => t.RequesterUserId == userId && t.AffectedUserId == userId ? "Requester"
-            : t.RequesterUserId == userId ? "Requester for " + NameFormat.Short(Lookup.FindUser(t.AffectedUserId)?.Name)
+            : t.RequesterUserId == userId ? "Requester for " + PersonName.Short(Lookup.FindUser(t.AffectedUserId)?.Name)
             : "Affected user";
 }

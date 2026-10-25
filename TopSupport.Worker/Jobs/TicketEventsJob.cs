@@ -1,6 +1,7 @@
 using Hangfire;
 using Microsoft.Extensions.Options;
 using TopSupport.Models.Enums;
+using TopSupport.Models.People;
 using TopSupport.Worker.Data;
 using TopSupport.Worker.Email;
 using TopSupport.Worker.Options;
@@ -88,16 +89,9 @@ public sealed class TicketEventsJob
         }
     }
 
-    /// <summary>"Assigned to J. Moore" (TicketService writes ShortName(agent.Name)) for the current agent.</summary>
+    /// <summary>"Assigned to J. Moore" (TicketService writes PersonName.Short(agent.Name)) for the current agent.</summary>
     internal static bool NamesCurrentAgent(TicketEvent e)
-        => e.AgentName is not null && e.EventText == "Assigned to " + ShortName(e.AgentName);
-
-    /// <summary>Same as TicketService.ShortName: "Jamie Moore" → "J. Moore".</summary>
-    internal static string ShortName(string name)
-    {
-        var parts = name.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 1 ? $"{parts[0][0]}. {parts[^1]}" : parts.FirstOrDefault() ?? string.Empty;
-    }
+        => e.AgentName is not null && e.EventText == "Assigned to " + PersonName.Short(e.AgentName);
 
     private static bool HasAddress(string? email) => !string.IsNullOrWhiteSpace(email);
 }

@@ -62,17 +62,6 @@ public class NameFormatTests
     {
         Assert.Equal(expected, NameFormat.Initials(name));
     }
-
-    [Theory]
-    [InlineData("Nadia Hussain", "N. Hussain")]
-    [InlineData("Mary Jane Watson", "M. Watson")]
-    [InlineData(" Cher ", "Cher")]
-    [InlineData("", "")]
-    [InlineData(null, "")]
-    public void Short(string? name, string expected)
-    {
-        Assert.Equal(expected, NameFormat.Short(name));
-    }
 }
 
 public class DurationFormatTests

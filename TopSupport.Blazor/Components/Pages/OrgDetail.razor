@@ -93,7 +93,7 @@ else
                                         @Lookup.FindUser(t.RequesterUserId)?.Name
                                         @if (t.AffectedUserId != t.RequesterUserId)
                                         {
-                                            <span class="cell-sub">For @NameFormat.Short(Lookup.FindUser(t.AffectedUserId)?.Name)</span>
+                                            <span class="cell-sub">For @PersonName.Short(Lookup.FindUser(t.AffectedUserId)?.Name)</span>
                                         }
                                     </td>
                                     <td class="nowrap">@DurationFormat.Date(t.Created)</td>

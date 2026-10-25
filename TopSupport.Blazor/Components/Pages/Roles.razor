@@ -43,7 +43,7 @@ else
                     <tbody>
                         @foreach (var r in AgentRoles.All)
                         {
-                            var holders = _agents.Where(a => a.Role == r && a.Departments.Contains(Dept)).Select(a => NameFormat.Short(a.Name)).ToList();
+                            var holders = _agents.Where(a => a.Role == r && a.Departments.Contains(Dept)).Select(a => PersonName.Short(a.Name)).ToList();
                             <tr>
                                 <th scope="row" style="background:none;border-bottom:1px solid var(--line-4);padding:12px;text-align:left"><strong>@r</strong></th>
                                 @foreach (var p in RolePermissionKeys.All)

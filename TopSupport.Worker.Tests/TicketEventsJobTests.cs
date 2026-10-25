@@ -106,13 +106,6 @@ public class TicketEventsJobTests
         Assert.Contains("https://topsupport.test/tickets/T060040", email.TextBody);
     }
 
-    [Theory]
-    [InlineData("Jamie Moore", "J. Moore")]
-    [InlineData("  Nadia   Hussain ", "N. Hussain")]
-    [InlineData("Cher", "Cher")]
-    public void ShortName_matches_TicketService(string name, string expected)
-        => Assert.Equal(expected, TicketEventsJob.ShortName(name));
-
     private async Task RunWithFailureOnSecondSend()
     {
         var failing = new FailOnSecondSend(_ctx.Email);

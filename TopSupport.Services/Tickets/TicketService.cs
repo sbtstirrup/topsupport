@@ -385,8 +385,8 @@ public class TicketService
 
         ticket.AssignedAgentId = agentId;
         ticket.AssignedTeamId = teamId;
-        await AppendEventAsync(ticket, by, $"Assigned to {ShortName(agent.Name)}", now, cancellationToken);
-        await AuditAsync(by, $"Assigned ticket to {ShortName(agent.Name)}", ticket, cancellationToken);
+        await AppendEventAsync(ticket, by, $"Assigned to {PersonName.Short(agent.Name)}", now, cancellationToken);
+        await AuditAsync(by, $"Assigned ticket to {PersonName.Short(agent.Name)}", ticket, cancellationToken);
 
         if (ticket.Status == TicketStatus.Open)
         {
@@ -509,7 +509,7 @@ public class TicketService
 
         var now = _time.GetUtcNow();
         var shortName = await ShortNameForActorAsync(addedBy, cancellationToken);
-        await AppendEventAsync(ticket, addedBy, $"Task added by {shortName}: {text} (assigned to {ShortName(assignee.Name)})", now, cancellationToken);
+        await AppendEventAsync(ticket, addedBy, $"Task added by {shortName}: {text} (assigned to {PersonName.Short(assignee.Name)})", now, cancellationToken);
         await AuditAsync(addedBy, "Added task", ticket, cancellationToken);
 
         return task;
@@ -595,8 +595,8 @@ public class TicketService
         }
 
         await _ticketRepository.AssignAsync(ticket.Id, ticket.AssignedAgentId, ticket.AssignedTeamId, now, cancellationToken);
-        await AppendEventAsync(ticket, assignedBy, $"Assigned to {ShortName(agent.Name)}", now, cancellationToken);
-        await AuditAsync(assignedBy, $"Assigned ticket to {ShortName(agent.Name)}", ticket, cancellationToken);
+        await AppendEventAsync(ticket, assignedBy, $"Assigned to {PersonName.Short(agent.Name)}", now, cancellationToken);
+        await AuditAsync(assignedBy, $"Assigned ticket to {PersonName.Short(agent.Name)}", ticket, cancellationToken);
     }
 
     /// <summary>assignTicket(t, 'team', id): assigning to a team clears the individual agent.</summary>
@@ -707,14 +707,6 @@ public class TicketService
             ? (await _agentRepository.GetByIdAsync(actor.Id, cancellationToken))?.Name
             : (await _userRepository.GetByIdAsync(actor.Id, cancellationToken))?.Name;
 
-        return ShortName(name ?? throw new InvalidOperationException($"No {actor.Type} with id '{actor.Id}' for a ticket timeline entry."));
-    }
-
-    /// <summary>Ports `short(n)` from topsupport-app.js: "Jamie Moore" -> "J. Moore", single-word names pass through unchanged.</summary>
-    private static string ShortName(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
-        var parts = name.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length > 1 ? $"{parts[0][0]}. {parts[^1]}" : parts[0];
+        return PersonName.Short(name ?? throw new InvalidOperationException($"No {actor.Type} with id '{actor.Id}' for a ticket timeline entry."));
     }
 }

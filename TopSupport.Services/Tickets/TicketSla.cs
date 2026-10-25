@@ -28,7 +28,10 @@ public static class TicketSla
 
     public static bool IsActive(TicketDto ticket) => ActiveStatuses.Contains(ticket.Status);
 
-    public static DateTimeOffset SlaDue(TicketDto ticket) => ticket.Created.AddHours(SlaHours[ticket.Priority]);
+    public static DateTimeOffset SlaDue(TicketDto ticket) => SlaDue(ticket.Created, ticket.Priority);
+
+    /// <summary>The first-response deadline for a ticket created at <paramref name="created"/>.</summary>
+    public static DateTimeOffset SlaDue(DateTimeOffset created, TicketPriority priority) => created.AddHours(SlaHours[priority]);
 
     /// <summary>True once an agent has posted at least one public reply (slaDue is a deadline
     /// for the *first* agent response, matching firstResponse(t) in the demo).</summary>
@@ -36,7 +39,11 @@ public static class TicketSla
 
     /// <summary>Active, no agent reply yet, and past its response target at <paramref name="now"/>.</summary>
     public static bool IsOverdue(TicketDto ticket, DateTimeOffset now) =>
-        IsActive(ticket) && !HasFirstResponse(ticket) && now > SlaDue(ticket);
+        IsOverdue(ticket.Status, ticket.FirstAgentReplyAt, ticket.Created, ticket.Priority, now);
+
+    /// <summary>The same rule from the raw values (the worker's rows aren't TicketDtos).</summary>
+    public static bool IsOverdue(TicketStatus status, DateTimeOffset? firstAgentReplyAt, DateTimeOffset created, TicketPriority priority, DateTimeOffset now) =>
+        ActiveStatuses.Contains(status) && firstAgentReplyAt is null && now > SlaDue(created, priority);
 
     /// <summary>True when the ticket is active and the most recent public reply came from an agent.</summary>
     public static bool IsAnswered(TicketDto ticket) =>

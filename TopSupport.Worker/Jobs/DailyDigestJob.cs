@@ -49,7 +49,7 @@ public sealed class DailyDigestJob
         {
             cancellationToken.ThrowIfCancellationRequested();
             var rows = ticketsByTeam[team.TeamId]
-                .Select(t => (Ticket: t, Overdue: IsOverdue(t, now), Link: _app.AgentTicketUrl(t.TicketId)))
+                .Select(t => (Ticket: t, Overdue: TicketSla.IsOverdue(t.Status, t.FirstAgentReplyAt, t.Created, t.Priority, now), Link: _app.AgentTicketUrl(t.TicketId)))
                 .OrderByDescending(r => r.Overdue)
                 .ThenBy(r => r.Ticket.Created)
                 .ToList();
@@ -61,7 +61,4 @@ public sealed class DailyDigestJob
 
         _logger.LogInformation("daily-digest: {Sent} digest(s) sent for {Date}.", sent, today);
     }
-
-    internal static bool IsOverdue(DigestTicket t, DateTimeOffset now)
-        => TicketSla.ActiveStatuses.Contains(t.Status) && t.FirstAgentReplyAt is null && now > t.Created.AddHours(TicketSla.SlaHours[t.Priority]);
 }

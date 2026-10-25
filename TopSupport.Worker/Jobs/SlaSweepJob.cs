@@ -50,10 +50,9 @@ public sealed class SlaSweepJob
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // The proc already filters these; checked again so the rule lives (and is tested) here.
-            if (!TicketSla.ActiveStatuses.Contains(t.Status) || t.FirstAgentReplyAt is not null) continue;
-            var due = t.Created.AddHours(TicketSla.SlaHours[t.Priority]);
-            if (now <= due) continue;
+            // The proc already filters active, unreplied tickets; the rule itself is TicketSla's.
+            if (!TicketSla.IsOverdue(t.Status, t.FirstAgentReplyAt, t.Created, t.Priority, now)) continue;
+            var due = TicketSla.SlaDue(t.Created, t.Priority);
 
             var recipients = !string.IsNullOrWhiteSpace(t.AgentEmail)
                 ? new[] { (Name: t.AgentName ?? string.Empty, Email: t.AgentEmail) }
