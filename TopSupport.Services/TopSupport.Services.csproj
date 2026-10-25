@@ -4,6 +4,10 @@
     <ProjectReference Include="..\TopSupport.Models\TopSupport.Models.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

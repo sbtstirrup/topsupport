@@ -16,7 +16,7 @@
 <div class="modal-body">
     <div class="field">
         <label class="field-label" for="f-te-name">Team Name<span class="star" aria-hidden="true"> *</span></label>
-        <input class="input @(NameError is null ? "" : "invalid")" id="f-te-name" type="text" value="@_form.Name"
+        <input class="input @(NameError is null ? "" : "invalid")" id="f-te-name" type="text" value="@_form.Name" maxlength="@FieldLimits.TeamName"
                @oninput="@(e => _form.Name = e.Value?.ToString() ?? string.Empty)" aria-required="true"
                aria-invalid="@(NameError is null ? null : "true")" aria-describedby="@(NameError is null ? null : "f-te-name-e")" />
         @if (NameError is not null)
@@ -27,16 +27,21 @@
 
     <div class="field">
         <label class="field-label" for="f-te-dept">Department</label>
-        <select class="input" id="f-te-dept" @bind="_form.Department">
+        <select class="input @(DeptError is null ? "" : "invalid")" id="f-te-dept" @bind="_form.Department"
+                aria-invalid="@(DeptError is null ? null : "true")" aria-describedby="@(DeptError is null ? null : "f-te-dept-e")">
             @foreach (var dept in TicketTopics.DEPTS)
             {
                 <option value="@dept">@dept</option>
             }
         </select>
+        @if (DeptError is not null)
+        {
+            <span class="field-err" id="f-te-dept-e">@((MarkupString)IconLibrary.Render("alert", 14))@DeptError</span>
+        }
     </div>
 
     <fieldset class="full">
-        <legend>Members</legend>
+        <legend>Members<span class="star" aria-hidden="true"> *</span></legend>
         @if (Agents.Count == 0)
         {
             <span class="hint">Nothing to choose from.</span>
@@ -63,13 +68,18 @@
     <div class="field">
         <label class="field-label" for="f-te-lead">Team Lead</label>
         <span class="hint">Choose from the members above.</span>
-        <select class="input" id="f-te-lead" @bind="_form.LeadAgentId">
+        <select class="input @(LeadError is null ? "" : "invalid")" id="f-te-lead" @bind="_form.LeadAgentId"
+                aria-invalid="@(LeadError is null ? null : "true")" aria-describedby="@(LeadError is null ? null : "f-te-lead-e")">
             <option value="">No lead</option>
             @foreach (var id in _form.MemberAgentIds)
             {
                 <option value="@id">@(Agents.FirstOrDefault(a => a.Id == id)?.Name)</option>
             }
         </select>
+        @if (LeadError is not null)
+        {
+            <span class="field-err" id="f-te-lead-e">@((MarkupString)IconLibrary.Render("alert", 14))@LeadError</span>
+        }
     </div>
 </div>
 <div class="modal-foot">
@@ -100,6 +110,8 @@
 
     private string? NameError => _errors.GetValueOrDefault("name");
     private string? MembersError => _errors.GetValueOrDefault("members");
+    private string? DeptError => _errors.GetValueOrDefault("department");
+    private string? LeadError => _errors.GetValueOrDefault("lead");
 
     protected override void OnInitialized()
     {

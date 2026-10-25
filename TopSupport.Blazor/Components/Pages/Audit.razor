@@ -15,7 +15,7 @@
                 <label class="field-label" for="au-q">Search</label>
                 <div class="search">
                     @((MarkupString)IconLibrary.Render("search", 16))
-                    <input class="input" id="au-q" type="search" value="@_q" @oninput="@(e => { _q = e.Value?.ToString() ?? string.Empty; _page = 1; })" placeholder="Action, target or person" />
+                    <input class="input" id="au-q" type="search" maxlength="@FieldLimits.SearchText" value="@_q" @oninput="@(e => { _q = e.Value?.ToString() ?? string.Empty; _page = 1; })" placeholder="Action, target or person" />
                 </div>
             </div>
             <div class="field">

@@ -84,6 +84,10 @@ public class OrgAdminService : IOrgAdminService
         {
             errors["name"] = "Enter a name.";
         }
+        else if (FieldLimits.TooLong(name, FieldLimits.OrgName) is { } nameErr)
+        {
+            errors["name"] = nameErr;
+        }
         else
         {
             var orgs = await _repository.GetListAsync(cancellationToken);
@@ -94,6 +98,13 @@ public class OrgAdminService : IOrgAdminService
         }
 
         if (string.IsNullOrWhiteSpace(request.Address)) errors["address"] = "Enter an address.";
+        else if (FieldLimits.TooLong(request.Address, FieldLimits.OrgAddress) is { } addressErr) errors["address"] = addressErr;
+
+        // Phone stays optional, as in the demo.
+        if (FieldLimits.TooLong(request.Phone, FieldLimits.Phone) is { } phoneErr) errors["phone"] = phoneErr;
+        else if (!FieldLimits.IsValidPhone(request.Phone)) errors["phone"] = "Use digits, spaces and + only.";
+
+        if (FieldLimits.TooLong(request.Note, FieldLimits.OrgNote) is { } noteErr) errors["note"] = noteErr;
 
         if (errors.Count > 0) throw new UserOrgValidationException(errors);
     }

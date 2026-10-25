@@ -9,6 +9,6 @@ public interface IAccountCredentialRepository
     /// <summary>Null when no Users or Agents row has this id.</summary>
     Task<AccountCredential?> GetAsync(string accountId, CancellationToken cancellationToken = default);
 
-    /// <summary>Stores the hash and unlocks the account.</summary>
-    Task SetPasswordHashAsync(string accountId, string passwordHash, CancellationToken cancellationToken = default);
+    /// <summary>Stores the hash; <paramref name="unlock"/> also clears Locked (admin resets only).</summary>
+    Task SetPasswordHashAsync(string accountId, string passwordHash, bool unlock, CancellationToken cancellationToken = default);
 }

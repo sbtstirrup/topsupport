@@ -14,10 +14,10 @@
 </div>
 <div class="modal-body">
     <div class="field-grid">
-        @TextField("name", "Name", required: true, full: true)
-        @TextField("address", "Address", required: true, full: true)
-        @TextField("phone", "Main Phone", type: "tel")
-        @TextField("note", "Notes", full: true)
+        @TextField("name", "Name", FieldLimits.OrgName, required: true, full: true)
+        @TextField("address", "Address", FieldLimits.OrgAddress, required: true, full: true)
+        @TextField("phone", "Main Phone", FieldLimits.Phone, type: "tel")
+        @TextField("note", "Notes", FieldLimits.OrgNote, full: true)
     </div>
 </div>
 <div class="modal-foot">
@@ -46,14 +46,15 @@
         _f["note"] = Org?.Note ?? string.Empty;
     }
 
-    /// <summary>fInput({ path: 'oe.' + key, ... }) from the demo, ids from fid() ("f-oe-name").</summary>
-    private RenderFragment TextField(string key, string label, bool required = false, string type = "text", bool full = false)
+    /// <summary>fInput({ path: 'oe.' + key, ... }) from the demo, ids from fid() ("f-oe-name").
+    /// maxLength is a UX aid only (no form, so no browser validation); the Api's check is authoritative.</summary>
+    private RenderFragment TextField(string key, string label, int maxLength, bool required = false, string type = "text", bool full = false)
     {
         var id = "f-oe-" + key;
         var err = _errors.TryGetValue(key, out var e) ? e : null;
         return @<div class="field @(full ? "full" : "")">
             <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
-            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" value="@_f[key]"
+            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" value="@_f[key]" maxlength="@maxLength"
                    aria-required="@(required ? "true" : null)" aria-invalid="@(err is null ? null : "true")" aria-describedby="@(err is null ? null : id + "-e")"
                    @oninput="@(ev => _f[key] = ev.Value?.ToString() ?? string.Empty)" />
             @if (err is not null)

@@ -210,11 +210,11 @@ public class TicketService : ITicketService
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var prev = ticket.Priority;
-        var next = Enum.Parse<TicketPriority>(priority);
+        var next = ParseDefined<TicketPriority>(priority, nameof(priority));
         if (prev == next) return ticket;
 
         ticket.Priority = next;
-        await _ticketRepository.UpdatePriorityAsync(ticketId, priority, now, cancellationToken);
+        await _ticketRepository.UpdatePriorityAsync(ticketId, ticket.Priority.ToString(), now, cancellationToken);
 
         var shortName = await ShortNameForActorAsync(changedBy, cancellationToken);
         await AppendEventAsync(ticket, changedBy, $"Priority changed from {prev} to {next} by {shortName}", now, cancellationToken);
@@ -243,12 +243,12 @@ public class TicketService : ITicketService
         var shortName = await ShortNameForActorAsync(changedBy, cancellationToken);
         var changed = 0;
 
-        var nextPriority = Enum.Parse<TicketPriority>(priority);
+        var nextPriority = ParseDefined<TicketPriority>(priority, nameof(priority));
         if (nextPriority != ticket.Priority)
         {
             var prev = ticket.Priority;
             ticket.Priority = nextPriority;
-            await _ticketRepository.UpdatePriorityAsync(ticketId, priority, now, cancellationToken);
+            await _ticketRepository.UpdatePriorityAsync(ticketId, ticket.Priority.ToString(), now, cancellationToken);
             await AppendEventAsync(ticket, changedBy, $"Priority changed from {prev} to {nextPriority} by {shortName}", now, cancellationToken);
             changed++;
         }
@@ -264,7 +264,7 @@ public class TicketService : ITicketService
             changed++;
         }
 
-        if (Enum.Parse<TicketStatus>(status) != ticket.Status)
+        if (ParseDefined<TicketStatus>(status, nameof(status)) != ticket.Status)
         {
             await ChangeStatusInternalAsync(ticket, status, changedBy, now, quiet: true, cancellationToken);
             changed++;
@@ -420,12 +420,12 @@ public class TicketService : ITicketService
     /// never the timeline event (used when the change is part of a larger audited action).</summary>
     private async Task ChangeStatusInternalAsync(TicketDto ticket, string status, TicketActorRef changedBy, DateTimeOffset now, bool quiet, CancellationToken cancellationToken)
     {
-        var next = Enum.Parse<TicketStatus>(status);
+        var next = ParseDefined<TicketStatus>(status, nameof(status));
         if (ticket.Status == next) return;
 
         var prev = ticket.Status;
         ticket.Status = next;
-        await _ticketRepository.UpdateStatusAsync(ticket.Id, status, now, cancellationToken);
+        await _ticketRepository.UpdateStatusAsync(ticket.Id, next.ToString(), now, cancellationToken);
 
         var shortName = await ShortNameForActorAsync(changedBy, cancellationToken);
         string text;
@@ -456,6 +456,10 @@ public class TicketService : ITicketService
 
     private async Task AppendReplyAsync(TicketDto ticket, TicketActorRef by, string html, DateTimeOffset at, bool isNote, CancellationToken cancellationToken)
     {
+        // cleanHTML(F.html): the timeline renders this as raw markup, so sanitize before storing.
+        if (html.Length > TicketHtmlSanitizer.MaxLength) throw new ArgumentException("The message is too long.", nameof(html));
+        html = TicketHtmlSanitizer.Sanitize(html);
+
         var entry = await _ticketRepository.AppendTimelineEntryAsync(new TicketTimelineEntryDto
         {
             Id = Guid.NewGuid().ToString("n"),
@@ -469,6 +473,14 @@ public class TicketService : ITicketService
         ticket.Timeline.Add(entry);
         ticket.Updated = at;
     }
+
+    /// <summary>
+    /// Enum.Parse also accepts numbers ("7"), comma lists and padding, and the raw string used to be
+    /// stored -- only an exact defined name is allowed. Throws ArgumentException (a 400 in the Api).
+    /// </summary>
+    private static T ParseDefined<T>(string value, string paramName) where T : struct, Enum
+        => Enum.GetNames<T>().Contains(value) ? Enum.Parse<T>(value)
+            : throw new ArgumentException($"Unknown {paramName} '{value}'.", paramName);
 
     private async Task AppendEventAsync(TicketDto ticket, TicketActorRef by, string text, DateTimeOffset at, CancellationToken cancellationToken)
     {

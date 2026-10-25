@@ -33,15 +33,17 @@ BEGIN
 END
 GO
 
--- Sets the hash and, matching ACT['user-reset'] (u.locked = false), unlocks the account.
+-- Sets the hash. @Unlock = 1 for an admin reset, matching ACT['user-reset'] (u.locked = false);
+-- a user changing their own password passes 0 so they can't lift an admin's lock.
 CREATE OR ALTER PROCEDURE dbo.usp_Account_SetPasswordHash
     @AccountId    NVARCHAR(50),
-    @PasswordHash NVARCHAR(400)
+    @PasswordHash NVARCHAR(400),
+    @Unlock       BIT = 1
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE dbo.Users  SET PasswordHash = @PasswordHash, Locked = 0 WHERE Id = @AccountId;
-    UPDATE dbo.Agents SET PasswordHash = @PasswordHash, Locked = 0 WHERE Id = @AccountId;
+    UPDATE dbo.Users  SET PasswordHash = @PasswordHash, Locked = IIF(@Unlock = 1, 0, Locked) WHERE Id = @AccountId;
+    UPDATE dbo.Agents SET PasswordHash = @PasswordHash, Locked = IIF(@Unlock = 1, 0, Locked) WHERE Id = @AccountId;
 END
 GO

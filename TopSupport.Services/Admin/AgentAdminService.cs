@@ -69,30 +69,54 @@ public partial class AgentAdminService : IAgentAdminService
         var isNew = string.IsNullOrEmpty(request.Id);
 
         AgentDto? existing = null;
+        IReadOnlyList<AgentDto> agents = Array.Empty<AgentDto>();
         if (!isNew)
         {
-            existing = (await _repository.GetAllAgentsAsync(cancellationToken)).FirstOrDefault(a => a.Id == request.Id)
+            agents = await _repository.GetAllAgentsAsync(cancellationToken);
+            existing = agents.FirstOrDefault(a => a.Id == request.Id)
                 ?? throw new KeyNotFoundException($"Agent \"{request.Id}\" not found.");
         }
 
         // validateUser(F, true)
         var conflicts = await _repository.FindConflictsAsync(request.Id ?? string.Empty, email, username, cancellationToken);
         if (name.Length == 0) errors["name"] = "Enter a name.";
-        if (!EmailPattern().IsMatch(email)) errors["email"] = "Enter a valid email address.";
+        else if (FieldLimits.TooLong(name, FieldLimits.PersonName) is { } nameErr) errors["name"] = nameErr;
+
+        // Length first: the column is 256 and the regex shouldn't scan an unbounded string.
+        if (FieldLimits.TooLong(email, FieldLimits.Email) is { } emailErr) errors["email"] = emailErr;
+        else if (!EmailPattern().IsMatch(email)) errors["email"] = "Enter a valid email address.";
         else if (conflicts.EmailTaken) errors["email"] = "Someone already uses this email.";
         if (!UsernamePattern().IsMatch(username)) errors["username"] = "Use 3 to 20 lower-case letters.";
         else if (conflicts.UsernameTaken) errors["username"] = "This username is taken.";
 
-        var departments = TicketTopics.DEPTS.Where(d => request.Departments.Contains(d)).ToList();
-        if (departments.Count == 0) errors["departments"] = "Choose at least one department.";
-        if (!AgentRoles.All.Contains(request.Role)) errors["role"] = "Choose a role.";
+        if (FieldLimits.TooLong(request.Phone, FieldLimits.Phone) is { } phoneErr) errors["phone"] = phoneErr;
+        else if (!FieldLimits.IsValidPhone(request.Phone)) errors["phone"] = "Use digits, spaces and + only.";
+        if (FieldLimits.TooLong(request.JobTitle, FieldLimits.JobTitle) is { } jobErr) errors["jobTitle"] = jobErr;
 
-        if (errors.Count > 0) return result;
+        // Unknown departments/teams are a tampered or stale form: reject rather than silently drop.
+        var departments = TicketTopics.DEPTS.Where(d => request.Departments.Contains(d)).ToList();
+        if (departments.Count == 0 || request.Departments.Any(d => !TicketTopics.DEPTS.Contains(d)))
+        {
+            errors["departments"] = "Choose at least one department.";
+        }
 
         var teamIds = (await _repository.GetAllTeamsAsync(cancellationToken))
             .Where(t => request.TeamIds.Contains(t.Id))
             .Select(t => t.Id)
             .ToList();
+        if (request.TeamIds.Distinct().Count() != teamIds.Count) errors["teams"] = "Choose a valid team.";
+
+        if (!AgentRoles.All.Contains(request.Role)) errors["role"] = "Choose a role.";
+        else if (existing is { Active: true, Role: AgentRoles.Administrator }
+                 && (request.Role != AgentRoles.Administrator || !request.Active)
+                 && !agents.Any(a => a.Id != existing.Id && a.Active && a.Role == AgentRoles.Administrator))
+        {
+            // Not in the demo: the last active Administrator can't be demoted or deactivated,
+            // or nobody would be left to run the admin screens.
+            errors["role"] = "Keep at least one active Administrator.";
+        }
+
+        if (errors.Count > 0) return result;
 
         var agent = new AgentDto
         {
@@ -159,10 +183,18 @@ public partial class AgentAdminService : IAgentAdminService
 
         var agentIds = (await _repository.GetAllAgentsAsync(cancellationToken)).Select(a => a.Id).ToHashSet();
         var members = request.MemberAgentIds.Where(agentIds.Contains).Distinct().ToList();
+        var lead = request.LeadAgentId ?? string.Empty;
 
         if (name.Length == 0) errors["name"] = "Enter a team name.";
+        else if (FieldLimits.TooLong(name, FieldLimits.TeamName) is { } nameErr) errors["name"] = nameErr;
         else if (teams.Any(t => t.Id != request.Id && string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase))) errors["name"] = "A team with this name already exists.";
-        if (members.Count == 0) errors["members"] = "Add at least one member.";
+
+        // Unknown department, member or lead ids are a tampered or stale form: reject rather than
+        // coerce or silently drop them.
+        if (!TicketTopics.DEPTS.Contains(request.Department)) errors["department"] = "Choose a department.";
+        if (request.MemberAgentIds.Any(id => !agentIds.Contains(id))) errors["members"] = "Choose members from the agent list.";
+        else if (members.Count == 0) errors["members"] = "Add at least one member.";
+        if (lead.Length > 0 && !members.Contains(lead)) errors["lead"] = "Choose a lead from the team members.";
 
         if (errors.Count > 0) return result;
 
@@ -170,8 +202,8 @@ public partial class AgentAdminService : IAgentAdminService
         {
             Id = isNew ? "t" + Guid.NewGuid().ToString("n") : request.Id,
             Name = name,
-            Department = TicketTopics.DEPTS.Contains(request.Department) ? request.Department : TicketTopics.DEPTS[0],
-            LeadAgentId = members.Contains(request.LeadAgentId) ? request.LeadAgentId : string.Empty,
+            Department = request.Department,
+            LeadAgentId = lead,
             MemberAgentIds = members
         };
 

@@ -1,9 +1,12 @@
 @page "/canned"
+@using System.Net
+@using TopSupport.Models.Admin
 @using TopSupport.Models.Tickets
 @implements IAsyncDisposable
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
 @inject SessionState Session
+@inject ToastState Toasts
 @inject IJSRuntime JS
 
 <RoleGate AllowedRoles="new[] { AppRole.Agent, AppRole.Admin }">
@@ -41,7 +44,7 @@
 
                 <div class="field full">
                     <label class="field-label" for="cn-title">Title<span class="star" aria-hidden="true"> *</span></label>
-                    <input class="input @(_titleError is null ? "" : "invalid")" id="cn-title" type="text"
+                    <input class="input @(_titleError is null ? "" : "invalid")" id="cn-title" type="text" maxlength="@FieldLimits.CannedTitle"
                            placeholder="For example Courier collection booked" @bind="_title" @bind:event="oninput" />
                     @if (_titleError is not null)
                     {
@@ -51,7 +54,7 @@
 
                 <div class="field full">
                     <label class="field-label" for="cn-body">Message<span class="star" aria-hidden="true"> *</span></label>
-                    <textarea class="input @(_bodyError is null ? "" : "invalid")" id="cn-body" rows="10" placeholder="Hi {recipient.first},"
+                    <textarea class="input @(_bodyError is null ? "" : "invalid")" id="cn-body" rows="10" placeholder="Hi {recipient.first}," maxlength="@MaxBodyLength"
                               @ref="_bodyRef" @bind="_body" @bind:event="oninput"></textarea>
                     @if (_bodyError is not null)
                     {
@@ -144,6 +147,9 @@
         ["agent.first"] = "Amira",
         ["agent.phone"] = string.Empty,
     };
+
+    // Matches CannedResponseService's body cap (the knowledge base article size).
+    private const int MaxBodyLength = FieldLimits.KbBody;
 
     private List<CannedResponseDto> _responses = new();
     private string _selectedId = "new";
@@ -249,6 +255,10 @@
         {
             _titleError = "Enter a title.";
         }
+        else if (FieldLimits.TooLong(title, FieldLimits.CannedTitle) is { } titleTooLong)
+        {
+            _titleError = titleTooLong;
+        }
         else if (_responses.Any(c => c.Id != _selectedId && string.Equals(c.Title, title, StringComparison.OrdinalIgnoreCase)))
         {
             _titleError = "Another response already has this title.";
@@ -257,6 +267,10 @@
         if (string.IsNullOrWhiteSpace(_body))
         {
             _bodyError = "Enter the message.";
+        }
+        else if (FieldLimits.TooLong(_body, MaxBodyLength) is { } bodyTooLong)
+        {
+            _bodyError = bodyTooLong;
         }
         else
         {
@@ -290,6 +304,23 @@
                 if (match is not null) Pick(match);
             }
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.BadRequest)
+        {
+            // The service re-checks everything above, so this only fires when the library was stale
+            // (another agent took the title meanwhile). Refresh the list -- leaving the draft in the
+            // editor -- and flag the clash if that was it.
+            _responses = (await Api.GetCannedResponsesAsync()).OrderBy(c => c.SortOrder).ToList();
+            if (_responses.Any(c => c.Id != _selectedId && string.Equals(c.Title, title, StringComparison.OrdinalIgnoreCase)))
+            {
+                _titleError = "Another response already has this title.";
+            }
+            Toasts.Error("The response could not be saved. Check the title and message.");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            Toasts.Error("That response no longer exists.");
+            await LoadAsync();
+        }
         finally
         {
             _saving = false;
@@ -299,7 +330,14 @@
     private async Task DeleteAsync()
     {
         _confirmingDelete = false;
-        await Api.DeleteCannedResponseAsync(_selectedId, Session.AccountId);
+        try
+        {
+            await Api.DeleteCannedResponseAsync(_selectedId, Session.AccountId);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            Toasts.Error("That response no longer exists.");
+        }
         await LoadAsync();
     }
 

@@ -33,13 +33,14 @@ public class AccountCredentialRepository : IAccountCredentialRepository
         return credential;
     }
 
-    public Task SetPasswordHashAsync(string accountId, string passwordHash, CancellationToken cancellationToken = default)
+    public Task SetPasswordHashAsync(string accountId, string passwordHash, bool unlock, CancellationToken cancellationToken = default)
         => _db.ExecuteNonQueryAsync(
             "dbo.usp_Account_SetPasswordHash",
             cmd =>
             {
                 cmd.Parameters.AddWithValue("@AccountId", accountId);
                 cmd.Parameters.AddWithValue("@PasswordHash", passwordHash);
+                cmd.Parameters.AddWithValue("@Unlock", unlock);
             },
             cancellationToken);
 }

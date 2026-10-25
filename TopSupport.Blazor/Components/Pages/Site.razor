@@ -16,11 +16,11 @@
                 <h2 id="sl-h" class="card-title" style="margin:0">Landing Page</h2>
                 <div class="field">
                     <label class="field-label" for="f-site-landingTitle">Welcome Heading</label>
-                    <input class="input" id="f-site-landingTitle" type="text" @bind="_form.LandingTitle" @bind:event="oninput" />
+                    <input class="input" id="f-site-landingTitle" type="text" maxlength="@FieldLimits.SiteHeading" @bind="_form.LandingTitle" @bind:event="oninput" />
                 </div>
                 <div class="field full">
                     <label class="field-label" for="f-site-landingBody">Welcome Message</label>
-                    <textarea class="input" id="f-site-landingBody" rows="4" @bind="_form.LandingBody" @bind:event="oninput"></textarea>
+                    <textarea class="input" id="f-site-landingBody" rows="4" maxlength="@FieldLimits.SiteBody" @bind="_form.LandingBody" @bind:event="oninput"></textarea>
                 </div>
                 <p class="hint">The “Raise a ticket” button, sign-in button and login help line always appear.</p>
             </section>
@@ -28,11 +28,11 @@
                 <h2 id="ssi-h" class="card-title" style="margin:0">Sign-In Page</h2>
                 <div class="field">
                     <label class="field-label" for="f-site-signinTitle">Heading</label>
-                    <input class="input" id="f-site-signinTitle" type="text" @bind="_form.SigninTitle" @bind:event="oninput" />
+                    <input class="input" id="f-site-signinTitle" type="text" maxlength="@FieldLimits.SiteHeading" @bind="_form.SigninTitle" @bind:event="oninput" />
                 </div>
                 <div class="field full">
                     <label class="field-label" for="f-site-signinBody">Instructions</label>
-                    <textarea class="input" id="f-site-signinBody" rows="3" @bind="_form.SigninBody" @bind:event="oninput"></textarea>
+                    <textarea class="input" id="f-site-signinBody" rows="3" maxlength="@FieldLimits.SiteBody" @bind="_form.SigninBody" @bind:event="oninput"></textarea>
                 </div>
             </section>
             <div class="row full">

@@ -15,20 +15,22 @@
 </div>
 <div class="modal-body">
     <div class="field-grid">
-        @TextField("f-ae-name", "Full Name", "text", true, "name", () => _form.Name, v => _form.Name = v)
-        @TextField("f-ae-email", "Email", "email", true, "email", () => _form.Email, v => _form.Email = v)
-        @TextField("f-ae-username", "Username", "text", true, "username", () => _form.Username, v => _form.Username = v)
-        @TextField("f-ae-phone", "Phone or Extension", "text", false, "phone", () => _form.Phone, v => _form.Phone = v)
-        @TextField("f-ae-jobTitle", "Job Title", "text", false, "jobTitle", () => _form.JobTitle, v => _form.JobTitle = v)
+        @TextField("f-ae-name", "Full Name", "text", true, "name", FieldLimits.PersonName, () => _form.Name, v => _form.Name = v)
+        @TextField("f-ae-email", "Email", "email", true, "email", FieldLimits.Email, () => _form.Email, v => _form.Email = v)
+        @TextField("f-ae-username", "Username", "text", true, "username", 20, () => _form.Username, v => _form.Username = v)
+        @TextField("f-ae-phone", "Phone or Extension", "text", false, "phone", FieldLimits.Phone, () => _form.Phone, v => _form.Phone = v)
+        @TextField("f-ae-jobTitle", "Job Title", "text", false, "jobTitle", FieldLimits.JobTitle, () => _form.JobTitle, v => _form.JobTitle = v)
 
         <div class="field">
             <label class="field-label" for="f-ae-role">Role<span class="star" aria-hidden="true"> *</span></label>
-            <select class="input" id="f-ae-role" aria-required="true" @bind="_form.Role">
+            <select class="input @(RoleError is null ? "" : "invalid")" id="f-ae-role" aria-required="true" @bind="_form.Role"
+                    aria-invalid="@(RoleError is null ? null : "true")" aria-describedby="@(RoleError is null ? null : "f-ae-role-e")">
                 @foreach (var role in AgentRoles.All)
                 {
                     <option value="@role">@role</option>
                 }
             </select>
+            @Error("role", "f-ae-role-e")
         </div>
 
         <fieldset class="full">
@@ -65,6 +67,7 @@
                     }
                 </div>
             }
+            @Error("teams")
         </fieldset>
 
         <div class="field">
@@ -146,12 +149,13 @@
     }
 
     // fInput(o) markup: label, input (invalid + aria-invalid when in error), field-err message.
-    private RenderFragment TextField(string id, string label, string type, bool required, string key, Func<string> get, Action<string> set) => __builder =>
+    // maxLength is a UX aid only (no <form>, so no browser validation); the Api's check is authoritative.
+    private RenderFragment TextField(string id, string label, string type, bool required, string key, int maxLength, Func<string> get, Action<string> set) => __builder =>
     {
         var error = _errors.GetValueOrDefault(key);
         <div class="field">
             <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
-            <input class="input @(error is null ? "" : "invalid")" id="@id" type="@type" value="@get()"
+            <input class="input @(error is null ? "" : "invalid")" id="@id" type="@type" value="@get()" maxlength="@maxLength"
                    @oninput="@(e => set(e.Value?.ToString() ?? string.Empty))"
                    aria-required="@(required ? "true" : null)" aria-invalid="@(error is null ? null : "true")"
                    aria-describedby="@(error is null ? null : id + "-e")" />
@@ -162,12 +166,14 @@
         </div>
     };
 
-    private RenderFragment Error(string key) => __builder =>
+    private string? RoleError => _errors.GetValueOrDefault("role");
+
+    private RenderFragment Error(string key, string? id = null) => __builder =>
     {
         var error = _errors.GetValueOrDefault(key);
         if (error is not null)
         {
-            <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@error</span>
+            <span class="field-err" id="@id">@((MarkupString)IconLibrary.Render("alert", 14))@error</span>
         }
     };
 }

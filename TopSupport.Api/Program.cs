@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using TopSupport.Api;
 using TopSupport.Api.Data;
 using TopSupport.Api.Identity;
 using TopSupport.Services.Abstractions;
@@ -11,6 +12,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 
 builder.Services.AddControllers();
+
+// Unhandled exceptions become ProblemDetails with no stack trace or SQL text (OWASP A05).
+// Services throw ArgumentException for bad input (e.g. an unknown ticket status) and
+// KeyNotFoundException for a missing record; anything else is a generic 500.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -66,9 +73,31 @@ builder.Services.AddIdentityCore<ApplicationUser>()
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+
+// The Api only returns JSON and attachment downloads: never sniff a client-declared content
+// type into something executable, and never allow framing. Set on OnStarting so the headers
+// survive the exception handler clearing the response.
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers.XContentTypeOptions = "nosniff";
+        context.Response.Headers.XFrameOptions = "DENY";
+        context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'";
+        return Task.CompletedTask;
+    });
+    await next();
+});
+
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+}
+else
+{
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();

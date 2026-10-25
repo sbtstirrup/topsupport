@@ -31,7 +31,7 @@
             <form class="card pad stack-16" novalidate aria-label="Article editor" @onsubmit:preventDefault="true">
                 <div class="field">
                     <label class="field-label" for="f-ka-title">Title<span class="star" aria-hidden="true"> *</span></label>
-                    <input class="input @(TitleError is null ? "" : "invalid")" id="f-ka-title" type="text" @bind="_title" @bind:event="oninput"
+                    <input class="input @(TitleError is null ? "" : "invalid")" id="f-ka-title" type="text" maxlength="@FieldLimits.KbTitle" @bind="_title" @bind:event="oninput"
                            aria-required="true" aria-invalid="@(TitleError is null ? null : "true")" aria-describedby="@(TitleError is null ? null : "f-ka-title-e")" />
                     @if (TitleError is not null)
                     {
@@ -62,7 +62,7 @@
 
                 <div class="field full">
                     <label class="field-label" for="f-ka-body">Article Text<span class="star" aria-hidden="true"> *</span></label>
-                    <textarea class="input @(BodyError is null ? "" : "invalid")" id="f-ka-body" rows="12" @bind="_body" @bind:event="oninput"
+                    <textarea class="input @(BodyError is null ? "" : "invalid")" id="f-ka-body" rows="12" maxlength="@FieldLimits.KbBody" @bind="_body" @bind:event="oninput"
                               aria-required="true" aria-invalid="@(BodyError is null ? null : "true")" aria-describedby="@(BodyError is null ? null : "f-ka-body-e")"></textarea>
                     @if (BodyError is not null)
                     {
@@ -126,7 +126,9 @@
     {
         var errors = new Dictionary<string, string>();
         if (string.IsNullOrWhiteSpace(_title)) errors["title"] = "Enter a title.";
+        else if (FieldLimits.TooLong(_title, FieldLimits.KbTitle) is { } titleTooLong) errors["title"] = titleTooLong;
         if (string.IsNullOrWhiteSpace(_body)) errors["body"] = "Write the article text.";
+        else if (FieldLimits.TooLong(_body, FieldLimits.KbBody) is { } bodyTooLong) errors["body"] = bodyTooLong;
         _errors = errors;
         if (errors.Count > 0) return;
 

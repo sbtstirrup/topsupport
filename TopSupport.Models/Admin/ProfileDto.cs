@@ -57,8 +57,14 @@ public static partial class ProfileRules
     {
         var e = new Dictionary<string, string>();
         if (string.IsNullOrWhiteSpace(name)) e["name"] = "Enter your name.";
-        if (!EmailPattern().IsMatch((email ?? string.Empty).Trim())) e["email"] = "Enter an email address like name@topcashback.example.";
-        if (!string.IsNullOrEmpty(phone) && !PhonePattern().IsMatch(phone)) e["phone"] = "Use digits, spaces and + only.";
+        else if (FieldLimits.TooLong(name, FieldLimits.PersonName) is { } nameTooLong) e["name"] = nameTooLong;
+
+        // Length first, so an over-long address isn't run through the regex at all.
+        if (FieldLimits.TooLong(email, FieldLimits.Email) is { } emailTooLong) e["email"] = emailTooLong;
+        else if (!EmailPattern().IsMatch((email ?? string.Empty).Trim())) e["email"] = "Enter an email address like name@topcashback.example.";
+
+        if (FieldLimits.TooLong(phone, FieldLimits.Phone) is { } phoneTooLong) e["phone"] = phoneTooLong;
+        else if (!string.IsNullOrEmpty(phone) && !PhonePattern().IsMatch(phone)) e["phone"] = "Use digits, spaces and + only.";
         return e;
     }
 
@@ -73,6 +79,7 @@ public static partial class ProfileRules
         return new[]
         {
             ($"At least {s.MinLength} characters", pw.Length >= s.MinLength),
+            ($"No more than {FieldLimits.Password} characters", pw.Length <= FieldLimits.Password),
             ("An uppercase letter", !s.RequireUpper || UpperPattern().IsMatch(pw)),
             ("A lowercase letter", !s.RequireLower || LowerPattern().IsMatch(pw)),
             ("A number", !s.RequireNumber || DigitPattern().IsMatch(pw)),

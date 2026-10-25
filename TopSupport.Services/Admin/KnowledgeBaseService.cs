@@ -63,8 +63,11 @@ public class KnowledgeBaseService : IKnowledgeBaseService
         // Same messages as ACT['ka-save']; category/status can't be wrong from the UI (fixed
         // selects) but are checked here so the Api never hits the FK/CHECK constraints.
         var errors = new Dictionary<string, string>();
+        // The length checks are additions: SQL Server would otherwise truncate the title silently.
         if (string.IsNullOrWhiteSpace(request.Title)) errors["title"] = "Enter a title.";
+        else if (FieldLimits.TooLong(request.Title, FieldLimits.KbTitle) is { } titleTooLong) errors["title"] = titleTooLong;
         if (string.IsNullOrWhiteSpace(request.Body)) errors["body"] = "Write the article text.";
+        else if (FieldLimits.TooLong(request.Body, FieldLimits.KbBody) is { } bodyTooLong) errors["body"] = bodyTooLong;
         if (!kb.Categories.Any(c => c.Id == request.CategoryId)) errors["categoryId"] = "Choose a category.";
         if (!KbArticleStatuses.All.Contains(request.Status)) errors["status"] = "Choose a status.";
         if (errors.Count > 0) throw new KbArticleValidationException(errors);

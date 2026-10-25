@@ -23,9 +23,9 @@
                     </div>
                 </div>
                 <div class="field-grid">
-                    @Field("name", "Name", "text", true, true, "name", _errs, () => _name, v => _name = v)
-                    @Field("email", "Email", "email", true, true, "email", _errs, () => _email, v => _email = v)
-                    @Field("phone", "Phone", "tel", false, false, "tel", _errs, () => _phone, v => _phone = v)
+                    @Field("name", "Name", "text", true, true, "name", FieldLimits.PersonName, _errs, () => _name, v => _name = v)
+                    @Field("email", "Email", "email", true, true, "email", FieldLimits.Email, _errs, () => _email, v => _email = v)
+                    @Field("phone", "Phone", "tel", false, false, "tel", FieldLimits.Phone, _errs, () => _phone, v => _phone = v)
                 </div>
                 <div class="row">
                     <button type="button" class="btn btn-primary" @onclick="SaveDetailsAsync" disabled="@_saving">
@@ -36,9 +36,9 @@
 
             <form class="card pad stack-16" novalidate aria-labelledby="pw-h" @onsubmit:preventDefault="true">
                 <h2 id="pw-h" class="card-title" style="margin:0">Change Password</h2>
-                @Field("cur", "Current Password", "password", true, true, "current-password", _pwErrs, () => _cur, v => _cur = v)
-                @Field("nw", "New Password", "password", true, true, "new-password", _pwErrs, () => _nw, v => _nw = v)
-                @Field("cf", "Confirm New Password", "password", true, true, "new-password", _pwErrs, () => _cf, v => _cf = v)
+                @Field("cur", "Current Password", "password", true, true, "current-password", FieldLimits.Password, _pwErrs, () => _cur, v => _cur = v)
+                @Field("nw", "New Password", "password", true, true, "new-password", FieldLimits.Password, _pwErrs, () => _nw, v => _nw = v)
+                @Field("cf", "Confirm New Password", "password", true, true, "new-password", FieldLimits.Password, _pwErrs, () => _cf, v => _cf = v)
                 <div class="stack-8">
                     <div class="row between">
                         <span class="section-title">Password rules</span>
@@ -106,14 +106,14 @@
         : _profile.JobTitle + " · " + _profile.Department + " · " + _profile.Office;
 
     // fInput({ path: 'pf.<key>', ... }) with the demo's id scheme (fid) and error markup.
-    private RenderFragment Field(string key, string label, string type, bool required, bool full, string autocomplete,
+    private RenderFragment Field(string key, string label, string type, bool required, bool full, string autocomplete, int maxLength,
         Dictionary<string, string> errs, Func<string> get, Action<string> set) => __builder =>
     {
         var id = "f-pf-" + key;
         errs.TryGetValue(key, out var err);
         <div class="field @(full ? "full" : "")">
             <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
-            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" autocomplete="@autocomplete"
+            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" autocomplete="@autocomplete" maxlength="@maxLength"
                    aria-required="@(required ? "true" : null)" aria-invalid="@(err is null ? null : "true")" aria-describedby="@(err is null ? null : id + "-e")"
                    value="@get()" @oninput="@(e => set(e.Value?.ToString() ?? string.Empty))" />
             @if (err is not null)

@@ -23,25 +23,38 @@ public class CannedResponsesController : ControllerBase
         => Ok(await _cannedResponses.GetAllAsync(cancellationToken));
 
     // Mutations take an optional ?actorId= (the signed-in agent) so the audit entry is attributed.
+    // Validation failures come back as 400 with a field key -> message map, like KnowledgeBaseController.
 
     [HttpPost]
     public async Task<ActionResult<CannedResponseDto>> Create(CannedResponseDto response, [FromQuery] string? actorId, CancellationToken cancellationToken)
-        => Ok(await _cannedResponses.CreateAsync(response, actorId, cancellationToken));
+    {
+        try
+        {
+            return Ok(await _cannedResponses.CreateAsync(response, actorId, cancellationToken));
+        }
+        catch (CannedResponseValidationException ex)
+        {
+            return BadRequest(ex.Errors);
+        }
+    }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, CannedResponseDto response, [FromQuery] string? actorId, CancellationToken cancellationToken)
     {
         response.Id = id;
-        await _cannedResponses.UpdateAsync(response, actorId, cancellationToken);
-        return Ok();
+        try
+        {
+            return await _cannedResponses.UpdateAsync(response, actorId, cancellationToken) ? Ok() : NotFound();
+        }
+        catch (CannedResponseValidationException ex)
+        {
+            return BadRequest(ex.Errors);
+        }
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id, [FromQuery] string? actorId, CancellationToken cancellationToken)
-    {
-        await _cannedResponses.DeleteAsync(id, actorId, cancellationToken);
-        return Ok();
-    }
+        => await _cannedResponses.DeleteAsync(id, actorId, cancellationToken) ? Ok() : NotFound();
 
     public record PreviewRequest(string? TicketId, string? AgentId);
 

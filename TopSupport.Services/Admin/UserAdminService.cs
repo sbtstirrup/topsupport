@@ -127,19 +127,27 @@ public partial class UserAdminService : IUserAdminService
         var taken = await _repository.CheckIdentityTakenAsync(id, email, username, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(request.Name)) errors["name"] = "Enter a name.";
+        else if (FieldLimits.TooLong(request.Name, FieldLimits.PersonName) is { } nameErr) errors["name"] = nameErr;
 
-        if (!EmailPattern().IsMatch(email)) errors["email"] = "Enter a valid email address.";
+        // Length first: the column is 256 and the regex shouldn't scan an unbounded string.
+        if (FieldLimits.TooLong(email, FieldLimits.Email) is { } emailErr) errors["email"] = emailErr;
+        else if (!EmailPattern().IsMatch(email)) errors["email"] = "Enter a valid email address.";
         else if (taken.EmailTaken) errors["email"] = "Someone already uses this email.";
 
         if (!UsernamePattern().IsMatch(username)) errors["username"] = "Use 3 to 20 lower-case letters.";
         else if (taken.UsernameTaken) errors["username"] = "This username is taken.";
 
+        if (FieldLimits.TooLong(request.Phone, FieldLimits.Phone) is { } phoneErr) errors["phone"] = phoneErr;
+        else if (!FieldLimits.IsValidPhone(request.Phone)) errors["phone"] = "Use digits, spaces and + only.";
+
         // The demo's select has no placeholder, so this only catches a tampered/stale org id.
         if (await _orgs.GetByIdAsync(request.OrgId, cancellationToken) is null) errors["org"] = "Choose an organisation.";
 
         if (string.IsNullOrWhiteSpace(request.Office)) errors["office"] = "Enter the office or desk.";
-        if (string.IsNullOrEmpty(request.Department)) errors["department"] = "Choose a department.";
+        else if (FieldLimits.TooLong(request.Office, FieldLimits.Office) is { } officeErr) errors["office"] = officeErr;
+        if (!UserDepartments.All.Contains(request.Department)) errors["department"] = "Choose a department.";
         if (string.IsNullOrWhiteSpace(request.JobTitle)) errors["jobTitle"] = "Enter a job title.";
+        else if (FieldLimits.TooLong(request.JobTitle, FieldLimits.JobTitle) is { } jobErr) errors["jobTitle"] = jobErr;
 
         if (errors.Count > 0) throw new UserOrgValidationException(errors);
     }

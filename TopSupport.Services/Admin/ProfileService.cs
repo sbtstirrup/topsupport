@@ -66,7 +66,7 @@ public class ProfileService : IProfileService
 
         if (e.Count > 0) return result;
 
-        await _passwords.SetAsync(request.ActorId, request.NewPassword, cancellationToken);
+        await _passwords.ChangeOwnAsync(request.ActorId, request.NewPassword, cancellationToken);
         var profile = await _repository.GetAsync(request.ActorId, cancellationToken);
         await _audit.LogAsync(request.ActorId, "Changed own password", profile?.Name ?? request.ActorId, AuditCategories.User, cancellationToken);
         return result;

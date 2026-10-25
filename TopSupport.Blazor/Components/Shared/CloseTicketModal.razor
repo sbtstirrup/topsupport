@@ -67,7 +67,7 @@
                     await Api.AddAgentReplyAsync(id, new AddAgentReplyRequest
                     {
                         AgentId = Session.AccountId,
-                        Html = note,
+                        Html = HtmlText.FromText(note),
                         IsNote = true
                     });
                 }

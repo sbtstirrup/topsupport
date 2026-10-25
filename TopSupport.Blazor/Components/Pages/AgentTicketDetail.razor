@@ -366,7 +366,8 @@
         var filled = await Api.PreviewCannedResponseAsync(id, _ticket.Id, Session.AccountId);
         if (_editorRef is not null)
         {
-            await _editorRef.AppendHtmlAsync(filled);
+            // textToHTML(fillPlaceholders(...)): the body and filled-in values (e.g. the ticket subject) are plain text.
+            await _editorRef.AppendHtmlAsync(HtmlText.FromText(filled));
         }
         _replyError = null;
     }

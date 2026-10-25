@@ -28,7 +28,7 @@
                         <label class="field-label" for="us-q">Search</label>
                         <div class="search">
                             @((MarkupString)IconLibrary.Render("search", 16))
-                            <input class="input" id="us-q" type="search" value="@_q" placeholder="Name, email, username or department" @oninput="OnSearch" />
+                            <input class="input" id="us-q" type="search" value="@_q" placeholder="Name, email, username or department" maxlength="@FieldLimits.SearchText" @oninput="OnSearch" />
                         </div>
                     </div>
                     <div class="field">

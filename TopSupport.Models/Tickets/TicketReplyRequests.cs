@@ -5,7 +5,7 @@ public class AddUserReplyRequest
 {
     public string UserId { get; set; } = string.Empty;
 
-    /// <summary>Sanitized rich-text HTML (equivalent to the demo's cleanHTML(F.html)).</summary>
+    /// <summary>Rich-text HTML; the Api sanitizes it with TicketHtmlSanitizer (the demo's cleanHTML(F.html)) before storing.</summary>
     public string Html { get; set; } = string.Empty;
 }
 

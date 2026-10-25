@@ -14,10 +14,10 @@
 </div>
 <div class="modal-body">
     <div class="field-grid">
-        @TextField("name", "Full Name")
-        @TextField("email", "Email", type: "email", placeholder: "name@topcashback.example")
-        @TextField("username", "Username", hintBelow: "Lower-case letters only, for example apatel.")
-        @TextField("phone", "Phone", required: false)
+        @TextField("name", "Full Name", FieldLimits.PersonName)
+        @TextField("email", "Email", FieldLimits.Email, type: "email", placeholder: "name@topcashback.example")
+        @TextField("username", "Username", 20, hintBelow: "Lower-case letters only, for example apatel.")
+        @TextField("phone", "Phone", FieldLimits.Phone, required: false)
         <div class="field">
             <label class="field-label" for="f-ue-org">Organisation<span class="star" aria-hidden="true"> *</span></label>
             <select class="input" id="f-ue-org" aria-required="true" value="@_f["org"]" @onchange="@(e => _f["org"] = e.Value?.ToString() ?? string.Empty)">
@@ -31,7 +31,7 @@
                 <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@orgErr</span>
             }
         </div>
-        @TextField("office", "Office or Desk", placeholder: "For example Horwich · Unit 4, desk F-12")
+        @TextField("office", "Office or Desk", FieldLimits.Office, placeholder: "For example Horwich · Unit 4, desk F-12")
         <div class="field">
             <label class="field-label" for="f-ue-department">Department<span class="star" aria-hidden="true"> *</span></label>
             <select class="input @(Err("department") is null ? "" : "invalid")" id="f-ue-department" aria-required="true"
@@ -48,7 +48,7 @@
                 <span class="field-err" id="f-ue-department-e">@((MarkupString)IconLibrary.Render("alert", 14))@deptErr</span>
             }
         </div>
-        @TextField("jobTitle", "Job Title")
+        @TextField("jobTitle", "Job Title", FieldLimits.JobTitle)
     </div>
     @if (IsNew)
     {
@@ -89,14 +89,15 @@
 
     private string? Err(string key) => _errors.TryGetValue(key, out var e) ? e : null;
 
-    /// <summary>fInput({ path: 'ue.' + key, ... }) from the demo, ids from fid() ("f-ue-name").</summary>
-    private RenderFragment TextField(string key, string label, bool required = true, string type = "text", string? placeholder = null, string? hintBelow = null)
+    /// <summary>fInput({ path: 'ue.' + key, ... }) from the demo, ids from fid() ("f-ue-name").
+    /// maxLength is a UX aid only (no form, so no browser validation); the Api's check is authoritative.</summary>
+    private RenderFragment TextField(string key, string label, int maxLength, bool required = true, string type = "text", string? placeholder = null, string? hintBelow = null)
     {
         var id = "f-ue-" + key;
         var err = Err(key);
         return @<div class="field">
             <label class="field-label" for="@id">@label@if (required) {<span class="star" aria-hidden="true"> *</span>}</label>
-            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" value="@_f[key]" placeholder="@(placeholder ?? string.Empty)"
+            <input class="input @(err is null ? "" : "invalid")" id="@id" type="@type" value="@_f[key]" placeholder="@(placeholder ?? string.Empty)" maxlength="@maxLength"
                    aria-required="@(required ? "true" : null)" aria-invalid="@(err is null ? null : "true")" aria-describedby="@(err is null ? null : id + "-e")"
                    @oninput="@(e => _f[key] = e.Value?.ToString() ?? string.Empty)" />
             @if (hintBelow is not null)

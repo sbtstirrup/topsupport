@@ -1,31 +1,42 @@
 using System.Security.Cryptography;
+using System.Text;
 using TopSupport.Services.Abstractions;
 
 namespace TopSupport.Services.Admin;
 
 /// <summary>
-/// Password handling shared by the admin screens and My Profile. GenerateTemporary is a port of
-/// genPassword() in topsupport-app.js; passwords are stored as PBKDF2 hashes instead of the demo's
-/// plaintext. Policy checks (length, character classes, history) belong to the security-settings
-/// feature, not here.
+/// Password handling shared by the admin screens and My Profile. Passwords are stored as PBKDF2
+/// hashes instead of the demo's plaintext, and temporary passwords are random rather than the
+/// demo's guessable genPassword() word pattern. Policy checks (length, character classes, history)
+/// belong to the security-settings feature, not here.
 /// </summary>
 public interface IAccountPasswordService
 {
-    /// <summary>A memorable temporary password like "Harbour-copper42!".</summary>
+    /// <summary>A random 16-character temporary password with an upper, lower, digit and symbol.</summary>
     string GenerateTemporary();
 
     /// <summary>False if the account doesn't exist or the password is wrong.</summary>
     Task<bool> VerifyAsync(string accountId, string password, CancellationToken cancellationToken = default);
 
-    /// <summary>Hashes and stores the password, and unlocks the account.</summary>
+    /// <summary>Admin reset: hashes and stores the password, and unlocks the account (ACT['user-reset']).</summary>
     Task SetAsync(string accountId, string password, CancellationToken cancellationToken = default);
+
+    /// <summary>The account holder's own change: hashes and stores the password, leaving a lock in place.</summary>
+    Task ChangeOwnAsync(string accountId, string password, CancellationToken cancellationToken = default);
 }
 
 public class AccountPasswordService : IAccountPasswordService
 {
-    private static readonly string[] Words = { "Harbour", "Copper", "Meadow", "Granite", "Willow", "Falcon", "Lantern", "Summit" };
+    // No look-alike characters (0/O, 1/l/I), since the admin reads the password out to the user.
+    private const string Upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private const string Lower = "abcdefghijkmnopqrstuvwxyz";
+    private const string Digits = "23456789";
     private const string Symbols = "!#$%&?";
-    private const int Iterations = 100_000;
+    private const int TemporaryLength = 16;
+
+    // OWASP Password Storage Cheat Sheet figure for PBKDF2-HMAC-SHA256. The count is stored in each
+    // hash, so hashes made with the earlier 100,000 still verify.
+    private const int Iterations = 600_000;
 
     private readonly IAccountCredentialRepository _repository;
 
@@ -35,10 +46,19 @@ public class AccountPasswordService : IAccountPasswordService
     }
 
     public string GenerateTemporary()
-        => Words[RandomNumberGenerator.GetInt32(Words.Length)] + "-"
-            + Words[RandomNumberGenerator.GetInt32(Words.Length)].ToLowerInvariant()
-            + RandomNumberGenerator.GetInt32(10, 100)
-            + Symbols[RandomNumberGenerator.GetInt32(Symbols.Length)];
+    {
+        // One of each class (so the password policy's character rules pass), the rest from all
+        // classes, then shuffled so the classes aren't in fixed positions.
+        const string all = Upper + Lower + Digits + Symbols;
+        var chars = new char[TemporaryLength];
+        chars[0] = Upper[RandomNumberGenerator.GetInt32(Upper.Length)];
+        chars[1] = Lower[RandomNumberGenerator.GetInt32(Lower.Length)];
+        chars[2] = Digits[RandomNumberGenerator.GetInt32(Digits.Length)];
+        chars[3] = Symbols[RandomNumberGenerator.GetInt32(Symbols.Length)];
+        for (var i = 4; i < chars.Length; i++) chars[i] = all[RandomNumberGenerator.GetInt32(all.Length)];
+        RandomNumberGenerator.Shuffle(chars.AsSpan());
+        return new string(chars);
+    }
 
     public async Task<bool> VerifyAsync(string accountId, string password, CancellationToken cancellationToken = default)
     {
@@ -51,14 +71,17 @@ public class AccountPasswordService : IAccountPasswordService
             var demoDefault = credential.AccountType == "User" ? "TopCashback1!"
                 : credential.AgentRole == "Administrator" ? "AdminDemo1!"
                 : "ServiceDesk1!";
-            return password == demoDefault;
+            return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(password), Encoding.UTF8.GetBytes(demoDefault));
         }
 
         return VerifyHash(password, credential.PasswordHash);
     }
 
     public Task SetAsync(string accountId, string password, CancellationToken cancellationToken = default)
-        => _repository.SetPasswordHashAsync(accountId, Hash(password), cancellationToken);
+        => _repository.SetPasswordHashAsync(accountId, Hash(password), unlock: true, cancellationToken);
+
+    public Task ChangeOwnAsync(string accountId, string password, CancellationToken cancellationToken = default)
+        => _repository.SetPasswordHashAsync(accountId, Hash(password), unlock: false, cancellationToken);
 
     // Format: pbkdf2-sha256$<iterations>$<base64 salt>$<base64 hash>
     private static string Hash(string password)
@@ -71,10 +94,21 @@ public class AccountPasswordService : IAccountPasswordService
     private static bool VerifyHash(string password, string stored)
     {
         var parts = stored.Split('$');
-        if (parts.Length != 4 || parts[0] != "pbkdf2-sha256" || !int.TryParse(parts[1], out var iterations)) return false;
+        if (parts.Length != 4 || parts[0] != "pbkdf2-sha256" || !int.TryParse(parts[1], out var iterations) || iterations <= 0) return false;
 
-        var salt = Convert.FromBase64String(parts[2]);
-        var expected = Convert.FromBase64String(parts[3]);
+        // A corrupt stored hash fails verification instead of throwing (a 500).
+        byte[] salt, expected;
+        try
+        {
+            salt = Convert.FromBase64String(parts[2]);
+            expected = Convert.FromBase64String(parts[3]);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        if (expected.Length == 0) return false;
         var actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, expected.Length);
         return CryptographicOperations.FixedTimeEquals(actual, expected);
     }

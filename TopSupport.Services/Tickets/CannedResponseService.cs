@@ -32,23 +32,64 @@ public partial class CannedResponseService : ICannedResponseService
 
     public async Task<CannedResponseDto> CreateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default)
     {
-        var created = await _repository.InsertAsync(response, cancellationToken);
+        var all = await _repository.GetAllAsync(cancellationToken);
+        Validate(response, null, all);
+
+        // Demo: uid('c') for a new response -- the id is always ours, never the caller's.
+        var created = await _repository.InsertAsync(new CannedResponseDto
+        {
+            Id = "c" + Guid.NewGuid().ToString("n"),
+            Title = response.Title.Trim(),
+            Body = response.Body,
+            SortOrder = response.SortOrder
+        }, cancellationToken);
         await _audit.LogAsync(actorId ?? "system", "Created canned response", created.Title, AuditCategories.Ticket, cancellationToken);
         return created;
     }
 
-    public async Task UpdateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default)
     {
+        var all = await _repository.GetAllAsync(cancellationToken);
+        if (!all.Any(c => c.Id == response.Id)) return false;
+        Validate(response, response.Id, all);
+
+        // Title trimmed, body as typed -- as ACT['cn-save'] stores them.
+        response.Title = response.Title.Trim();
         await _repository.UpdateAsync(response, cancellationToken);
         await _audit.LogAsync(actorId ?? "system", "Edited canned response", response.Title, AuditCategories.Ticket, cancellationToken);
+        return true;
     }
 
-    public async Task DeleteAsync(string id, string? actorId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(string id, string? actorId = null, CancellationToken cancellationToken = default)
     {
         // Look the title up first: it's the audit target, and the row is gone afterwards.
         var existing = (await _repository.GetAllAsync(cancellationToken)).FirstOrDefault(c => c.Id == id);
+        if (existing is null) return false;
         await _repository.DeleteAsync(id, cancellationToken);
-        await _audit.LogAsync(actorId ?? "system", "Deleted canned response", existing?.Title ?? id, AuditCategories.Ticket, cancellationToken);
+        await _audit.LogAsync(actorId ?? "system", "Deleted canned response", existing.Title, AuditCategories.Ticket, cancellationToken);
+        return true;
+    }
+
+    // Body is NVARCHAR(MAX): capped at the knowledge base article size so it can't grow unbounded.
+    private const int MaxBodyLength = FieldLimits.KbBody;
+
+    /// <summary>
+    /// The authoritative half of ACT['cn-save']'s checks, with the same messages as Canned.razor
+    /// (which also checks placeholders for instant feedback). <paramref name="selfId"/> is the
+    /// response being edited, excluded from the unique-title check; null when creating.
+    /// </summary>
+    private static void Validate(CannedResponseDto response, string? selfId, IReadOnlyList<CannedResponseDto> all)
+    {
+        var errors = new Dictionary<string, string>();
+        var title = (response.Title ?? string.Empty).Trim();
+        if (title.Length == 0) errors["title"] = "Enter a title.";
+        else if (FieldLimits.TooLong(title, FieldLimits.CannedTitle) is { } titleTooLong) errors["title"] = titleTooLong;
+        else if (all.Any(c => c.Id != selfId && string.Equals(c.Title, title, StringComparison.OrdinalIgnoreCase))) errors["title"] = "Another response already has this title.";
+
+        if (string.IsNullOrWhiteSpace(response.Body)) errors["body"] = "Enter the message.";
+        else if (FieldLimits.TooLong(response.Body, MaxBodyLength) is { } bodyTooLong) errors["body"] = bodyTooLong;
+
+        if (errors.Count > 0) throw new CannedResponseValidationException(errors);
     }
 
     public async Task<string> FillPlaceholdersAsync(string body, TicketDto? ticket, string? agentId, CancellationToken cancellationToken = default)
