@@ -46,10 +46,6 @@ public sealed class TestAccountSwitcher
         }
 
         await AuthCookie.SignInAsync(context, account);
-        return Results.LocalRedirect(IsLocalPath(returnUrl) ? "~" + returnUrl : "~/home");
+        return Results.LocalRedirect(LocalUrl.IsLocal(returnUrl) ? "~" + returnUrl : "~/home");
     }
-
-    /// <summary>Only a local path: "/x" but not "//host" or "/\host".</summary>
-    private static bool IsLocalPath(string? url)
-        => url is { Length: > 0 } && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\'));
 }

@@ -115,9 +115,7 @@
         Nav.NavigateTo(SafeReturnUrl is { } next && next != "/" ? next : home);
     }
 
-    /// <summary>Only a local path: "/x" but not "//host" or "/\host" (an open redirect otherwise).</summary>
-    private string? SafeReturnUrl
-        => ReturnUrl is { Length: > 0 } url && url[0] == '/' && (url.Length == 1 || (url[1] != '/' && url[1] != '\\')) ? url : null;
+    private string? SafeReturnUrl => LocalUrl.IsLocal(ReturnUrl) ? ReturnUrl : null;
 
     private sealed class SignInForm
     {
