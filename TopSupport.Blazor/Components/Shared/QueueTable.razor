@@ -1,10 +1,10 @@
 @* Shared ticket list table for both Queue.razor (ColumnSet.Agent) and MyTickets.razor
    (ColumnSet.User), mirroring the .tbl-wrap > table.tbl markup + thSort()/pager() in
    topsupport-app.js. This component does NOT fetch or filter/sort/page data itself -- it is a
-   pure renderer over whatever page of Tickets the host page has already computed (PoC scale:
-   hosts do client-side filter/sort/page over one fetched list). SortKey/SortDirection/
-   PageNumber/PageSize are two-way bound so the host can react to a header click or pager click
-   and recompute its own filtered/sorted/sliced list; this component never mutates Tickets.
+   pure renderer over whatever page of Tickets the host supplies (Queue asks the Api for one
+   page; MyTickets filters/sorts/pages its own list). SortKey/SortDirection/PageNumber are
+   two-way bound so the host can react to a header click or pager click and load or recompute
+   the page; this component never mutates Tickets.
 
    Parameter contract (read this before building Queue.razor/MyTickets.razor against it):
    - Tickets: the CURRENT PAGE of rows to render (already filtered/sorted/sliced by the host).
@@ -19,7 +19,7 @@
    - OnRowClick: fired with the ticket Id when a subject link (or row, for ColumnSet.Agent where
      checkboxes occupy the row) is activated -- the host navigates (e.g. "/tickets/{id}" or
      "/agent-tickets/{id}").
-   - PageNumber/PageSize: two-way bound; PageNumber is 1-based, matching pager() in the demo.
+   - PageNumber: two-way bound, 1-based, matching pager() in the demo. PageSize: rows per page.
    - ColumnSet.User: Ticket #, Subject, Topic, Priority, Status, Created (no checkboxes/assignee).
      ColumnSet.Agent: checkbox, Ticket #, Subject, Requester, Topic, Priority, SLA due, Assignee,
      Status.
@@ -28,7 +28,6 @@
      ActorNameResolver by the host to build an "Assignee" display -- this component shows
      whatever string the host computes; see AssigneeLabel usage below, built from Ticket's
      AssignedAgentId/AssignedTeamId via the two resolvers). *@
-@using TopSupport.Models.Enums
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Tickets.FieldSchema
 @using TopSupport.Services.Tickets
@@ -138,7 +137,6 @@
     [Parameter] public int PageNumber { get; set; } = 1;
     [Parameter] public EventCallback<int> PageNumberChanged { get; set; }
     [Parameter] public int PageSize { get; set; } = 15;
-    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
 
     [Parameter] public QueueTableColumnSet ColumnSet { get; set; } = QueueTableColumnSet.User;
 

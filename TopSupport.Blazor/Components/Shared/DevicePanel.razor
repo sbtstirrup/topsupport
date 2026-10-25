@@ -1,13 +1,9 @@
 @* Hardware-topic cross-reference: "other open tickets mentioning this same asset tag" --
    useful context for an agent working a hardware ticket (e.g. "this laptop already has 2 other
-   open tickets"). DEFERRED/BEST-EFFORT per the Tier 3 plan: there is no by-asset-tag ticket
-   query on the Api (TicketsController has no such endpoint, and Fields is a free-form JSON
-   dictionary server-side with no indexed/queryable "device tag" column), so this component
-   does NOT call the Api itself. Instead the host page (AgentTicketDetail, built by the next
-   agent) must pass in an already-fetched candidate list -- e.g. the current queue/open-tickets
-   page it already has loaded -- and this component does the client-side filter-by-tag over
-   that list. If no such list is convenient to pass, skip rendering this component; it is
-   explicitly a nice-to-have, not a blocking dependency for ticket detail pages. *@
+   open tickets"). Best-effort: there is no by-asset-tag ticket query on the Api (Fields is a
+   free-form JSON dictionary server-side with no queryable "device tag" column), so this
+   component does NOT call the Api itself. The host page (AgentTicketDetail) passes in an
+   already-fetched candidate list (the open queue) and this component filters it by tag. *@
 @using TopSupport.Models.Tickets
 
 <section class="card panel">

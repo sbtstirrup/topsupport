@@ -1,9 +1,7 @@
 @page "/new-ticket"
 @attribute [Authorize(Roles = "Agent,Admin")]
-@using Microsoft.AspNetCore.Components.Forms
 @using TopSupport.Blazor.Models
 @using TopSupport.Models.Admin
-@using TopSupport.Models.Enums
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Tickets.FieldSchema
 @inject PageHeadingState Heading
@@ -169,7 +167,6 @@
     private string _subject = "";
     private readonly Dictionary<string, object?> _fieldValues = new();
     private Dictionary<string, string> _errors = new();
-    private List<AttachmentRef> _stagedFiles = new();
     // Files picked in a Files-type field, read into memory when picked; uploaded once the ticket exists.
     private readonly List<StagedAttachment> _stagedUploads = new();
     private bool _submitting;
@@ -280,7 +277,6 @@
         // No ticket exists yet -- stage locally; actual upload happens after CreateTicketAsync succeeds.
         var staged = await StagedAttachment.ReadAsync(file);
         _stagedUploads.Add(staged);
-        _stagedFiles.Add(staged.Reference);
         return staged.Reference;
     }
 
@@ -300,74 +296,31 @@
         _subject = "";
         _fieldValues.Clear();
         _errors.Clear();
-        _stagedFiles.Clear();
         _stagedUploads.Clear();
         _fieldSchema = Array.Empty<TicketFieldDescriptor>();
     }
 
     private async Task SubmitAsync()
     {
-        var errors = new Dictionary<string, string>();
-
-        if (string.IsNullOrEmpty(_requesterId)) errors["requester"] = "Choose the person who is asking for help.";
-        if (string.IsNullOrEmpty(_topicId)) errors["topic"] = "Choose a help topic.";
-
-        if (!string.IsNullOrEmpty(_topicId))
-        {
-            if (string.IsNullOrWhiteSpace(_subject)) errors["subject"] = "Enter a short subject.";
-            else if (_subject.Trim().Length < 5) errors["subject"] = "Make the subject at least 5 characters so the team can find it.";
-
-            if (string.IsNullOrEmpty(_affectedId)) errors["affected"] = "Choose who is affected.";
-
-            foreach (var d in _fieldSchema)
-            {
-                if (!d.Required || (d.ShowWhen is not null && !d.ShowWhen.Evaluate(_fieldValues))) continue;
-                var v = GetFieldValue(d.Key);
-                var isEmpty = v is null || (v is List<string> l && l.Count == 0) || (v is string s && string.IsNullOrWhiteSpace(s));
-                if (isEmpty)
-                {
-                    var label = d.Label.Replace(" (optional)", "", StringComparison.OrdinalIgnoreCase);
-                    errors[d.Key] = d.Type is TicketFieldType.Select or TicketFieldType.Radio
-                        ? $"Choose an answer for “{label}”."
-                        : d.Type == TicketFieldType.Date
-                            ? $"Enter a date for “{label}”."
-                            : $"Fill in “{label}”.";
-                }
-            }
-        }
-
-        _errors = errors;
-        if (errors.Count > 0) { StateHasChanged(); return; }
-
         _submitting = true;
         try
         {
-            var fields = new Dictionary<string, object?>();
-            foreach (var d in _fieldSchema)
-            {
-                if (d.Type == TicketFieldType.Banner) continue;
-                if (d.ShowWhen is not null && !d.ShowWhen.Evaluate(_fieldValues)) continue;
-                fields[d.Key] = GetFieldValue(d.Key) ?? "";
-            }
-
             var request = new CreateTicketRequest
             {
                 Topic = _topicId,
                 Subject = _subject.Trim(),
-                RequesterUserId = _requesterId!,
-                AffectedUserId = _affectedId!,
-                Fields = fields
+                RequesterUserId = _requesterId ?? "",
+                AffectedUserId = _affectedId ?? "",
+                Fields = CreateTicketForm.Answers(_fieldSchema, _fieldValues)
             };
 
             var response = await Api.CreateTicketRawAsync(request);
 
-            // The Api is authoritative (unknown people, answers not in the list, bad dates...):
-            // show its field errors the same way as the checks above.
+            // The Api checks everything (required answers, unknown people, answers not in the
+            // list, bad dates...); its errors show against each field and in the summary above.
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                var problem = await response.Content.ReadFromJsonAsync<ValidationProblemBody>();
-                _errors = problem?.Errors?.ToDictionary(kv => kv.Key, kv => kv.Value.FirstOrDefault() ?? "Invalid value.") ?? new();
-                if (_errors.Count == 0) _errors["form"] = "We couldn't create the ticket. Check the form and try again.";
+                _errors = await CreateTicketForm.ReadErrorsAsync(response);
                 return;
             }
 
@@ -406,6 +359,4 @@
             _submitting = false;
         }
     }
-
-    private record ValidationProblemBody(Dictionary<string, string[]>? Errors);
 }

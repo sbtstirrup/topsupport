@@ -3,8 +3,6 @@
    content -- ModalHost.razor already supplies the .modal-back/.modal chrome. *@
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Tickets.FieldSchema
-@using TopSupport.Models.Enums
-@inject LookupDataService Lookup
 @inject TopSupportApiClient Api
 @inject ModalState Modal
 @inject ToastState Toasts
@@ -63,7 +61,6 @@
 </div>
 
 @code {
-    [Parameter, EditorRequired] public string TicketId { get; set; } = string.Empty;
     [Parameter, EditorRequired] public TicketDto Ticket { get; set; } = null!;
     [Parameter] public EventCallback OnSaved { get; set; }
 
@@ -92,7 +89,7 @@
         {
             // One call so the Api can write a single "Changed ticket properties" audit entry
             // (ACT['change-go']); it skips whichever of the three are unchanged.
-            await Api.ChangeTicketPropertiesAsync(TicketId, _status, _priority, _topic);
+            await Api.ChangeTicketPropertiesAsync(Ticket.Id, _status, _priority, _topic);
         }
         catch (HttpRequestException ex)
         {
