@@ -43,21 +43,21 @@ public partial class TopSupportApiClient
     public async Task<UserDto> ToggleUserLockAsync(string id, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsync($"api/users/{Uri.EscapeDataString(id)}/toggle-lock", null, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<UserDto>(cancellationToken))!;
     }
 
     public async Task<TemporaryPasswordDto> ResetUserPasswordAsync(string id, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsync($"api/users/{Uri.EscapeDataString(id)}/reset-password", null, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TemporaryPasswordDto>(cancellationToken))!;
     }
 
     public async Task DeleteUserAsync(string id, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsync($"api/users/{Uri.EscapeDataString(id)}/delete", null, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
     }
 
     // ---------------- Admin: Organisations (OrgsController) ----------------
@@ -92,7 +92,7 @@ public partial class TopSupportApiClient
             return new UserOrgSaveResult<T>(default, await ReadValidationErrorsAsync(response, cancellationToken));
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return new UserOrgSaveResult<T>(await response.Content.ReadFromJsonAsync<T>(cancellationToken), new Dictionary<string, string>());
     }
 }

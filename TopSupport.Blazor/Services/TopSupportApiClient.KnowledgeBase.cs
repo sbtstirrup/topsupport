@@ -29,7 +29,7 @@ public partial class TopSupportApiClient
             return new KbArticleSaveResult(null, await ReadValidationErrorsAsync(response, cancellationToken));
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         var saved = await response.Content.ReadFromJsonAsync<KbArticleDto>(cancellationToken);
         return new KbArticleSaveResult(saved, new Dictionary<string, string>());
     }
@@ -37,6 +37,6 @@ public partial class TopSupportApiClient
     public async Task DeleteKbArticleAsync(string id, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.DeleteAsync($"api/kb/articles/{Uri.EscapeDataString(id)}", cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
     }
 }

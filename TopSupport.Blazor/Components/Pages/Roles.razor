@@ -152,6 +152,10 @@
             _permissions = await Api.GetRolePermissionsAsync();
             Toasts.Show("Permissions saved.");
         }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+        }
         finally
         {
             _saving = false;

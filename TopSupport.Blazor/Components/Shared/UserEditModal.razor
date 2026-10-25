@@ -149,6 +149,10 @@
 
             await OnSaved.InvokeAsync();
         }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+        }
         finally
         {
             _saving = false;

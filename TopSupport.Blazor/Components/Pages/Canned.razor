@@ -75,7 +75,7 @@
                     </button>
                     @if (!_isNew)
                     {
-                        <button type="button" class="btn btn-ghost" @onclick="@(() => _confirmingDelete = true)">
+                        <button type="button" class="btn btn-ghost" @onclick="@(() => _confirmingDelete = true)" disabled="@_saving">
                             @((MarkupString)IconLibrary.Render("trash", 16))Delete
                         </button>
                     }
@@ -90,7 +90,7 @@
                             This will be removed for every agent. Replies already sent are not changed.
                             <div class="row" style="margin-top:8px">
                                 <button type="button" class="btn btn-secondary btn-sm" @onclick="@(() => _confirmingDelete = false)">Cancel</button>
-                                <button type="button" class="btn btn-primary btn-sm" @onclick="DeleteAsync">Delete</button>
+                                <button type="button" class="btn btn-primary btn-sm" @onclick="DeleteAsync" disabled="@_saving">Delete</button>
                             </div>
                         </span>
                     </div>
@@ -179,13 +179,14 @@
         }
     }
 
-    private async Task LoadAsync()
+    /// <summary>Reloads the library and selects <paramref name="selectId"/>, or the first response if it's gone.</summary>
+    private async Task LoadAsync(string? selectId = null)
     {
         _responses = (await Api.GetCannedResponsesAsync()).OrderBy(c => c.SortOrder).ToList();
-        var first = _responses.FirstOrDefault();
-        if (first is not null)
+        var selected = _responses.FirstOrDefault(c => c.Id == selectId) ?? _responses.FirstOrDefault();
+        if (selected is not null)
         {
-            Pick(first);
+            Pick(selected);
         }
         else
         {
@@ -288,38 +289,27 @@
         _saving = true;
         try
         {
-            if (_isNew)
+            var result = _isNew
+                ? await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body })
+                : await Api.UpdateCannedResponseAsync(new CannedResponseDto { Id = _selectedId, Title = title, Body = _body, SortOrder = _responses.FirstOrDefault(c => c.Id == _selectedId)?.SortOrder ?? 0 });
+            if (!result.Ok)
             {
-                var created = await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body });
-                await LoadAsync();
-                var match = _responses.FirstOrDefault(c => c.Id == created.Id);
-                if (match is not null) Pick(match);
+                // The Api's field errors (e.g. another agent took the title meanwhile); the draft stays in the editor.
+                _titleError = result.Errors.GetValueOrDefault("title");
+                _bodyError = result.Errors.GetValueOrDefault("body");
+                if (_titleError is null && _bodyError is null)
+                {
+                    Toasts.Error(string.Join(" ", result.Errors.Values));
+                }
+                return;
             }
-            else
-            {
-                var updated = new CannedResponseDto { Id = _selectedId, Title = title, Body = _body, SortOrder = _responses.FirstOrDefault(c => c.Id == _selectedId)?.SortOrder ?? 0 };
-                await Api.UpdateCannedResponseAsync(updated);
-                await LoadAsync();
-                var match = _responses.FirstOrDefault(c => c.Id == _selectedId);
-                if (match is not null) Pick(match);
-            }
+
+            await LoadAsync(_isNew ? result.Value!.Id : _selectedId);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.BadRequest)
+        catch (HttpRequestException ex)
         {
-            // The service re-checks everything above, so this only fires when the library was stale
-            // (another agent took the title meanwhile). Refresh the list -- leaving the draft in the
-            // editor -- and flag the clash if that was it.
-            _responses = (await Api.GetCannedResponsesAsync()).OrderBy(c => c.SortOrder).ToList();
-            if (_responses.Any(c => c.Id != _selectedId && string.Equals(c.Title, title, StringComparison.OrdinalIgnoreCase)))
-            {
-                _titleError = "Another response already has this title.";
-            }
-            Toasts.Error("The response could not be saved. Check the title and message.");
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-        {
-            Toasts.Error("That response no longer exists.");
-            await LoadAsync();
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+            if (ex.StatusCode == HttpStatusCode.NotFound) await LoadAsync();
         }
         finally
         {
@@ -330,13 +320,18 @@
     private async Task DeleteAsync()
     {
         _confirmingDelete = false;
+        _saving = true;
         try
         {
             await Api.DeleteCannedResponseAsync(_selectedId);
         }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        catch (HttpRequestException ex)
         {
-            Toasts.Error("That response no longer exists.");
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+        }
+        finally
+        {
+            _saving = false;
         }
         await LoadAsync();
     }

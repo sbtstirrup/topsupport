@@ -8,6 +8,7 @@
 @inject TopSupportApiClient Api
 @inject SessionState Session
 @inject ModalState Modal
+@inject ToastState Toasts
 
 <div class="modal-head">
     <h2>@(Team is null ? "Create team" : "Edit " + Team.Name)</h2>
@@ -148,6 +149,10 @@
 
             Modal.Close();
             await OnSaved.InvokeAsync(result);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

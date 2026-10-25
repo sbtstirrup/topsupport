@@ -8,6 +8,7 @@
 @inject TopSupportApiClient Api
 @inject SessionState Session
 @inject ModalState Modal
+@inject ToastState Toasts
 
 <div class="modal-head">
     <h2>@(Agent is null ? "Create Agent" : "Edit " + Agent.Name)</h2>
@@ -140,6 +141,10 @@
 
             Modal.Close();
             await OnSaved.InvokeAsync(result);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

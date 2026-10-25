@@ -128,13 +128,15 @@
     private OrgDto? _org;
     private List<UserListItemDto> _members = new();
     private IReadOnlyList<TicketDto> _tickets = Array.Empty<TicketDto>();
+    private IReadOnlyList<AgentDto> _agents = Array.Empty<AgentDto>();
 
     protected override async Task OnParametersSetAsync()
     {
         _loaded = false;
         Heading.SetHeading("Organisation", "Organisation details and members.");
         await Lookup.GetUsersAsync();
-        await Lookup.GetAgentsAsync();
+        // Every agent, deactivated ones included (the lookup cache has active agents only).
+        _agents = await Api.GetAdminAgentsAsync();
         await Lookup.GetTeamsAsync();
         await ReloadAsync();
         _loaded = true;
@@ -157,7 +159,7 @@
 
     /// <summary>assigneeLabel(t) in the demo.</summary>
     private string AssigneeLabel(TicketDto t)
-        => t.AssignedAgentId is not null ? Lookup.FindAgent(t.AssignedAgentId)?.Name ?? string.Empty
+        => t.AssignedAgentId is not null ? _agents.FirstOrDefault(a => a.Id == t.AssignedAgentId)?.Name ?? string.Empty
             : t.AssignedTeamId is not null ? Lookup.FindTeam(t.AssignedTeamId)?.Name ?? string.Empty
             : "Unassigned";
 
