@@ -18,7 +18,7 @@ public record HealthStatus(string Status, DateTimeOffset Utc);
 /// AttachmentsController, CannedResponsesController and LookupController for the ground-truth
 /// route strings / request-response shapes this client must stay in sync with.
 /// </summary>
-public class TopSupportApiClient
+public partial class TopSupportApiClient
 {
     private readonly HttpClient _httpClient;
 

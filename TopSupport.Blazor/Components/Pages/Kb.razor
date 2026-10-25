@@ -1,10 +1,101 @@
 @page "/kb"
+@using System.Globalization
+@using TopSupport.Models.Admin
 @inject PageHeadingState Heading
+@inject TopSupportApiClient Api
+@inject NavigationManager Nav
 
+@* Port of PAGES.kb in topsupport-app.js: category list on the left (with "All articles"),
+   the selected category's articles on the right, newest update first. The demo's p.tab is
+   the ?tab= query value here. *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
-    <ComingSoon Title="Knowledge Base" Icon="book" Message="KB categories and article management (see PAGES.kb in the original demo) will be built out in a later pass." />
+    @if (_kb is null)
+    {
+        <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
+    }
+    else
+    {
+        var category = _kb.Categories.FirstOrDefault(c => c.Id == Tab);
+        var cat = category?.Id ?? string.Empty;
+        var articles = _kb.Articles.Where(a => cat == string.Empty || a.CategoryId == cat).OrderByDescending(a => a.UpdatedAt).ToList();
+
+        <div class="side-col" style="grid-template-columns:280px minmax(0,1fr)">
+            <section class="card panel" aria-labelledby="kc-h">
+                <h2 class="panel-title" id="kc-h">Categories</h2>
+                <button type="button" class="list-item @(cat == string.Empty ? "active" : "")" @onclick="@(() => Nav.NavigateTo("/kb"))">
+                    @((MarkupString)IconLibrary.Render("book", 18))<span style="flex:1">All articles</span><span class="tag tag-grey">@_kb.Articles.Count</span>
+                </button>
+                @foreach (var c in _kb.Categories)
+                {
+                    <button type="button" class="list-item @(cat == c.Id ? "active" : "")" @onclick="@(() => Nav.NavigateTo("/kb?tab=" + Uri.EscapeDataString(c.Id)))">
+                        @((MarkupString)IconLibrary.Render("book", 18))
+                        <span style="flex:1;min-width:0"><strong style="font-size:14px">@c.Name</strong><span class="cell-sub">@c.Description</span></span>
+                        <span class="tag tag-grey">@_kb.Articles.Count(a => a.CategoryId == c.Id)</span>
+                    </button>
+                }
+            </section>
+
+            <section class="card" aria-label="Articles">
+                <div class="pad-sm row between">
+                    <h2 class="card-title" style="margin:0">@(category?.Name ?? "All Articles")</h2>
+                    <button type="button" class="btn btn-primary btn-sm" @onclick="@(() => Nav.NavigateTo("/kb/new/edit"))">
+                        @((MarkupString)IconLibrary.Render("plus", 14))New Article
+                    </button>
+                </div>
+                @if (articles.Count > 0)
+                {
+                    <div class="tbl-wrap">
+                        <table class="tbl">
+                            <thead><tr><th><span>Title</span></th><th><span>Category</span></th><th><span>Status</span></th><th><span>Updated</span></th><th><span>Views</span></th></tr></thead>
+                            <tbody>
+                                @foreach (var a in articles)
+                                {
+                                    <tr>
+                                        <td class="subj"><a href="@($"/kb/{Uri.EscapeDataString(a.Id)}/edit")">@a.Title</a></td>
+                                        <td>@a.CategoryName</td>
+                                        <td>
+                                            @if (a.Status == KbArticleStatuses.Published)
+                                            {
+                                                <span class="tag tag-green">Published</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="tag tag-amber">Draft</span>
+                                            }
+                                        </td>
+                                        <td class="nowrap">@FormatDate(a.UpdatedAt)</td>
+                                        <td class="num-tab">@a.Views</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="empty">
+                        <span class="empty-icon">@((MarkupString)IconLibrary.Render("book", 26))</span>
+                        <h3>No articles in this category</h3>
+                        <p>Write the first one.</p>
+                    </div>
+                }
+            </section>
+        </div>
+    }
 </RoleGate>
 
 @code {
+    [SupplyParameterFromQuery] public string? Tab { get; set; }
+
+    private KnowledgeBaseDto? _kb;
+
     protected override void OnInitialized() => Heading.SetHeading("Knowledge Base", "FAQ categories and help articles shown on the help portal.");
+
+    protected override async Task OnInitializedAsync()
+    {
+        _kb = await Api.GetKnowledgeBaseAsync();
+    }
+
+    // The demo's fmtDate(): dd/Mon/yyyy in local time.
+    private static string FormatDate(DateTimeOffset value) => value.ToLocalTime().ToString("dd/MMM/yyyy", CultureInfo.InvariantCulture);
 }

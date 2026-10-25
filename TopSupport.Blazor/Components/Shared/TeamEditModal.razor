@@ -1,0 +1,146 @@
+@* Port of MODALS.teamedit / ACT['team-edit'] / ACT['team-save'] in topsupport-app.js. Team is null
+   to create. The Team Lead options follow the ticked members live, as in the demo. Delete Team is
+   handed back to the page (OnDelete), which runs ACT['team-del']'s ticket check and confirm box.
+   Renders only the inner content -- ModalHost.razor supplies the .modal-back/.modal chrome. *@
+@using TopSupport.Models.Admin
+@using TopSupport.Models.People
+@using TopSupport.Models.Tickets.FieldSchema
+@inject TopSupportApiClient Api
+@inject SessionState Session
+@inject ModalState Modal
+
+<div class="modal-head">
+    <h2>@(Team is null ? "Create team" : "Edit " + Team.Name)</h2>
+    <button type="button" class="icon-btn" aria-label="Close dialog" @onclick="Modal.Close">@((MarkupString)IconLibrary.Render("x", 18))</button>
+</div>
+<div class="modal-body">
+    <div class="field">
+        <label class="field-label" for="f-te-name">Team Name<span class="star" aria-hidden="true"> *</span></label>
+        <input class="input @(NameError is null ? "" : "invalid")" id="f-te-name" type="text" value="@_form.Name"
+               @oninput="@(e => _form.Name = e.Value?.ToString() ?? string.Empty)" aria-required="true"
+               aria-invalid="@(NameError is null ? null : "true")" aria-describedby="@(NameError is null ? null : "f-te-name-e")" />
+        @if (NameError is not null)
+        {
+            <span class="field-err" id="f-te-name-e">@((MarkupString)IconLibrary.Render("alert", 14))@NameError</span>
+        }
+    </div>
+
+    <div class="field">
+        <label class="field-label" for="f-te-dept">Department</label>
+        <select class="input" id="f-te-dept" @bind="_form.Department">
+            @foreach (var dept in TicketTopics.DEPTS)
+            {
+                <option value="@dept">@dept</option>
+            }
+        </select>
+    </div>
+
+    <fieldset class="full">
+        <legend>Members</legend>
+        @if (Agents.Count == 0)
+        {
+            <span class="hint">Nothing to choose from.</span>
+        }
+        else
+        {
+            <div class="chips">
+                @for (var i = 0; i < Agents.Count; i++)
+                {
+                    var agent = Agents[i];
+                    var on = _form.MemberAgentIds.Contains(agent.Id);
+                    <label class="chip @(on ? "on" : "")">
+                        <input type="checkbox" id="f-te-members-@i" value="@agent.Id" checked="@on" @onchange="@(e => ToggleMember(agent.Id, e))" />@agent.Name
+                    </label>
+                }
+            </div>
+        }
+        @if (MembersError is not null)
+        {
+            <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@MembersError</span>
+        }
+    </fieldset>
+
+    <div class="field">
+        <label class="field-label" for="f-te-lead">Team Lead</label>
+        <span class="hint">Choose from the members above.</span>
+        <select class="input" id="f-te-lead" @bind="_form.LeadAgentId">
+            <option value="">No lead</option>
+            @foreach (var id in _form.MemberAgentIds)
+            {
+                <option value="@id">@(Agents.FirstOrDefault(a => a.Id == id)?.Name)</option>
+            }
+        </select>
+    </div>
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Modal.Close">Cancel</button>
+    @if (Team is not null)
+    {
+        <button type="button" class="btn btn-ghost" @onclick="OnDelete">@((MarkupString)IconLibrary.Render("trash", 16))Delete Team</button>
+    }
+    <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_saving">@(Team is null ? "Create Team" : "Save Changes")</button>
+</div>
+
+@code {
+    /// <summary>The team to edit, or null to create one.</summary>
+    [Parameter] public TeamDto? Team { get; set; }
+
+    /// <summary>Every agent (DB.agents order) -- the member options.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<AgentDto> Agents { get; set; } = Array.Empty<AgentDto>();
+
+    /// <summary>Raised after a successful save (the modal has already closed).</summary>
+    [Parameter] public EventCallback<AgentAdminSaveResult> OnSaved { get; set; }
+
+    /// <summary>Delete Team clicked (edit only).</summary>
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private TeamSaveRequest _form = new();
+    private Dictionary<string, string> _errors = new();
+    private bool _saving;
+
+    private string? NameError => _errors.GetValueOrDefault("name");
+    private string? MembersError => _errors.GetValueOrDefault("members");
+
+    protected override void OnInitialized()
+    {
+        _form = Team is null
+            ? new TeamSaveRequest { Department = TicketTopics.DEPTS[0] }
+            : new TeamSaveRequest
+            {
+                Id = Team.Id,
+                Name = Team.Name,
+                Department = Team.Department,
+                LeadAgentId = Team.LeadAgentId,
+                MemberAgentIds = Team.MemberAgentIds.ToList()
+            };
+    }
+
+    private void ToggleMember(string agentId, ChangeEventArgs e)
+    {
+        var isChecked = e.Value is true || (e.Value is string s && bool.TryParse(s, out var b) && b);
+        if (isChecked && !_form.MemberAgentIds.Contains(agentId)) _form.MemberAgentIds.Add(agentId);
+        if (!isChecked) _form.MemberAgentIds.Remove(agentId);
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            _form.ActorId = Session.AccountId;
+            var result = await Api.SaveTeamAsync(_form);
+            if (!result.Succeeded)
+            {
+                _errors = result.Errors;
+                return;
+            }
+
+            Modal.Close();
+            await OnSaved.InvokeAsync(result);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -92,20 +92,9 @@
         {
             var actor = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
 
-            if (_priority != Ticket.Priority.ToString())
-            {
-                await Api.ChangePriorityAsync(TicketId, _priority, actor);
-            }
-
-            if (_topic != Ticket.Topic)
-            {
-                await Api.ChangeTopicAsync(TicketId, _topic, actor);
-            }
-
-            if (_status != Ticket.Status.ToString())
-            {
-                await Api.ChangeStatusAsync(TicketId, _status, actor);
-            }
+            // One call so the Api can write a single "Changed ticket properties" audit entry
+            // (ACT['change-go']); it skips whichever of the three are unchanged.
+            await Api.ChangeTicketPropertiesAsync(TicketId, _status, _priority, _topic, actor);
 
             await OnSaved.InvokeAsync();
             Modal.Close();

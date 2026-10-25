@@ -1,0 +1,33 @@
+@* Port of confirmBox(opts) / MODALS.confirm in topsupport-app.js. Usage:
+       Modal.Show(@<ConfirmModal Title="Delete Team?" Text="..." Label="Delete Team" Danger="true" OnConfirm="DeleteAsync" />);
+   OnConfirm runs after the modal closes. Renders only the inner content -- ModalHost.razor
+   supplies the .modal-back/.modal chrome. *@
+@inject ModalState Modal
+
+<div class="modal-head">
+    <h2>@Title</h2>
+    <button type="button" class="icon-btn" aria-label="Close dialog" @onclick="Modal.Close">@((MarkupString)IconLibrary.Render("x", 18))</button>
+</div>
+<div class="modal-body">
+    <p style="font-size:14px;line-height:1.6;color:var(--ink-2)">@Text</p>
+    @ChildContent
+</div>
+<div class="modal-foot">
+    <button type="button" class="btn btn-secondary" @onclick="Modal.Close">Cancel</button>
+    <button type="button" class="btn @(Danger ? "btn-danger" : "btn-primary")" @onclick="ConfirmAsync">@Label</button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Text { get; set; } = string.Empty;
+    [Parameter] public string Label { get; set; } = "Confirm";
+    [Parameter] public bool Danger { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private async Task ConfirmAsync()
+    {
+        Modal.Close();
+        await OnConfirm.InvokeAsync();
+    }
+}

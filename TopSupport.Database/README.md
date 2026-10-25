@@ -17,6 +17,13 @@ sqlcmd -S . -E -f 65001 -i Scripts/02_Schema_Core.sql
 sqlcmd -S . -E -f 65001 -i Scripts/03_StoredProcedures_Core.sql
 sqlcmd -S . -E -f 65001 -i Scripts/04_Schema_Extensions.sql
 sqlcmd -S . -E -f 65001 -i Scripts/05_StoredProcedures_Extensions.sql
+sqlcmd -S . -E -f 65001 -i Scripts/06_Admin_Audit.sql
+sqlcmd -S . -E -f 65001 -i Scripts/07_Admin_Accounts.sql
+sqlcmd -S . -E -f 65001 -i Scripts/08_Admin_UsersOrgs.sql
+sqlcmd -S . -E -f 65001 -i Scripts/09_Admin_AgentsRoles.sql
+sqlcmd -S . -E -f 65001 -i Scripts/10_Admin_SecuritySiteProfile.sql
+sqlcmd -S . -E -f 65001 -i Scripts/11_Admin_KnowledgeBase.sql
+sqlcmd -S . -E -f 65001 -i Scripts/12_Admin_Dashboard.sql
 sqlcmd -S . -E -f 65001 -i Scripts/99_SeedData.sql
 ```
 
@@ -44,6 +51,13 @@ Every script is written to be safely re-run (`IF OBJECT_ID(...) IS NULL`, `CREAT
 | `03_StoredProcedures_Core.sql` | First representative stored procs (ticket get/insert) proving the ADO.NET repository pattern. |
 | `04_Schema_Extensions.sql` | `TicketAttachments` (VARBINARY(MAX) file storage), `CannedResponses`, and the `TicketNumberSeq` sequence (ticket numbering, replacing the original demo's in-memory counter). |
 | `05_StoredProcedures_Extensions.sql` | The full ticket-lifecycle stored proc set: status/priority/topic/assign updates, timeline/task/attachment/canned-response CRUD, queue search, and User/Agent/Team/Asset lookups. |
+| `06_Admin_Audit.sql` | `AuditEntries` table, insert/read procs and the demo's 16 seed audit entries (audit trail page; every admin change writes here). |
+| `07_Admin_Accounts.sql` | `PasswordHash` columns on `Users`/`Agents` (PBKDF2; NULL = buildSeed() demo password) and the get/set password procs. |
+| `08_Admin_UsersOrgs.sql` | `Users.Deleted` soft-delete flag plus user and organisation admin procs (list, create/edit, lock, delete). |
+| `09_Admin_AgentsRoles.sql` | `RolePermissions` table (seeded from buildSeed()'s `perms`), `Created` ordering columns on `Agents`/`Teams`, and agent/team admin procs. |
+| `10_Admin_SecuritySiteProfile.sql` | `AppSettings` key/value table (security password rules and site page text) plus My Profile procs. |
+| `11_Admin_KnowledgeBase.sql` | `KbCategories`/`KbArticles` tables, KB procs and the demo's 4 categories and 8 articles. |
+| `12_Admin_Dashboard.sql` | Proc that derives each ticket's closed-at time for the dashboard charts. |
 | `99_SeedData.sql` | Full reference data ported from `buildSeed()` in the original `topsupport-app.js` demo: 12 users, 5 agents, 2 teams, 15 assets, 5 canned responses, and all 30 seed tickets with their complete timelines and leaver-checklist tasks. Also realigns `TicketNumberSeq` past the highest seeded ticket number so real ticket creation never collides with seed data. |
 
 ## Why hand-rolled Identity tables, and what's still missing

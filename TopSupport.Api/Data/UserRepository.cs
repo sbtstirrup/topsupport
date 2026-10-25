@@ -61,6 +61,7 @@ public class UserRepository : IUserRepository
         Office = reader["Office"] as string,
         Department = (string)reader["Department"],
         JobTitle = reader["JobTitle"] as string,
-        Locked = (bool)reader["Locked"]
+        Locked = (bool)reader["Locked"],
+        Deleted = (bool)reader["Deleted"]
     };
 }

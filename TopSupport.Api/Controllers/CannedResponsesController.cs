@@ -22,22 +22,24 @@ public class CannedResponsesController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<CannedResponseDto>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _cannedResponses.GetAllAsync(cancellationToken));
 
+    // Mutations take an optional ?actorId= (the signed-in agent) so the audit entry is attributed.
+
     [HttpPost]
-    public async Task<ActionResult<CannedResponseDto>> Create(CannedResponseDto response, CancellationToken cancellationToken)
-        => Ok(await _cannedResponses.CreateAsync(response, cancellationToken));
+    public async Task<ActionResult<CannedResponseDto>> Create(CannedResponseDto response, [FromQuery] string? actorId, CancellationToken cancellationToken)
+        => Ok(await _cannedResponses.CreateAsync(response, actorId, cancellationToken));
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, CannedResponseDto response, CancellationToken cancellationToken)
+    public async Task<IActionResult> Update(string id, CannedResponseDto response, [FromQuery] string? actorId, CancellationToken cancellationToken)
     {
         response.Id = id;
-        await _cannedResponses.UpdateAsync(response, cancellationToken);
+        await _cannedResponses.UpdateAsync(response, actorId, cancellationToken);
         return Ok();
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Delete(string id, [FromQuery] string? actorId, CancellationToken cancellationToken)
     {
-        await _cannedResponses.DeleteAsync(id, cancellationToken);
+        await _cannedResponses.DeleteAsync(id, actorId, cancellationToken);
         return Ok();
     }
 

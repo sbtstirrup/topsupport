@@ -6,8 +6,8 @@
 
 <section class="card hero">
     <div>
-        <h1>Need help with IT?</h1>
-        <p>Raise a ticket and the TopCashback IT team will pick it up. You can follow progress, reply to the team and see every update in one place.</p>
+        <h1><SiteText Field="SiteText.Part.LandingTitle" /></h1>
+        <p><SiteText Field="SiteText.Part.LandingBody" /></p>
         <div class="hero-actions">
             <button type="button" class="btn btn-primary btn-lg" @onclick="@(() => Nav.NavigateTo("/signin"))">
                 @((MarkupString)IconLibrary.Render("plus", 20, 2.5)) Raise a Ticket
@@ -17,3 +17,5 @@
         <p class="login-help">Can't sign in? Email <strong>itsupport@topcashback.example</strong></p>
     </div>
 </section>
+
+<KbPopularArticles />

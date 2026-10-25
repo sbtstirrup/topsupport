@@ -3,6 +3,8 @@
 @inject NavProvider NavProvider
 @inject PageHeadingState Heading
 @inject NavigationManager Nav
+@inject TopSupportApiClient Api
+@using TopSupport.Models.Admin
 
 <a class="skip" href="#main">Skip to content</a>
 <div class="app">
@@ -73,7 +75,16 @@
                 @if (Session.IsSignedIn)
                 {
                     <div class="rel acct-wrap">
-                        <span class="acct"><span class="avatar" aria-hidden="true">@Initials(Session.DisplayName)</span><span class="acct-name">@Session.DisplayName</span></span>
+                        <button type="button" class="acct" aria-haspopup="true" aria-expanded="@_acctMenu" @onclick="() => _acctMenu = !_acctMenu"><span class="avatar" aria-hidden="true">@Initials(Session.DisplayName)</span><span class="acct-name">@Session.DisplayName</span></button>
+                        @if (_acctMenu)
+                        {
+                            @* Account menu from the demo's acct-menu (My profile is the only route to /profile for agents and admins). *@
+                            <div class="menu-pop" role="menu">
+                                <div class="menu-meta"><strong style="color:var(--ink);font-size:14px">@Session.DisplayName</strong><br />@PortalLabel()</div>
+                                <button type="button" role="menuitem" @onclick="GoToProfile">My profile</button>
+                                <button type="button" role="menuitem" @onclick="SignOut">Sign out</button>
+                            </div>
+                        }
                     </div>
                 }
             </div>
@@ -88,6 +99,7 @@
 @if (Session.IsSignedIn)
 {
     <ModalHost />
+    <ToastHost />
 }
 
 <div id="blazor-error-ui" data-nosnippet>
@@ -100,6 +112,13 @@
     private const string BrandIcon = "<svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 20h8M12 16v4\"/><path d=\"m9 10 2 2 4-4\"/></svg>";
 
     private IReadOnlyList<NavRow> _navRows = Array.Empty<NavRow>();
+    private bool _acctMenu;
+
+    private void GoToProfile()
+    {
+        _acctMenu = false;
+        Nav.NavigateTo("/profile");
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -132,26 +151,42 @@
 
     private bool IsActive(string route) => Nav.Uri.EndsWith(route, StringComparison.OrdinalIgnoreCase);
 
-    private void OnRoleChanged(ChangeEventArgs e)
+    private async Task OnRoleChanged(ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
         if (string.IsNullOrEmpty(value))
         {
-            Session.SetRole(null);
-            Nav.NavigateTo("/");
+            await SignOut();
             return;
         }
 
         var role = Enum.Parse<AppRole>(value);
         Session.SetRole(role);
+        // setRole(role) in the demo: audited as the newly selected account.
+        await Api.LogAuditAsync(Session.AccountId, $"Switched role to {RoleLabel(role)} (demo override)", "Role switcher", AuditCategories.SignIn);
         Nav.NavigateTo(Session.HomeRoute());
     }
 
-    private void SignOut()
+    private async Task SignOut()
     {
+        _acctMenu = false;
+        // ACT.signout: audited before the session is cleared, as the account signing out.
+        if (Session.Role is { } role)
+        {
+            await Api.LogAuditAsync(Session.AccountId, "Signed out", role == AppRole.User ? "User portal" : "Agent portal", AuditCategories.SignIn);
+        }
+
         Session.SetRole(null);
         Nav.NavigateTo("/");
     }
+
+    /// <summary>ROLE_LABEL in topsupport-app.js.</summary>
+    private static string RoleLabel(AppRole role) => role switch
+    {
+        AppRole.User => "End user",
+        AppRole.Agent => "Agent",
+        _ => "Admin"
+    };
 
     private static string Initials(string name)
     {

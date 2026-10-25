@@ -1,0 +1,63 @@
+@* The landing page's "Popular Help Articles" section (PAGES.landing in topsupport-app.js):
+   the 3 most-viewed published articles, each opening the MODALS.kbread reader. Landing uses
+   PublicLayout, which has no ModalHost (MainLayout only mounts one while signed in), so this
+   component mounts its own. *@
+@using System.Globalization
+@using TopSupport.Models.Admin
+@inject TopSupportApiClient Api
+@inject ModalState Modal
+
+@if (_articles.Count > 0)
+{
+    <section aria-labelledby="faq-h" class="stack-16" style="margin-top:20px">
+        <h2 id="faq-h" style="font-size:18px">Popular Help Articles</h2>
+        <div class="faq-grid">
+            @foreach (var a in _articles)
+            {
+                <article class="card faq">
+                    <h3>@a.Title</h3>
+                    <p>@Excerpt(a.Body)</p>
+                    <button type="button" class="linkish" style="align-self:flex-start" @onclick="@(() => Read(a))">Read article</button>
+                </article>
+            }
+        </div>
+    </section>
+}
+
+<ModalHost />
+
+@code {
+    private const int ExcerptLength = 110;
+
+    private IReadOnlyList<KbArticleDto> _articles = Array.Empty<KbArticleDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _articles = await Api.GetPopularKbArticlesAsync();
+        }
+        catch (HttpRequestException)
+        {
+            // Public page: if the Api is unreachable, just leave the help articles out.
+        }
+    }
+
+    private static string Excerpt(string body) => body.Length > ExcerptLength ? body[..ExcerptLength] + "…" : body;
+
+    // MODALS.kbread: category tag, article text, "Updated <fmtDate>", default Close footer.
+    private void Read(KbArticleDto a) => Modal.Show(@<text>
+        <div class="modal-head">
+            <h2 id="modal-title">@a.Title</h2>
+            <button type="button" class="icon-btn" aria-label="Close dialog" @onclick="Modal.Close">@((MarkupString)IconLibrary.Render("x", 18))</button>
+        </div>
+        <div class="modal-body">
+            <span class="tag tag-green" style="align-self:flex-start">@a.CategoryName</span>
+            <p style="font-size:15px;line-height:1.65">@a.Body</p>
+            <p class="hint">Updated @a.UpdatedAt.ToLocalTime().ToString("dd/MMM/yyyy", CultureInfo.InvariantCulture)</p>
+        </div>
+        <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @onclick="Modal.Close">Close</button>
+        </div>
+    </text>);
+}

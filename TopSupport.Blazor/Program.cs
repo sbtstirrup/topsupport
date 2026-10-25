@@ -15,6 +15,7 @@ builder.Services.AddScoped<PageHeadingState>();
 builder.Services.AddScoped<NavProvider>();
 builder.Services.AddScoped<LookupDataService>();
 builder.Services.AddScoped<ModalState>();
+builder.Services.AddScoped<ToastState>();
 
 // Typed HttpClient calling TopSupport.Api -- the real HTTP boundary to the middle tier.
 var apiBaseUrl = builder.Configuration["TopSupportApi:BaseUrl"]
