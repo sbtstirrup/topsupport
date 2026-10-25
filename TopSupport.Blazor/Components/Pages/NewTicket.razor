@@ -179,7 +179,7 @@
     private TopSupport.Models.People.UserDto? RequesterUser => Lookup.FindUser(_requesterId);
     private TopSupport.Models.People.UserDto? AffectedUser => Lookup.FindUser(_affectedId);
     private TicketTopic? SelectedTopic => string.IsNullOrEmpty(_topicId) ? null : TicketTopics.Find(_topicId);
-    private bool HasImpactField => _fieldValues.ContainsKey("impact");
+    private bool HasImpactField => _fieldSchema.Any(d => d.Key == "impact");
 
     private TicketPriority PreviewPriority
     {
@@ -328,7 +328,7 @@
                 var isEmpty = v is null || (v is List<string> l && l.Count == 0) || (v is string s && string.IsNullOrWhiteSpace(s));
                 if (isEmpty)
                 {
-                    var label = d.Label.Replace(" (optional)", "");
+                    var label = d.Label.Replace(" (optional)", "", StringComparison.OrdinalIgnoreCase);
                     errors[d.Key] = d.Type is TicketFieldType.Select or TicketFieldType.Radio
                         ? $"Choose an answer for “{label}”."
                         : d.Type == TicketFieldType.Date

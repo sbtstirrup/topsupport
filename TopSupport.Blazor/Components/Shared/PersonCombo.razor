@@ -82,12 +82,18 @@
 
     protected override void OnParametersSet()
     {
-        if (_queryIsUserEdited) return;
         if (_lastSeenValue == Value) return;
 
+        // A new Value from the parent always wins over half-typed text.
         _lastSeenValue = Value;
+        ShowSelectedName();
+    }
+
+    private void ShowSelectedName()
+    {
         var selected = Pool.FirstOrDefault(p => p.Id == Value);
         _query = selected.Id is not null ? selected.Name : string.Empty;
+        _queryIsUserEdited = false;
     }
 
     private List<(string Id, string Name, string Meta)> Matches
@@ -117,6 +123,8 @@
     private void OnFocusOut()
     {
         _isOpen = false;
+        // Left without picking anyone: show the person who is actually selected again.
+        if (_queryIsUserEdited) ShowSelectedName();
     }
 
     private async Task Pick((string Id, string Name, string Meta) person)

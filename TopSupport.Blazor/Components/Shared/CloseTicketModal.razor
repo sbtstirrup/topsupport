@@ -61,18 +61,20 @@
             // (ACT['close-go']), so a failed close can't leave orphaned notes behind.
             var note = _note.Trim();
             await Api.BulkCloseAsync(TicketIds, _status.ToString(), note.Length > 0 ? note : null);
-
-            await OnClosed.InvokeAsync();
-            Modal.Close();
         }
         catch (HttpRequestException ex)
         {
             Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
         }
         finally
         {
             _saving = false;
         }
+
+        // Saved: a failing host reload is not a failed close, so it goes to the error boundary.
+        Modal.Close();
+        await OnClosed.InvokeAsync();
     }
 
     private void Cancel() => Modal.Close();

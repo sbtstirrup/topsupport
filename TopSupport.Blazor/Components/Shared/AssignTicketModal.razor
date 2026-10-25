@@ -16,10 +16,11 @@
         <label class="field-label" for="@_id">Assign to<span class="star" aria-hidden="true"> *</span></label>
         <select class="input @(_error is null ? "" : "invalid")" id="@_id" @bind="_selected">
             <option value="">Choose an agent or team</option>
-            @if (_agents is not null && _agents.Count > 0)
+            @* The Api only accepts active agents. *@
+            @if (_agents is not null && _agents.Any(a => a.Active))
             {
                 <optgroup label="Agents">
-                    @foreach (var a in _agents)
+                    @foreach (var a in _agents.Where(a => a.Active))
                     {
                         <option value="a:@a.Id">@a.Name</option>
                     }
@@ -81,20 +82,22 @@
             var id = _selected[2..];
 
             await Api.BulkAssignAsync(TicketIds, kind, id);
-
-            await OnAssigned.InvokeAsync();
-            Modal.Close();
         }
         catch (HttpRequestException ex)
         {
             // e.g. "Choose an active agent." (400) or a ticket that no longer exists (404): nothing was
             // changed server-side, so keep the modal open with the choice intact.
             Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
         }
         finally
         {
             _saving = false;
         }
+
+        // Saved: a failing host reload is not a failed assignment, so it goes to the error boundary.
+        Modal.Close();
+        await OnAssigned.InvokeAsync();
     }
 
     private void Cancel() => Modal.Close();

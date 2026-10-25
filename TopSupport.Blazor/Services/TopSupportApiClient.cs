@@ -36,7 +36,7 @@ public partial class TopSupportApiClient
 
     public async Task<TicketDto?> GetTicketAsync(string id, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.GetAsync($"api/tickets/{id}", cancellationToken);
+        var response = await _httpClient.GetAsync($"api/tickets/{Uri.EscapeDataString(id)}", cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken);
@@ -44,7 +44,7 @@ public partial class TopSupportApiClient
 
     /// <summary>"My Tickets": every ticket where the acting user is requester or affected.</summary>
     public async Task<IReadOnlyList<TicketDto>> GetMyTicketsAsync(string requesterUserId, CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TicketDto>>($"api/tickets/by-requester/{requesterUserId}", cancellationToken) ?? new();
+        => await _httpClient.GetFromJsonAsync<List<TicketDto>>($"api/tickets/by-requester/{Uri.EscapeDataString(requesterUserId)}", cancellationToken) ?? new();
 
     public async Task<IReadOnlyList<TicketTopic>> GetTopicsAsync(CancellationToken cancellationToken = default)
         => await _httpClient.GetFromJsonAsync<List<TicketTopic>>("api/tickets/topics", cancellationToken) ?? new();
@@ -78,49 +78,49 @@ public partial class TopSupportApiClient
 
     public async Task<TicketDto> AddUserReplyAsync(string ticketId, AddUserReplyRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/tickets/{ticketId}/replies/user", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        var response = await _httpClient.PostAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/replies/user", request, cancellationToken);
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> AddAgentReplyAsync(string ticketId, AddAgentReplyRequest request, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/tickets/{ticketId}/replies/agent", request, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/replies/agent", request, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ChangeStatusAsync(string ticketId, string status, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/status", new { status }, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/status", new { status }, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ChangePriorityAsync(string ticketId, string priority, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/priority", new { priority }, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/priority", new { priority }, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ChangeTopicAsync(string ticketId, string topic, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/topic", new { topic }, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/topic", new { topic }, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> AssignTicketAsync(string ticketId, AssignTicketRequest assignment, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/assign", assignment, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/assign", assignment, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
     public async Task<TicketDto> ClaimTicketAsync(string ticketId, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsync($"api/tickets/{ticketId}/claim", null, cancellationToken);
+        var response = await _httpClient.PostAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/claim", null, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
@@ -160,20 +160,20 @@ public partial class TopSupportApiClient
 
     public async Task<TicketTaskDto> AddTaskAsync(string ticketId, string text, string assigneeAgentId, DateOnly? due, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/tickets/{ticketId}/tasks", new { text, assigneeAgentId, due }, cancellationToken);
+        var response = await _httpClient.PostAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/tasks", new { text, assigneeAgentId, due }, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketTaskDto>(cancellationToken))!;
     }
 
     public async Task<TicketTaskDto> SetTaskDoneAsync(string ticketId, string taskId, bool done, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{ticketId}/tasks/{taskId}/done", new { done }, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/tasks/{Uri.EscapeDataString(taskId)}/done", new { done }, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<TicketTaskDto>(cancellationToken))!;
     }
 
     public async Task<IReadOnlyList<TicketAttachmentDto>> GetAttachmentsAsync(string ticketId, CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<List<TicketAttachmentDto>>($"api/tickets/{ticketId}/attachments", cancellationToken) ?? new();
+        => await _httpClient.GetFromJsonAsync<List<TicketAttachmentDto>>($"api/tickets/{Uri.EscapeDataString(ticketId)}/attachments", cancellationToken) ?? new();
 
     /// <summary>
     /// POST /api/tickets/{id}/attachments (multipart/form-data). 10MB/file cap is enforced
@@ -191,7 +191,7 @@ public partial class TopSupportApiClient
         form.Add(streamContent, "file", fileName);
         if (timelineEntryId is not null) form.Add(new StringContent(timelineEntryId), "timelineEntryId");
 
-        var response = await _httpClient.PostAsync($"api/tickets/{ticketId}/attachments", form, cancellationToken);
+        var response = await _httpClient.PostAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/attachments", form, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             // A rejected file is a 400 with { message } (or ProblemDetails' detail): surface that text.
@@ -280,7 +280,7 @@ public partial class TopSupportApiClient
     /// <summary>GET /api/attachments/{id}/content -- raw file bytes. Returns null on 404.</summary>
     public async Task<(byte[] Content, string ContentType, string FileName)?> DownloadAttachmentAsync(string attachmentId, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.GetAsync($"api/attachments/{attachmentId}/content", cancellationToken);
+        var response = await _httpClient.GetAsync($"api/attachments/{Uri.EscapeDataString(attachmentId)}/content", cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
 

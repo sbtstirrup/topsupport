@@ -93,18 +93,20 @@
             // One call so the Api can write a single "Changed ticket properties" audit entry
             // (ACT['change-go']); it skips whichever of the three are unchanged.
             await Api.ChangeTicketPropertiesAsync(TicketId, _status, _priority, _topic);
-
-            await OnSaved.InvokeAsync();
-            Modal.Close();
         }
         catch (HttpRequestException ex)
         {
             Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
         }
         finally
         {
             _saving = false;
         }
+
+        // Saved: a failing host reload is not a failed change, so it goes to the error boundary.
+        Modal.Close();
+        await OnSaved.InvokeAsync();
     }
 
     private void Cancel() => Modal.Close();

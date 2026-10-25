@@ -50,6 +50,8 @@
         .Where(t => t.Id != ExcludeTicketId && TicketMentionsTag(t))
         .ToList();
 
+    // Blank answers never match, so an empty tag can't pull in every ticket with an unanswered field.
     private bool TicketMentionsTag(TicketDto t) =>
-        t.Fields.Values.Any(v => string.Equals(v?.ToString(), AssetTag, StringComparison.OrdinalIgnoreCase));
+        !string.IsNullOrWhiteSpace(AssetTag)
+        && t.Fields.Values.Any(v => string.Equals(v?.ToString(), AssetTag, StringComparison.OrdinalIgnoreCase));
 }

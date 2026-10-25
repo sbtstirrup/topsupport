@@ -104,9 +104,13 @@
                     var uploaded = await OnUploadFile(file);
                     Attachments.Add(uploaded);
                 }
-                catch (Exception ex)
+                catch (HttpRequestException ex)
                 {
-                    errors.Add($"\"{file.Name}\" could not be added: {ex.Message}");
+                    errors.Add($"\"{file.Name}\" could not be added: {ApiProblemException.UserMessage(ex)}");
+                }
+                catch (IOException)
+                {
+                    errors.Add($"\"{file.Name}\" could not be read. Try choosing it again.");
                 }
             }
 
