@@ -20,4 +20,8 @@
     <ProjectReference Include="..\TopSupport.Services\TopSupport.Services.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="TopSupport.Api.Tests" />
+  </ItemGroup>
+
 </Project>

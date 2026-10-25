@@ -23,6 +23,7 @@
     <File Path="TopSupport.Database/Scripts/17_Admin_WorkerMonitor.sql" />
     <File Path="TopSupport.Database/Scripts/99_SeedData.sql" />
   </Folder>
+  <Project Path="TopSupport.Api.Tests/TopSupport.Api.Tests.csproj" />
   <Project Path="TopSupport.Api/TopSupport.Api.csproj" />
   <Project Path="TopSupport.Blazor/TopSupport.Blazor.csproj" />
   <Project Path="TopSupport.Models/TopSupport.Models.csproj" />
