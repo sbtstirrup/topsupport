@@ -13,3 +13,11 @@ public class TicketActorRef
     /// <summary>Null when Type is "system".</summary>
     public string? Id { get; set; }
 }
+
+/// <summary>The values of <see cref="TicketActorRef.Type"/> (and of the timeline's ByType column).</summary>
+public static class TicketActorTypes
+{
+    public const string User = "user";
+    public const string Agent = "agent";
+    public const string System = "system";
+}

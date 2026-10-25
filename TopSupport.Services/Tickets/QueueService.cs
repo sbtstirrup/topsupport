@@ -6,12 +6,12 @@ using TopSupport.Services.Abstractions;
 namespace TopSupport.Services.Tickets;
 
 /// <summary>
-/// Default IQueueService. Given PoC-scale data, loads the active/filtered set from
+/// The agent queues. Given PoC-scale data, loads the active/filtered set from
 /// ITicketRepository then applies queue membership (QUEUES), free-text/status/priority/
 /// topic/department/assignee filters (applyFilters), sorting (thSort keys) and paging (pager)
 /// entirely in C#, matching the demo's client-side logic rather than duplicating it in T-SQL.
 /// </summary>
-public class QueueService : IQueueService
+public class QueueService
 {
     /// <summary>Largest page the queue serves (the agent UI asks for 15; DevicePanel's lookup for up to 200 gets 100).</summary>
     public const int MaxPageSize = 100;
@@ -32,7 +32,7 @@ public class QueueService : IQueueService
         // Free text is capped at FieldLimits.SearchText (the search box's maxlength) -- longer input is truncated.
         var searchText = request.SearchText?.Trim();
         if (searchText?.Length > FieldLimits.SearchText) searchText = searchText[..FieldLimits.SearchText].TrimEnd();
-        request.SearchText = string.IsNullOrEmpty(searchText) ? null : searchText;
+        if (string.IsNullOrEmpty(searchText)) searchText = null;
 
         var now = _time.GetUtcNow();
         IReadOnlyList<TicketDto> source;
@@ -54,7 +54,7 @@ public class QueueService : IQueueService
                 request.Department,
                 AssignedAgentIdFilter(request.Assignee),
                 AssignedTeamIdFilter(request.Assignee),
-                request.SearchText,
+                searchText,
                 cancellationToken);
         }
 
@@ -69,11 +69,11 @@ public class QueueService : IQueueService
         };
 
         // Requester/affected names for the free-text match (applyFilters searches r.name/a.name too).
-        var userNames = request.SearchText is null
+        var userNames = searchText is null
             ? new Dictionary<string, string>()
             : (await _users.GetAllActiveAsync(cancellationToken)).ToDictionary(u => u.Id, u => u.Name);
 
-        filtered = ApplyFilters(filtered, request, userNames);
+        filtered = ApplyFilters(filtered, request, searchText, userNames);
 
         var sorted = ApplySort(filtered, request.SortKey, request.SortDescending).ToList();
 
@@ -92,6 +92,7 @@ public class QueueService : IQueueService
         };
     }
 
+    /// <summary>Backs GET /api/tickets/nav-counts.</summary>
     public async Task<TicketNavCountsDto> GetNavCountsAsync(string? userId, string? agentId, CancellationToken cancellationToken = default)
     {
         var result = new TicketNavCountsDto();
@@ -124,9 +125,9 @@ public class QueueService : IQueueService
     private static string? AssignedTeamIdFilter(string? assignee) =>
         assignee != null && assignee.StartsWith("t:", StringComparison.Ordinal) ? assignee[2..] : null;
 
-    private static IEnumerable<TicketDto> ApplyFilters(IEnumerable<TicketDto> list, TicketQueueRequest request, IReadOnlyDictionary<string, string> userNames)
+    private static IEnumerable<TicketDto> ApplyFilters(IEnumerable<TicketDto> list, TicketQueueRequest request, string? searchText, IReadOnlyDictionary<string, string> userNames)
     {
-        var q = (request.SearchText ?? string.Empty).Trim().ToLowerInvariant();
+        var q = (searchText ?? string.Empty).ToLowerInvariant();
 
         return list.Where(t =>
         {

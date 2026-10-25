@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using TopSupport.Models.Admin;
 using TopSupport.Models.People;
 using TopSupport.Models.Tickets.FieldSchema;
@@ -11,38 +10,13 @@ namespace TopSupport.Services.Admin;
 /// validateUser(F, true)), ACT['team-save'], ACT['team-del'] and ACT['user-reset'] for agents.
 /// Validation messages and audit wording match the demo exactly.
 /// </summary>
-public interface IAgentAdminService
-{
-    Task<IReadOnlyList<AgentDto>> GetAgentsAsync(CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<TeamDto>> GetTeamsAsync(CancellationToken cancellationToken = default);
-
-    Task<ActiveTicketCountsDto> GetActiveTicketCountsAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Creates (empty Id) or edits an agent. A new agent gets a temporary password, returned once.</summary>
-    Task<AgentAdminSaveResult> SaveAgentAsync(AgentSaveRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>Null if the agent doesn't exist.</summary>
-    Task<AgentPasswordResetResult?> ResetPasswordAsync(string actorId, string agentId, CancellationToken cancellationToken = default);
-
-    /// <summary>Creates (empty Id) or edits a team.</summary>
-    Task<AgentAdminSaveResult> SaveTeamAsync(TeamSaveRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>The check ACT['team-del'] makes before asking for confirmation: Error is set while
-    /// any ticket (any status) is still assigned to the team.</summary>
-    Task<TeamDeleteResult> CheckTeamDeleteAsync(string teamId, CancellationToken cancellationToken = default);
-
-    /// <summary>Refuses (Error set) while any ticket is still assigned to the team.</summary>
-    Task<TeamDeleteResult> DeleteTeamAsync(string actorId, string teamId, CancellationToken cancellationToken = default);
-}
-
-public partial class AgentAdminService : IAgentAdminService
+public class AgentAdminService
 {
     private readonly IAgentAdminRepository _repository;
-    private readonly IAccountPasswordService _passwords;
-    private readonly IAuditService _audit;
+    private readonly AccountPasswordService _passwords;
+    private readonly AuditService _audit;
 
-    public AgentAdminService(IAgentAdminRepository repository, IAccountPasswordService passwords, IAuditService audit)
+    public AgentAdminService(IAgentAdminRepository repository, AccountPasswordService passwords, AuditService audit)
     {
         _repository = repository;
         _passwords = passwords;
@@ -58,6 +32,7 @@ public partial class AgentAdminService : IAgentAdminService
     public Task<ActiveTicketCountsDto> GetActiveTicketCountsAsync(CancellationToken cancellationToken = default)
         => _repository.GetActiveTicketCountsAsync(cancellationToken);
 
+    /// <summary>Creates (empty Id) or edits an agent. A new agent gets a temporary password, returned once.</summary>
     public async Task<AgentAdminSaveResult> SaveAgentAsync(AgentSaveRequest request, CancellationToken cancellationToken = default)
     {
         var result = new AgentAdminSaveResult();
@@ -84,9 +59,9 @@ public partial class AgentAdminService : IAgentAdminService
 
         // Length first: the column is 256 and the regex shouldn't scan an unbounded string.
         if (FieldLimits.TooLong(email, FieldLimits.Email) is { } emailErr) errors["email"] = emailErr;
-        else if (!EmailPattern().IsMatch(email)) errors["email"] = "Enter a valid email address.";
+        else if (!FieldLimits.IsValidEmail(email)) errors["email"] = "Enter a valid email address.";
         else if (conflicts.EmailTaken) errors["email"] = "Someone already uses this email.";
-        if (!UsernamePattern().IsMatch(username)) errors["username"] = "Use 3 to 20 lower-case letters.";
+        if (!FieldLimits.IsValidUsername(username)) errors["username"] = "Use 3 to 20 lower-case letters.";
         else if (conflicts.UsernameTaken) errors["username"] = "This username is taken.";
 
         if (FieldLimits.TooLong(request.Phone, FieldLimits.Phone) is { } phoneErr) errors["phone"] = phoneErr;
@@ -154,6 +129,7 @@ public partial class AgentAdminService : IAgentAdminService
         return result;
     }
 
+    /// <summary>Null if the agent doesn't exist.</summary>
     public async Task<AgentPasswordResetResult?> ResetPasswordAsync(string actorId, string agentId, CancellationToken cancellationToken = default)
     {
         var agent = (await _repository.GetAllAgentsAsync(cancellationToken)).FirstOrDefault(a => a.Id == agentId);
@@ -168,6 +144,7 @@ public partial class AgentAdminService : IAgentAdminService
         return new AgentPasswordResetResult { Name = agent.Name, Username = agent.Username, TemporaryPassword = password };
     }
 
+    /// <summary>Creates (empty Id) or edits a team.</summary>
     public async Task<AgentAdminSaveResult> SaveTeamAsync(TeamSaveRequest request, CancellationToken cancellationToken = default)
     {
         var result = new AgentAdminSaveResult();
@@ -217,9 +194,12 @@ public partial class AgentAdminService : IAgentAdminService
         return result;
     }
 
+    /// <summary>The check ACT['team-del'] makes before asking for confirmation: Error is set while
+    /// any ticket (any status) is still assigned to the team.</summary>
     public async Task<TeamDeleteResult> CheckTeamDeleteAsync(string teamId, CancellationToken cancellationToken = default)
         => (await CheckTeamDeleteCoreAsync(teamId, cancellationToken)).Result;
 
+    /// <summary>Refuses (Error set) while any ticket is still assigned to the team.</summary>
     public async Task<TeamDeleteResult> DeleteTeamAsync(string actorId, string teamId, CancellationToken cancellationToken = default)
     {
         var (team, check) = await CheckTeamDeleteCoreAsync(teamId, cancellationToken);
@@ -240,10 +220,4 @@ public partial class AgentAdminService : IAgentAdminService
             ? new TeamDeleteResult { Error = $"{team.Name} has {tickets} tickets. Reassign them before deleting the team." }
             : new TeamDeleteResult());
     }
-
-    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
-    private static partial Regex EmailPattern();
-
-    [GeneratedRegex(@"^[a-z]{3,20}$")]
-    private static partial Regex UsernamePattern();
 }

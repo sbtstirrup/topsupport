@@ -12,10 +12,10 @@ namespace TopSupport.Api.Controllers;
 [Authorize(Policy = Policies.Agent)]
 public class CannedResponsesController : ControllerBase
 {
-    private readonly ICannedResponseService _cannedResponses;
-    private readonly ITicketService _ticketService;
+    private readonly CannedResponseService _cannedResponses;
+    private readonly TicketService _ticketService;
 
-    public CannedResponsesController(ICannedResponseService cannedResponses, ITicketService ticketService)
+    public CannedResponsesController(CannedResponseService cannedResponses, TicketService ticketService)
     {
         _cannedResponses = cannedResponses;
         _ticketService = ticketService;

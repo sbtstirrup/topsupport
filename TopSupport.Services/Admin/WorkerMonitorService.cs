@@ -7,14 +7,7 @@ namespace TopSupport.Services.Admin;
 /// The admin Background Jobs page: TopSupport.Worker's recurring jobs and the emails it has sent.
 /// Read-only; the worker itself is managed from its Hangfire dashboard on the worker's host.
 /// </summary>
-public interface IWorkerMonitorService
-{
-    Task<WorkerJobsDto> GetJobsAsync(CancellationToken cancellationToken = default);
-
-    Task<WorkerNotificationsDto> GetNotificationsAsync(string? eventType, string? search, int page, int pageSize, CancellationToken cancellationToken = default);
-}
-
-public class WorkerMonitorService : IWorkerMonitorService
+public class WorkerMonitorService
 {
     public const int RecentRunCount = 50;
     public const int MaxPageSize = 100;

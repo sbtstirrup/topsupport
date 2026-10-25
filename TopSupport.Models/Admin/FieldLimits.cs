@@ -43,6 +43,18 @@ public static partial class FieldLimits
     public static bool IsValidPhone(string? phone)
         => string.IsNullOrWhiteSpace(phone) || PhonePattern().IsMatch(phone.Trim());
 
+    /// <summary>The demo's email check (/^[^@\s]+@[^@\s]+\.[^@\s]+$/). Check the length against <see cref="Email"/> first.</summary>
+    public static bool IsValidEmail(string? email) => email is not null && EmailPattern().IsMatch(email.Trim());
+
+    /// <summary>The demo's username check: 3 to 20 lower-case letters.</summary>
+    public static bool IsValidUsername(string? username) => username is not null && UsernamePattern().IsMatch(username);
+
     [GeneratedRegex(@"^[0-9+()\s.ext—-]{1,50}$", RegexOptions.IgnoreCase)]
     private static partial Regex PhonePattern();
+
+    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+    private static partial Regex EmailPattern();
+
+    [GeneratedRegex("^[a-z]{3,20}$")]
+    private static partial Regex UsernamePattern();
 }

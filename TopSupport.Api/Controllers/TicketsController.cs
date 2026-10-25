@@ -25,13 +25,15 @@ namespace TopSupport.Api.Controllers;
 [Route("api/[controller]")]
 public class TicketsController : ControllerBase
 {
-    private readonly ITicketService _ticketService;
-    private readonly ITicketFieldOptionsResolver _optionsResolver;
-    private readonly IQueueService _queueService;
+    private readonly TicketService _ticketService;
+    private readonly TicketFieldOptionsResolver _optionsResolver;
+    private readonly QueueService _queueService;
+    private readonly TicketAttachmentService _attachments;
 
-    public TicketsController(ITicketService ticketService, ITicketFieldOptionsResolver optionsResolver, IQueueService queueService)
+    public TicketsController(TicketService ticketService, TicketFieldOptionsResolver optionsResolver, QueueService queueService, TicketAttachmentService attachments)
     {
         _ticketService = ticketService;
+        _attachments = attachments;
         _optionsResolver = optionsResolver;
         _queueService = queueService;
     }
@@ -288,23 +290,22 @@ public class TicketsController : ControllerBase
     [HttpGet("{id}/attachments")]
     public async Task<ActionResult<IReadOnlyList<TicketAttachmentDto>>> GetAttachments(string id, CancellationToken cancellationToken)
     {
-        if (!User.IsEndUser()) return Ok(await _ticketService.GetAttachmentsAsync(id, cancellationToken));
+        if (!User.IsEndUser()) return Ok(await _attachments.GetForTicketAsync(id, cancellationToken));
 
         var ticket = await _ticketService.GetTicketAsync(id, cancellationToken);
         if (ticket is null || !User.IsOwnTicket(ticket)) return NotFound();
-        return Ok(EndUserTicketAccess.VisibleAttachments(ticket, await _ticketService.GetAttachmentsAsync(id, cancellationToken)));
+        return Ok(EndUserTicketAccess.VisibleAttachments(ticket, await _attachments.GetForTicketAsync(id, cancellationToken)));
     }
 
     /// <summary>
-    /// uploadedByType/uploadedById are ignored: the uploader is the signed-in account. End users
-    /// only on their own tickets (404 otherwise). The rules (ticket open, allow-listed type, size
-    /// and per-ticket caps, anchor entry) live in TicketService.AddAttachmentAsync; a rejected file
-    /// is a 400 with { message }. The client's content type is ignored.
+    /// The uploader is the signed-in account. End users only on their own tickets (404 otherwise).
+    /// The rules (ticket open, allow-listed type, size and per-ticket caps, anchor entry) live in
+    /// TicketAttachmentService.AddAsync; a rejected file is a 400. The client's content type is ignored.
     /// </summary>
     [HttpPost("{id}/attachments")]
     [RequestSizeLimit(11 * 1024 * 1024)]
     public async Task<ActionResult<TicketAttachmentDto>> UploadAttachment(
-        string id, IFormFile? file, [FromForm] string? timelineEntryId, [FromForm] string? uploadedByType, [FromForm] string? uploadedById,
+        string id, IFormFile? file, [FromForm] string? timelineEntryId,
         CancellationToken cancellationToken)
     {
         if (User.IsEndUser() && (await _ticketService.GetTicketAsync(id, cancellationToken) is not { } ticket || !User.IsOwnTicket(ticket)))
@@ -318,17 +319,7 @@ public class TicketsController : ControllerBase
         await using var stream = new MemoryStream();
         await file.CopyToAsync(stream, cancellationToken);
 
-        try
-        {
-            var attachment = await _ticketService.AddAttachmentAsync(
-                id, timelineEntryId, file.FileName, file.ContentType, stream.ToArray(),
-                User.Actor(), cancellationToken);
-            return Ok(attachment);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        return Ok(await _attachments.AddAsync(id, timelineEntryId, file.FileName, stream.ToArray(), User.Actor(), cancellationToken));
     }
 
     /// <summary>ActingAgentId ("mine" queue / "assigned to me" filter) is always the signed-in agent.</summary>

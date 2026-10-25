@@ -9,20 +9,12 @@ namespace TopSupport.Services.Admin;
 /// renders the grid read-only but its audit seed records changes as 'Changed permission "Delete"
 /// for Agent role' against the department, so SetAsync audits with that wording.
 /// </summary>
-public interface IRolePermissionService
-{
-    Task<IReadOnlyList<RolePermissionDto>> GetAllAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Throws ValidationException for an unknown department, role or permission.</summary>
-    Task SetAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default);
-}
-
-public class RolePermissionService : IRolePermissionService
+public class RolePermissionService
 {
     private readonly IRolePermissionRepository _repository;
-    private readonly IAuditService _audit;
+    private readonly AuditService _audit;
 
-    public RolePermissionService(IRolePermissionRepository repository, IAuditService audit)
+    public RolePermissionService(IRolePermissionRepository repository, AuditService audit)
     {
         _repository = repository;
         _audit = audit;
@@ -31,6 +23,7 @@ public class RolePermissionService : IRolePermissionService
     public Task<IReadOnlyList<RolePermissionDto>> GetAllAsync(CancellationToken cancellationToken = default)
         => _repository.GetAllAsync(cancellationToken);
 
+    /// <summary>Throws ValidationException for an unknown department, role or permission.</summary>
     public async Task SetAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default)
     {
         if (!TicketTopics.DEPTS.Contains(request.Department)) throw new ValidationException("department", $"Unknown department \"{request.Department}\".");

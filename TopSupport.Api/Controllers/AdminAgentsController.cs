@@ -17,9 +17,9 @@ namespace TopSupport.Api.Controllers;
 [Authorize(Policy = Policies.Admin)]
 public class AdminAgentsController : ControllerBase
 {
-    private readonly IAgentAdminService _service;
+    private readonly AgentAdminService _service;
 
-    public AdminAgentsController(IAgentAdminService service)
+    public AdminAgentsController(AgentAdminService service)
     {
         _service = service;
     }

@@ -10,17 +10,17 @@ namespace TopSupport.Services.Auth;
 /// as a setting: each wrong password counts against the account, and it locks at the security
 /// setting "lockoutAttempts" (0 turns lockout off). An admin unlock or password reset clears it.
 /// </summary>
-public class AuthService : IAuthService
+public class AuthService
 {
     private const string WrongCredentials = "The username or password is not right. Check them and try again.";
     private const string LockedMessage = "This account is locked. Email itsupport@topcashback.example to unlock it.";
 
     private readonly IAccountCredentialRepository _credentials;
-    private readonly IAccountPasswordService _passwords;
-    private readonly ISettingsService _settings;
-    private readonly IAuditService _audit;
+    private readonly AccountPasswordService _passwords;
+    private readonly SettingsService _settings;
+    private readonly AuditService _audit;
 
-    public AuthService(IAccountCredentialRepository credentials, IAccountPasswordService passwords, ISettingsService settings, IAuditService audit)
+    public AuthService(IAccountCredentialRepository credentials, AccountPasswordService passwords, SettingsService settings, AuditService audit)
     {
         _credentials = credentials;
         _passwords = passwords;
@@ -71,9 +71,15 @@ public class AuthService : IAuthService
         return new SignInOutcome(new SignInResult(account.Id, role, account.Name), null);
     }
 
+    /// <summary>Audits the sign-out; the token itself simply expires (the Blazor app drops its cookie).</summary>
     public Task SignOutAsync(string accountId, AppRole role, CancellationToken cancellationToken = default)
         => _audit.LogAsync(accountId, "Signed out", PortalOf(role), AuditCategories.SignIn, cancellationToken);
 
+    /// <summary>
+    /// Development-only test switcher: signs in as any account without its password. Locked and
+    /// inactive accounts still can't sign in, so the switcher shows real behaviour. The Api only
+    /// calls this when the switcher is enabled (Development + Auth:TestAccountSwitcher:Enabled).
+    /// </summary>
     public async Task<SignInOutcome> TestSignInAsync(string accountId, CancellationToken cancellationToken = default)
     {
         var account = (await _credentials.ListForTestingAsync(cancellationToken)).FirstOrDefault(a => a.Id == accountId);
@@ -86,6 +92,7 @@ public class AuthService : IAuthService
         return new SignInOutcome(new SignInResult(account.Id, role, account.Name), null);
     }
 
+    /// <summary>The accounts the test switcher lists, with the role each signs in as.</summary>
     public async Task<IReadOnlyList<TestAccountItem>> ListTestAccountsAsync(CancellationToken cancellationToken = default)
         => (await _credentials.ListForTestingAsync(cancellationToken))
             .Select(a => new TestAccountItem(

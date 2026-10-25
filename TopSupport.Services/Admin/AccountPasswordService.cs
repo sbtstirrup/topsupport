@@ -9,28 +9,7 @@ namespace TopSupport.Services.Admin;
 /// demo's guessable genPassword() word pattern. Policy checks (length, character classes, history)
 /// belong to the security-settings feature, not here.
 /// </summary>
-public interface IAccountPasswordService
-{
-    /// <summary>A random 16-character temporary password with an upper, lower, digit and symbol.</summary>
-    string GenerateTemporary();
-
-    /// <summary>False if the account doesn't exist or the password is wrong.</summary>
-    Task<bool> VerifyAsync(string accountId, string password, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Does the same PBKDF2 work as a real check and returns false, so a sign-in for an unknown
-    /// username takes as long as one for a real account (no username enumeration by timing).
-    /// </summary>
-    bool VerifyUnknownAccount(string password);
-
-    /// <summary>Admin reset: hashes and stores the password, and unlocks the account (ACT['user-reset']).</summary>
-    Task SetAsync(string accountId, string password, CancellationToken cancellationToken = default);
-
-    /// <summary>The account holder's own change: hashes and stores the password, leaving a lock in place.</summary>
-    Task ChangeOwnAsync(string accountId, string password, CancellationToken cancellationToken = default);
-}
-
-public class AccountPasswordService : IAccountPasswordService
+public class AccountPasswordService
 {
     // No look-alike characters (0/O, 1/l/I), since the admin reads the password out to the user.
     private const string Upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -53,6 +32,7 @@ public class AccountPasswordService : IAccountPasswordService
         _repository = repository;
     }
 
+    /// <summary>A random 16-character temporary password with an upper, lower, digit and symbol.</summary>
     public string GenerateTemporary()
     {
         // One of each class (so the password policy's character rules pass), the rest from all
@@ -68,24 +48,29 @@ public class AccountPasswordService : IAccountPasswordService
         return new string(chars);
     }
 
+    /// <summary>False if the account doesn't exist or the password is wrong.</summary>
     public async Task<bool> VerifyAsync(string accountId, string password, CancellationToken cancellationToken = default)
     {
-        var credential = await _repository.GetAsync(accountId, cancellationToken);
-        if (credential is null) return false;
-
-        // No hash means no password has been set, so nothing can match (never a default password).
-        return credential.PasswordHash is not null && VerifyHash(password, credential.PasswordHash);
+        // No hash (no account, or no password set) means nothing can match -- never a default password.
+        var hash = await _repository.GetPasswordHashAsync(accountId, cancellationToken);
+        return hash is not null && VerifyHash(password, hash);
     }
 
+    /// <summary>
+    /// Does the same PBKDF2 work as a real check and returns false, so a sign-in for an unknown
+    /// username takes as long as one for a real account (no username enumeration by timing).
+    /// </summary>
     public bool VerifyUnknownAccount(string password)
     {
         VerifyHash(password, UnknownAccountHash);
         return false;
     }
 
+    /// <summary>Admin reset: hashes and stores the password, and unlocks the account (ACT['user-reset']).</summary>
     public Task SetAsync(string accountId, string password, CancellationToken cancellationToken = default)
         => _repository.SetPasswordHashAsync(accountId, Hash(password), unlock: true, cancellationToken);
 
+    /// <summary>The account holder's own change: hashes and stores the password, leaving a lock in place.</summary>
     public Task ChangeOwnAsync(string accountId, string password, CancellationToken cancellationToken = default)
         => _repository.SetPasswordHashAsync(accountId, Hash(password), unlock: false, cancellationToken);
 

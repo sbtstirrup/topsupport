@@ -70,10 +70,10 @@ public static partial class EmailTemplates
                     .Append(Td($"<a href=\"{Enc(link)}\" style=\"color:#1b8463\">#{Enc(t.Number)}</a>"))
                     .Append(Td(Enc(t.Subject) + (isOverdue ? " <strong style=\"color:#b42318\">Overdue</strong>" : "")))
                     .Append(Td(Enc(t.Priority.ToString())))
-                    .Append(Td(Enc(FormatStatus(t.Status))))
+                    .Append(Td(Enc(TicketStatusText.Label(t.Status))))
                     .Append(Td(Enc(t.AgentName ?? team.TeamName)))
                     .Append("</tr>");
-                text.AppendLine($"#{t.Number}  {t.Subject}  ({t.Priority}, {FormatStatus(t.Status)}){(isOverdue ? "  OVERDUE" : "")}  {link}");
+                text.AppendLine($"#{t.Number}  {t.Subject}  ({t.Priority}, {TicketStatusText.Label(t.Status)}){(isOverdue ? "  OVERDUE" : "")}  {link}");
             }
 
             html.Append("</table>");
@@ -83,14 +83,6 @@ public static partial class EmailTemplates
         return Build(team.LeadEmail, $"{team.TeamName} daily digest for {date:ddd d MMM}: {tickets.Count} open, {overdue} overdue",
             $"Hi {FirstName(team.LeadName)},", new[] { intro }, null, null, null, html.ToString(), text.ToString());
     }
-
-    /// <summary>The demo's STATUSES wording ("In Progress", not "InProgress").</summary>
-    public static string FormatStatus(TicketStatus status) => status switch
-    {
-        TicketStatus.InProgress => "In Progress",
-        TicketStatus.AwaitingUser => "Awaiting User",
-        _ => status.ToString()
-    };
 
     private static EmailMessage Build(
         string to, string subject, string greeting, IEnumerable<string> paragraphs,

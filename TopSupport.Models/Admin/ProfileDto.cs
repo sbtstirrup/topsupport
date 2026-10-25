@@ -61,7 +61,7 @@ public static partial class ProfileRules
 
         // Length first, so an over-long address isn't run through the regex at all.
         if (FieldLimits.TooLong(email, FieldLimits.Email) is { } emailTooLong) e["email"] = emailTooLong;
-        else if (!EmailPattern().IsMatch((email ?? string.Empty).Trim())) e["email"] = "Enter an email address like name@topcashback.example.";
+        else if (!FieldLimits.IsValidEmail(email)) e["email"] = "Enter an email address like name@topcashback.example.";
 
         if (FieldLimits.TooLong(phone, FieldLimits.Phone) is { } phoneTooLong) e["phone"] = phoneTooLong;
         else if (!string.IsNullOrEmpty(phone) && !PhonePattern().IsMatch(phone)) e["phone"] = "Use digits, spaces and + only.";
@@ -88,9 +88,6 @@ public static partial class ProfileRules
             ("Both new passwords match", pw.Length > 0 && pw == cf)
         };
     }
-
-    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
-    private static partial Regex EmailPattern();
 
     [GeneratedRegex(@"^[0-9+()\s.ext-]{5,}$", RegexOptions.IgnoreCase)]
     private static partial Regex PhonePattern();

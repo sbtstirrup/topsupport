@@ -19,7 +19,7 @@ namespace TopSupport.Services.Tickets;
 /// yyyy-MM-dd dates in 2000-2100; text answers are length-capped and must be JSON strings; and
 /// the serialized answers are capped at FieldLimits.TopicFieldsJson.
 /// </summary>
-public class TicketFormValidator : ITicketFormValidator
+public class TicketFormValidator
 {
     private static readonly DateOnly MinDate = new(2000, 1, 1);
     private static readonly DateOnly MaxDate = new(2100, 12, 31);
@@ -29,9 +29,9 @@ public class TicketFormValidator : ITicketFormValidator
     private static readonly JsonSerializerOptions MeasureJson = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     private readonly IUserRepository _users;
-    private readonly ITicketFieldOptionsResolver _optionsResolver;
+    private readonly TicketFieldOptionsResolver _optionsResolver;
 
-    public TicketFormValidator(IUserRepository users, ITicketFieldOptionsResolver optionsResolver)
+    public TicketFormValidator(IUserRepository users, TicketFieldOptionsResolver optionsResolver)
     {
         _users = users;
         _optionsResolver = optionsResolver;

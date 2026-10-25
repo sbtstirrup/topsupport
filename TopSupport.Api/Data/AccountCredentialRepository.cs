@@ -12,9 +12,9 @@ public class AccountCredentialRepository : IAccountCredentialRepository
         _db = db;
     }
 
-    public async Task<AccountCredential?> GetAsync(string accountId, CancellationToken cancellationToken = default)
+    public async Task<string?> GetPasswordHashAsync(string accountId, CancellationToken cancellationToken = default)
     {
-        AccountCredential? credential = null;
+        string? hash = null;
 
         await _db.ExecuteReaderAsync(
             "dbo.usp_Account_GetPasswordHash",
@@ -23,14 +23,11 @@ public class AccountCredentialRepository : IAccountCredentialRepository
             {
                 if (await reader.ReadAsync(ct))
                 {
-                    credential = new AccountCredential(
-                        (string)reader["AccountType"],
-                        reader["PasswordHash"] as string,
-                        reader["AgentRole"] as string);
+                    hash = reader["PasswordHash"] as string;
                 }
             });
 
-        return credential;
+        return hash;
     }
 
     public Task SetPasswordHashAsync(string accountId, string passwordHash, bool unlock, CancellationToken cancellationToken = default)

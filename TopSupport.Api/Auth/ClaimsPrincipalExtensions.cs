@@ -23,5 +23,5 @@ public static class ClaimsPrincipalExtensions
 
     /// <summary>The ticket timeline/audit actor for the signed-in account ("user" or "agent").</summary>
     public static TicketActorRef Actor(this ClaimsPrincipal user)
-        => new() { Type = user.IsEndUser() ? "user" : "agent", Id = user.AccountId() };
+        => new() { Type = user.IsEndUser() ? TicketActorTypes.User : TicketActorTypes.Agent, Id = user.AccountId() };
 }

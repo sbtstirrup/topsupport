@@ -8,23 +8,14 @@ namespace TopSupport.Services.Admin;
 /// details (ACT['pf-save']) and changing their own password (ACT['pf-pw']) against the live
 /// security settings.
 /// </summary>
-public interface IProfileService
-{
-    Task<ProfileDto?> GetAsync(string accountId, CancellationToken cancellationToken = default);
-
-    Task UpdateDetailsAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default);
-
-    Task ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default);
-}
-
-public class ProfileService : IProfileService
+public class ProfileService
 {
     private readonly IProfileRepository _repository;
-    private readonly IAccountPasswordService _passwords;
-    private readonly ISettingsService _settings;
-    private readonly IAuditService _audit;
+    private readonly AccountPasswordService _passwords;
+    private readonly SettingsService _settings;
+    private readonly AuditService _audit;
 
-    public ProfileService(IProfileRepository repository, IAccountPasswordService passwords, ISettingsService settings, IAuditService audit)
+    public ProfileService(IProfileRepository repository, AccountPasswordService passwords, SettingsService settings, AuditService audit)
     {
         _repository = repository;
         _passwords = passwords;

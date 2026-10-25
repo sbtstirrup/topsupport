@@ -1,7 +1,7 @@
 namespace TopSupport.Models.Tickets;
 
 /// <summary>
-/// The attachment rules shared by the Api (enforced in TicketService.AddAttachmentAsync) and the
+/// The attachment rules shared by the Api (enforced in TicketAttachmentService.AddAsync) and the
 /// Blazor dropzone (the same checks and messages up front, for UX only -- the server is the
 /// authority). The content type stored and served for a file is always derived from its
 /// allow-listed extension, never taken from the client.
@@ -56,4 +56,58 @@ public static class TicketAttachmentRules
         => ContentTypes.TryGetValue(Path.GetExtension(fileName ?? string.Empty), out var contentType) ? contentType : null;
 
     public static bool IsAllowed(string? fileName) => ContentTypeFor(fileName) is not null;
+
+    /// <summary>
+    /// The stored file name: no path, no control or Unicode format characters (bidi overrides such
+    /// as U+202E, U+2066-U+2069, U+200E/U+200F, zero-width joiners), no characters that are invalid in
+    /// a file name, whitespace collapsed to single spaces, and at most 200 characters with the
+    /// extension kept. A name that is empty once cleaned becomes "file" + its extension.
+    /// </summary>
+    public static string SanitizeFileName(string? fileName)
+    {
+        var name = Path.GetFileName((fileName ?? string.Empty).Replace('\\', '/'));
+
+        var cleaned = new System.Text.StringBuilder(name.Length);
+        var pendingSpace = false;
+        foreach (var c in name)
+        {
+            var category = char.GetUnicodeCategory(c);
+            if (char.IsControl(c) || category == System.Globalization.UnicodeCategory.Format || "\"<>|:*?/".Contains(c)) continue;
+
+            if (char.IsWhiteSpace(c) || category is System.Globalization.UnicodeCategory.SpaceSeparator
+                    or System.Globalization.UnicodeCategory.LineSeparator or System.Globalization.UnicodeCategory.ParagraphSeparator)
+            {
+                pendingSpace = cleaned.Length > 0;
+                continue;
+            }
+
+            if (pendingSpace)
+            {
+                cleaned.Append(' ');
+                pendingSpace = false;
+            }
+
+            cleaned.Append(c);
+        }
+
+        name = cleaned.ToString().Trim();
+        var extension = Path.GetExtension(name);
+        var stem = name[..^extension.Length].TrimEnd(' ', '.');
+
+        var maxStem = MaxFileNameLength - extension.Length;
+        if (maxStem < 1)
+        {
+            // An absurdly long "extension" can't be allow-listed anyway; keep the name bounded.
+            return name[..Math.Min(name.Length, MaxFileNameLength)];
+        }
+
+        if (stem.Length > maxStem)
+        {
+            stem = stem[..maxStem];
+            if (char.IsHighSurrogate(stem[^1])) stem = stem[..^1];
+            stem = stem.TrimEnd(' ', '.');
+        }
+
+        return (stem.Length == 0 ? "file" : stem) + extension;
+    }
 }

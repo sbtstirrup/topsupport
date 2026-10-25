@@ -14,9 +14,9 @@ namespace TopSupport.Api.Controllers;
 [Route("api/kb")]
 public class KnowledgeBaseController : ControllerBase
 {
-    private readonly IKnowledgeBaseService _kb;
+    private readonly KnowledgeBaseService _kb;
 
-    public KnowledgeBaseController(IKnowledgeBaseService kb)
+    public KnowledgeBaseController(KnowledgeBaseService kb)
     {
         _kb = kb;
     }

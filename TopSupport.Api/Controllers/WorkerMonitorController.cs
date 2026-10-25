@@ -12,9 +12,9 @@ namespace TopSupport.Api.Controllers;
 [Authorize(Policy = Policies.Admin)]
 public class WorkerMonitorController : ControllerBase
 {
-    private readonly IWorkerMonitorService _service;
+    private readonly WorkerMonitorService _service;
 
-    public WorkerMonitorController(IWorkerMonitorService service)
+    public WorkerMonitorController(WorkerMonitorService service)
     {
         _service = service;
     }

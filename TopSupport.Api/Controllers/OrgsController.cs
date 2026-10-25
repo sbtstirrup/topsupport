@@ -14,9 +14,9 @@ namespace TopSupport.Api.Controllers;
 [Authorize(Policy = Policies.Admin)]
 public class OrgsController : ControllerBase
 {
-    private readonly IOrgAdminService _orgs;
+    private readonly OrgAdminService _orgs;
 
-    public OrgsController(IOrgAdminService orgs)
+    public OrgsController(OrgAdminService orgs)
     {
         _orgs = orgs;
     }

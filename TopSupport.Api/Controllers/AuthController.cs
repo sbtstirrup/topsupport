@@ -14,11 +14,11 @@ namespace TopSupport.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly IAuthService _authService;
+    private readonly AuthService _authService;
     private readonly JwtTokenService _tokens;
     private readonly bool _testSwitcherEnabled;
 
-    public AuthController(IAuthService authService, JwtTokenService tokens, IOptions<AuthOptions> options, IWebHostEnvironment environment)
+    public AuthController(AuthService authService, JwtTokenService tokens, IOptions<AuthOptions> options, IWebHostEnvironment environment)
     {
         _authService = authService;
         _tokens = tokens;

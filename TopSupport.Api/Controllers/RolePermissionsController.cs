@@ -12,9 +12,9 @@ namespace TopSupport.Api.Controllers;
 [Authorize(Policy = Policies.Admin)]
 public class RolePermissionsController : ControllerBase
 {
-    private readonly IRolePermissionService _service;
+    private readonly RolePermissionService _service;
 
-    public RolePermissionsController(IRolePermissionService service)
+    public RolePermissionsController(RolePermissionService service)
     {
         _service = service;
     }

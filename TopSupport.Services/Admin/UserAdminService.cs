@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using TopSupport.Models.Admin;
 using TopSupport.Models.People;
 using TopSupport.Services.Abstractions;
@@ -11,36 +10,15 @@ namespace TopSupport.Services.Admin;
 /// demo's wording. Throws <see cref="ValidationException"/> for form errors and
 /// <see cref="KeyNotFoundException"/> when the user doesn't exist (or is deleted).
 /// </summary>
-public interface IUserAdminService
-{
-    Task<IReadOnlyList<UserListItemDto>> GetListAsync(CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<UserDto>> GetAllIncludingDeletedAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Creates the user with a generated temporary password, returned once in the result.</summary>
-    Task<SaveUserResult> CreateAsync(SaveUserRequest request, CancellationToken cancellationToken = default);
-
-    Task<SaveUserResult> UpdateAsync(string id, SaveUserRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>Flips Locked and returns the updated user.</summary>
-    Task<UserDto> ToggleLockAsync(string id, string actorId, CancellationToken cancellationToken = default);
-
-    /// <summary>Sets (and unlocks with) a new temporary password, returned once.</summary>
-    Task<TemporaryPasswordDto> ResetPasswordAsync(string id, string actorId, CancellationToken cancellationToken = default);
-
-    /// <summary>Soft-deletes the user (locked too) and unassigns their equipment.</summary>
-    Task DeleteAsync(string id, string actorId, CancellationToken cancellationToken = default);
-}
-
-public partial class UserAdminService : IUserAdminService
+public class UserAdminService
 {
     private readonly IUserRepository _users;
     private readonly IUserAdminRepository _repository;
     private readonly IOrgRepository _orgs;
-    private readonly IAccountPasswordService _passwords;
-    private readonly IAuditService _audit;
+    private readonly AccountPasswordService _passwords;
+    private readonly AuditService _audit;
 
-    public UserAdminService(IUserRepository users, IUserAdminRepository repository, IOrgRepository orgs, IAccountPasswordService passwords, IAuditService audit)
+    public UserAdminService(IUserRepository users, IUserAdminRepository repository, IOrgRepository orgs, AccountPasswordService passwords, AuditService audit)
     {
         _users = users;
         _repository = repository;
@@ -55,6 +33,7 @@ public partial class UserAdminService : IUserAdminService
     public Task<IReadOnlyList<UserDto>> GetAllIncludingDeletedAsync(CancellationToken cancellationToken = default)
         => _repository.GetAllIncludingDeletedAsync(cancellationToken);
 
+    /// <summary>Creates the user with a generated temporary password, returned once in the result.</summary>
     public async Task<SaveUserResult> CreateAsync(SaveUserRequest request, CancellationToken cancellationToken = default)
     {
         await ValidateAsync(string.Empty, request, cancellationToken);
@@ -86,6 +65,7 @@ public partial class UserAdminService : IUserAdminService
         return new SaveUserResult { User = user };
     }
 
+    /// <summary>Flips Locked and returns the updated user.</summary>
     public async Task<UserDto> ToggleLockAsync(string id, string actorId, CancellationToken cancellationToken = default)
     {
         var user = await GetActiveUserAsync(id, cancellationToken);
@@ -95,6 +75,7 @@ public partial class UserAdminService : IUserAdminService
         return user;
     }
 
+    /// <summary>Sets (and unlocks with) a new temporary password, returned once.</summary>
     public async Task<TemporaryPasswordDto> ResetPasswordAsync(string id, string actorId, CancellationToken cancellationToken = default)
     {
         var user = await GetActiveUserAsync(id, cancellationToken);
@@ -104,6 +85,7 @@ public partial class UserAdminService : IUserAdminService
         return new TemporaryPasswordDto { Name = user.Name, Username = user.Username, Password = password };
     }
 
+    /// <summary>Soft-deletes the user (locked too) and unassigns their equipment.</summary>
     public async Task DeleteAsync(string id, string actorId, CancellationToken cancellationToken = default)
     {
         var user = await GetActiveUserAsync(id, cancellationToken);
@@ -131,10 +113,10 @@ public partial class UserAdminService : IUserAdminService
 
         // Length first: the column is 256 and the regex shouldn't scan an unbounded string.
         if (FieldLimits.TooLong(email, FieldLimits.Email) is { } emailErr) errors["email"] = emailErr;
-        else if (!EmailPattern().IsMatch(email)) errors["email"] = "Enter a valid email address.";
+        else if (!FieldLimits.IsValidEmail(email)) errors["email"] = "Enter a valid email address.";
         else if (taken.EmailTaken) errors["email"] = "Someone already uses this email.";
 
-        if (!UsernamePattern().IsMatch(username)) errors["username"] = "Use 3 to 20 lower-case letters.";
+        if (!FieldLimits.IsValidUsername(username)) errors["username"] = "Use 3 to 20 lower-case letters.";
         else if (taken.UsernameTaken) errors["username"] = "This username is taken.";
 
         if (FieldLimits.TooLong(request.Phone, FieldLimits.Phone) is { } phoneErr) errors["phone"] = phoneErr;
@@ -164,11 +146,4 @@ public partial class UserAdminService : IUserAdminService
         Department = request.Department,
         JobTitle = request.JobTitle.Trim()
     };
-
-    // Same patterns as validateUser(): /^[^@\s]+@[^@\s]+\.[^@\s]+$/ and /^[a-z]{3,20}$/.
-    [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
-    private static partial Regex EmailPattern();
-
-    [GeneratedRegex("^[a-z]{3,20}$")]
-    private static partial Regex UsernamePattern();
 }

@@ -13,12 +13,7 @@ namespace TopSupport.Services.Admin;
 /// FirstAgentReplyAt) plus closedAt from usp_Dashboard_GetTicketClosedAt, then computes in
 /// C# using TicketSla so active/overdue/SLA-due match the queue exactly.
 /// </summary>
-public interface IDashboardService
-{
-    Task<DashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default);
-}
-
-public class DashboardService : IDashboardService
+public class DashboardService
 {
     private const int WeekCount = 13;
 

@@ -14,9 +14,9 @@ namespace TopSupport.Api.Controllers;
 [Route("api/settings")]
 public class SettingsController : ControllerBase
 {
-    private readonly ISettingsService _settings;
+    private readonly SettingsService _settings;
 
-    public SettingsController(ISettingsService settings)
+    public SettingsController(SettingsService settings)
     {
         _settings = settings;
     }

@@ -1,8 +1,5 @@
 namespace TopSupport.Services.Abstractions;
 
-/// <summary>Stored credential for one account (a Users or Agents row).</summary>
-public record AccountCredential(string AccountType, string? PasswordHash, string? AgentRole);
-
 /// <summary>The account a username signs in as (usp_Account_GetByUsername).</summary>
 public record SignInAccount(string AccountType, string Id, string Name, string? AgentRole, string? PasswordHash, bool Locked, bool Active);
 
@@ -15,8 +12,8 @@ public record TestAccount(string AccountType, string Id, string Name, string Use
 /// <summary>Data-access contract for account password hashes and sign-in state (07_ and 13_ scripts).</summary>
 public interface IAccountCredentialRepository
 {
-    /// <summary>Null when no Users or Agents row has this id.</summary>
-    Task<AccountCredential?> GetAsync(string accountId, CancellationToken cancellationToken = default);
+    /// <summary>The stored PBKDF2 hash; null when there's no such account or no password has been set.</summary>
+    Task<string?> GetPasswordHashAsync(string accountId, CancellationToken cancellationToken = default);
 
     /// <summary>Stores the hash; <paramref name="unlock"/> also clears Locked (admin resets only).</summary>
     Task SetPasswordHashAsync(string accountId, string passwordHash, bool unlock, CancellationToken cancellationToken = default);

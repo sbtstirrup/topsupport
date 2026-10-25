@@ -16,11 +16,13 @@ namespace TopSupport.Api.Controllers;
 [Route("api/[controller]")]
 public class AttachmentsController : ControllerBase
 {
-    private readonly ITicketService _ticketService;
+    private readonly TicketService _ticketService;
+    private readonly TicketAttachmentService _attachments;
 
-    public AttachmentsController(ITicketService ticketService)
+    public AttachmentsController(TicketService ticketService, TicketAttachmentService attachments)
     {
         _ticketService = ticketService;
+        _attachments = attachments;
     }
 
     /// <summary>
@@ -32,7 +34,7 @@ public class AttachmentsController : ControllerBase
     {
         if (User.IsEndUser() && !await IsVisibleToEndUserAsync(id, cancellationToken)) return NotFound();
 
-        var content = await _ticketService.GetAttachmentContentAsync(id, cancellationToken);
+        var content = await _attachments.GetContentAsync(id, cancellationToken);
         if (content is null) return NotFound();
 
         var contentType = TicketAttachmentRules.ImageContentTypes.Contains(content.ContentType)
@@ -49,7 +51,7 @@ public class AttachmentsController : ControllerBase
     /// </summary>
     private async Task<bool> IsVisibleToEndUserAsync(string attachmentId, CancellationToken cancellationToken)
     {
-        var ticketId = await _ticketService.GetAttachmentTicketIdAsync(attachmentId, cancellationToken);
+        var ticketId = await _attachments.GetTicketIdAsync(attachmentId, cancellationToken);
         if (ticketId is null) return false;
 
         var ticket = await _ticketService.GetTicketAsync(ticketId, cancellationToken);

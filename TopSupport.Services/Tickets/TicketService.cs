@@ -9,17 +9,15 @@ using TopSupport.Services.Admin;
 namespace TopSupport.Services.Tickets;
 
 /// <summary>
-/// Real implementation of ITicketService, porting createTicket/changeStatus/assignTicket/
+/// The ticket lifecycle, porting createTicket/changeStatus/assignTicket/
 /// addEntry/addEvent and the ACT['user-reply']/ACT['agent-reply'] handlers from
 /// topsupport-app.js (lines ~404-439, ~1343-1352, ~1591-1600) one layer above raw data
 /// access. No merge method anywhere — ticket merge is explicitly out of scope.
 /// Each mutation also writes the same audit(...) entry the demo does (category Ticket),
 /// attributed to the acting account on the request.
 /// </summary>
-public class TicketService : ITicketService
+public class TicketService
 {
-    private const long MaxAttachmentSizeBytes = 10L * 1024 * 1024;
-
     // Ported verbatim from LEAVER_TASKS in topsupport-app.js: the first two tasks always go
     // to agent a1, the last two to agent a5. This is demo-specific hardcoding, not a
     // configurable business rule -- intentionally not generalised here.
@@ -35,9 +33,8 @@ public class TicketService : ITicketService
     private readonly ITeamRepository _teamRepository;
     private readonly IAgentRepository _agentRepository;
     private readonly IUserRepository _userRepository;
-    private readonly ITicketAttachmentRepository _attachmentRepository;
-    private readonly ITicketFormValidator _validator;
-    private readonly IAuditService _audit;
+    private readonly TicketFormValidator _validator;
+    private readonly AuditService _audit;
     private readonly TimeProvider _time;
 
     public TicketService(
@@ -45,16 +42,14 @@ public class TicketService : ITicketService
         ITeamRepository teamRepository,
         IAgentRepository agentRepository,
         IUserRepository userRepository,
-        ITicketAttachmentRepository attachmentRepository,
-        ITicketFormValidator validator,
-        IAuditService audit,
+        TicketFormValidator validator,
+        AuditService audit,
         TimeProvider time)
     {
         _ticketRepository = ticketRepository;
         _teamRepository = teamRepository;
         _agentRepository = agentRepository;
         _userRepository = userRepository;
-        _attachmentRepository = attachmentRepository;
         _validator = validator;
         _audit = audit;
         _time = time;
@@ -63,12 +58,21 @@ public class TicketService : ITicketService
     public Task<TicketDto?> GetTicketAsync(string ticketId, CancellationToken cancellationToken = default)
         => _ticketRepository.GetByIdAsync(ticketId, cancellationToken);
 
+    /// <summary>"My Tickets": every ticket where the user is requester or affected.</summary>
     public Task<IReadOnlyList<TicketDto>> GetMyTicketsAsync(string requesterUserId, CancellationToken cancellationToken = default)
         => _ticketRepository.GetByRequesterOrAffectedAsync(requesterUserId, cancellationToken);
 
+    /// <summary>
+    /// Validates via TicketFormValidator first (agentMode = createdBy.Type == TicketActorTypes.Agent); on
+    /// failure throws ValidationException. Numbers via usp_Ticket_NextNumber (zero-padded
+    /// to 6 digits, "T" prefix), assigns the department's default team, leaves agent null,
+    /// forces status Open, derives priority from IMPACT_PRI when the topic has an impact
+    /// field, and seeds the "Created by"/"Assigned to team" timeline events (plus the leaver
+    /// checklist event + 4 tasks for topic == "leaver") exactly as createTicket() does.
+    /// </summary>
     public async Task<TicketDto> CreateTicketAsync(CreateTicketRequest request, TicketActorRef createdBy, CancellationToken cancellationToken = default)
     {
-        var agentMode = createdBy.Type == "agent";
+        var agentMode = createdBy.Type == TicketActorTypes.Agent;
         request.Fields ??= new Dictionary<string, object?>();
         var validation = await _validator.ValidateAsync(request, agentMode, cancellationToken);
         if (!validation.IsValid)
@@ -134,7 +138,7 @@ public class TicketService : ITicketService
 
         await _ticketRepository.CreateAsync(ticket, cancellationToken);
 
-        var requesterShortName = await ShortNameForActorAsync(new TicketActorRef { Type = "user", Id = request.RequesterUserId }, cancellationToken);
+        var requesterShortName = await ShortNameForActorAsync(new TicketActorRef { Type = TicketActorTypes.User, Id = request.RequesterUserId }, cancellationToken);
         var creatorShortName = agentMode ? await ShortNameForActorAsync(createdBy, cancellationToken) : requesterShortName;
 
         var createdText = agentMode
@@ -167,6 +171,12 @@ public class TicketService : ITicketService
         return ticket;
     }
 
+    /// <summary>
+    /// Throws TicketClosedException if the ticket is Closed. Posts the reply, then reopens
+    /// with the demo's exact (intentionally asymmetric) wording: Resolved -> "Reopened by X",
+    /// AwaitingUser -> "Status changed from Awaiting User to Open by X". Any other status is
+    /// left unchanged.
+    /// </summary>
     public async Task<TicketDto> AddUserReplyAsync(string ticketId, AddUserReplyRequest request, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
@@ -175,7 +185,7 @@ public class TicketService : ITicketService
             throw new ValidationException("", "This ticket is closed. You can't reply to it.");
         }
 
-        var by = new TicketActorRef { Type = "user", Id = request.UserId };
+        var by = new TicketActorRef { Type = TicketActorTypes.User, Id = request.UserId };
         var now = _time.GetUtcNow();
 
         await AppendReplyAsync(ticket, by, request.Html, now, isNote: false, cancellationToken);
@@ -198,6 +208,11 @@ public class TicketService : ITicketService
         return ticket;
     }
 
+    /// <summary>
+    /// Posts a public reply or internal note. For a public reply with StatusAfterSending set,
+    /// changes status quietly (no extra audit-style event beyond the status-change event
+    /// itself) afterward, matching ACT['agent-reply'].
+    /// </summary>
     public async Task<TicketDto> AddAgentReplyAsync(string ticketId, AddAgentReplyRequest request, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
@@ -213,7 +228,7 @@ public class TicketService : ITicketService
             ? ParseDefined<TicketStatus>(request.StatusAfterSending, "status")
             : (TicketStatus?)null;
 
-        var by = new TicketActorRef { Type = "agent", Id = request.AgentId };
+        var by = new TicketActorRef { Type = TicketActorTypes.Agent, Id = request.AgentId };
         var now = _time.GetUtcNow();
 
         await AppendReplyAsync(ticket, by, request.Html, now, request.IsNote, cancellationToken);
@@ -228,6 +243,11 @@ public class TicketService : ITicketService
         return ticket;
     }
 
+    /// <summary>
+    /// No-op if the status is unchanged. Event wording branches exactly as changeStatus(t, s):
+    /// closing (Resolved/Closed) -> "Closed by X with status {s}"; reopening from Resolved/
+    /// Closed -> "Reopened by X"; otherwise -> "Status changed from {prev} to {s} by X".
+    /// </summary>
     public async Task<TicketDto> ChangeStatusAsync(string ticketId, string status, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
@@ -274,6 +294,11 @@ public class TicketService : ITicketService
         return ticket;
     }
 
+    /// <summary>
+    /// The agent "Change" modal (ACT['change-go']): applies whichever of priority/topic/status
+    /// differ (status quietly), each with its own timeline event, then writes ONE
+    /// "Changed ticket properties" audit entry if anything changed.
+    /// </summary>
     public async Task<TicketDto> ChangePropertiesAsync(string ticketId, string status, string priority, string topic, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
@@ -320,6 +345,7 @@ public class TicketService : ITicketService
         return ticket;
     }
 
+    /// <summary>Defaults the ticket's team to the agent's first team if it has none yet (assignTicket's un-claim-safe default).</summary>
     public async Task<TicketDto> AssignToAgentAsync(string ticketId, string agentId, TicketActorRef assignedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
@@ -328,6 +354,7 @@ public class TicketService : ITicketService
         return ticket;
     }
 
+    /// <summary>Clears any individually-assigned agent (assignTicket's team-assign un-claim behavior).</summary>
     public async Task<TicketDto> AssignToTeamAsync(string ticketId, string teamId, TicketActorRef assignedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
@@ -344,7 +371,7 @@ public class TicketService : ITicketService
     /// </summary>
     public async Task<TicketDto> ClaimAsync(string ticketId, string agentId, CancellationToken cancellationToken = default)
     {
-        var by = new TicketActorRef { Type = "agent", Id = agentId };
+        var by = new TicketActorRef { Type = TicketActorTypes.Agent, Id = agentId };
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         var agent = await RequireActiveAgentAsync(agentId, cancellationToken);
         if (ticket.AssignedAgentId == agentId) return ticket;
@@ -488,6 +515,7 @@ public class TicketService : ITicketService
         return task;
     }
 
+    /// <summary>Throws KeyNotFoundException when the ticket, or that task on it, doesn't exist.</summary>
     public async Task<TicketTaskDto> SetTaskDoneAsync(string ticketId, string taskId, bool done, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
@@ -506,138 +534,9 @@ public class TicketService : ITicketService
         return task;
     }
 
-    public async Task<TicketAttachmentDto> AddAttachmentAsync(
-        string ticketId,
-        string? timelineEntryId,
-        string fileName,
-        string contentType,
-        byte[] content,
-        TicketActorRef uploadedBy,
-        CancellationToken cancellationToken = default)
-    {
-        // The client's content type is never trusted: it is derived from the allow-listed extension.
-        _ = contentType;
-
-        var ticket = await RequireTicketAsync(ticketId, cancellationToken);
-        if (ticket.Status == TicketStatus.Closed)
-        {
-            throw new ValidationException("", "This ticket is closed.");
-        }
-
-        var safeName = SanitizeAttachmentFileName(fileName);
-        var storedContentType = TicketAttachmentRules.ContentTypeFor(safeName)
-            ?? throw new ValidationException("file", TicketAttachmentRules.TypeNotAllowedMessage);
-
-        if (content.LongLength == 0)
-        {
-            throw new ValidationException("file", TicketAttachmentRules.EmptyFileMessage);
-        }
-
-        if (content.LongLength > MaxAttachmentSizeBytes)
-        {
-            throw new ValidationException("file", $"'{safeName}' is over 10 MB and was not added.");
-        }
-
-        if (ticket.Attachments.Count >= TicketAttachmentRules.MaxFilesPerTicket)
-        {
-            throw new ValidationException("file", TicketAttachmentRules.TooManyFilesMessage);
-        }
-
-        if (ticket.Attachments.Sum(a => a.SizeBytes) + content.LongLength > TicketAttachmentRules.MaxTotalBytesPerTicket)
-        {
-            throw new ValidationException("file", TicketAttachmentRules.TotalTooLargeMessage);
-        }
-
-        if (!string.IsNullOrEmpty(timelineEntryId))
-        {
-            // The anchor must be on this ticket; an end user may only anchor to one of their own replies.
-            var entry = ticket.Timeline.FirstOrDefault(e => e.Id == timelineEntryId);
-            var allowed = entry is not null &&
-                (uploadedBy.Type != "user" ||
-                 (entry.Kind == TicketTimelineEntryKind.Reply && entry.By.Type == "user" && entry.By.Id == uploadedBy.Id));
-            if (!allowed)
-            {
-                throw new ValidationException("timelineEntryId", "That file can't be attached to that message.");
-            }
-        }
-        else
-        {
-            timelineEntryId = null;
-        }
-
-        var attachment = await _attachmentRepository.InsertAsync(
-            ticketId, timelineEntryId, safeName, storedContentType, content, uploadedBy, _time.GetUtcNow(), cancellationToken);
-
-        await AuditAsync(uploadedBy, "Attached file", ticket, cancellationToken);
-        return attachment;
-    }
-
-    public Task<IReadOnlyList<TicketAttachmentDto>> GetAttachmentsAsync(string ticketId, CancellationToken cancellationToken = default)
-        => _attachmentRepository.GetMetadataByTicketAsync(ticketId, cancellationToken);
-
-    public Task<TicketAttachmentContentDto?> GetAttachmentContentAsync(string attachmentId, CancellationToken cancellationToken = default)
-        => _attachmentRepository.GetContentAsync(attachmentId, cancellationToken);
-
-    public Task<string?> GetAttachmentTicketIdAsync(string attachmentId, CancellationToken cancellationToken = default)
-        => _attachmentRepository.GetTicketIdAsync(attachmentId, cancellationToken);
-
-    /// <summary>
-    /// The stored file name: no path, no control or Unicode format characters (bidi overrides such
-    /// as U+202E, U+2066-U+2069, U+200E/U+200F, zero-width joiners), no characters that are invalid in
-    /// a file name, whitespace collapsed to single spaces, and at most 200 characters with the
-    /// extension kept. A name that is empty once cleaned becomes "file" + its extension.
-    /// </summary>
-    internal static string SanitizeAttachmentFileName(string? fileName)
-    {
-        var name = Path.GetFileName((fileName ?? string.Empty).Replace('\\', '/'));
-
-        var cleaned = new System.Text.StringBuilder(name.Length);
-        var pendingSpace = false;
-        foreach (var c in name)
-        {
-            var category = char.GetUnicodeCategory(c);
-            if (char.IsControl(c) || category == System.Globalization.UnicodeCategory.Format || "\"<>|:*?/".Contains(c)) continue;
-
-            if (char.IsWhiteSpace(c) || category is System.Globalization.UnicodeCategory.SpaceSeparator
-                    or System.Globalization.UnicodeCategory.LineSeparator or System.Globalization.UnicodeCategory.ParagraphSeparator)
-            {
-                pendingSpace = cleaned.Length > 0;
-                continue;
-            }
-
-            if (pendingSpace)
-            {
-                cleaned.Append(' ');
-                pendingSpace = false;
-            }
-
-            cleaned.Append(c);
-        }
-
-        name = cleaned.ToString().Trim();
-        var extension = Path.GetExtension(name);
-        var stem = name[..^extension.Length].TrimEnd(' ', '.');
-
-        var maxStem = TicketAttachmentRules.MaxFileNameLength - extension.Length;
-        if (maxStem < 1)
-        {
-            // An absurdly long "extension" can't be allow-listed anyway; keep the name bounded.
-            return name[..Math.Min(name.Length, TicketAttachmentRules.MaxFileNameLength)];
-        }
-
-        if (stem.Length > maxStem)
-        {
-            stem = stem[..maxStem];
-            if (char.IsHighSurrogate(stem[^1])) stem = stem[..^1];
-            stem = stem.TrimEnd(' ', '.');
-        }
-
-        return (stem.Length == 0 ? "file" : stem) + extension;
-    }
-
     // ---------- internal helpers ----------
 
-    private static readonly TicketActorRef TicketActorRef_System = new() { Type = "system" };
+    private static readonly TicketActorRef TicketActorRef_System = new() { Type = TicketActorTypes.System };
 
     private async Task<TicketDto> RequireTicketAsync(string ticketId, CancellationToken cancellationToken)
         => await _ticketRepository.GetByIdAsync(ticketId, cancellationToken)
@@ -731,7 +630,7 @@ public class TicketService : ITicketService
         string text;
         if (next is TicketStatus.Resolved or TicketStatus.Closed)
         {
-            text = $"Closed by {shortName} with status {FormatStatus(next)}";
+            text = $"Closed by {shortName} with status {TicketStatusText.Label(next)}";
         }
         else if (prev is TicketStatus.Resolved or TicketStatus.Closed)
         {
@@ -739,20 +638,20 @@ public class TicketService : ITicketService
         }
         else
         {
-            text = $"Status changed from {FormatStatus(prev)} to {FormatStatus(next)} by {shortName}";
+            text = $"Status changed from {TicketStatusText.Label(prev)} to {TicketStatusText.Label(next)} by {shortName}";
         }
 
         await AppendEventAsync(ticket, changedBy, text, now, cancellationToken);
 
         if (!quiet)
         {
-            await AuditAsync(changedBy, $"Changed status to {FormatStatus(next)}", ticket, cancellationToken);
+            await AuditAsync(changedBy, $"Changed status to {TicketStatusText.Label(next)}", ticket, cancellationToken);
         }
     }
 
     /// <summary>audit(action, '#' + t.num, 'Ticket'), attributed to the acting account ("system" when there is none).</summary>
     private Task AuditAsync(TicketActorRef actor, string action, TicketDto ticket, CancellationToken cancellationToken)
-        => _audit.LogAsync(actor.Type == "system" || actor.Id == null ? "system" : actor.Id, action, "#" + ticket.Number, AuditCategories.Ticket, cancellationToken);
+        => _audit.LogAsync(actor.Type == TicketActorTypes.System || actor.Id == null ? TicketActorTypes.System : actor.Id, action, "#" + ticket.Number, AuditCategories.Ticket, cancellationToken);
 
     private async Task AppendReplyAsync(TicketDto ticket, TicketActorRef by, string html, DateTimeOffset at, bool isNote, CancellationToken cancellationToken)
     {
@@ -800,11 +699,11 @@ public class TicketService : ITicketService
 
     private async Task<string> ShortNameForActorAsync(TicketActorRef actor, CancellationToken cancellationToken)
     {
-        if (actor.Type == "system" || actor.Id == null) return "System";
+        if (actor.Type == TicketActorTypes.System || actor.Id == null) return "System";
 
         // The actor comes from the signed-in account or a validated id, so a missing one is a bug:
         // fail rather than write "Closed by  with status ..." into the timeline.
-        var name = actor.Type == "agent"
+        var name = actor.Type == TicketActorTypes.Agent
             ? (await _agentRepository.GetByIdAsync(actor.Id, cancellationToken))?.Name
             : (await _userRepository.GetByIdAsync(actor.Id, cancellationToken))?.Name;
 
@@ -818,15 +717,4 @@ public class TicketService : ITicketService
         var parts = name.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         return parts.Length > 1 ? $"{parts[0][0]}. {parts[^1]}" : parts[0];
     }
-
-    /// <summary>Renders a TicketStatus the way the demo's STATUSES strings read ("In Progress", not "InProgress").</summary>
-    private static string FormatStatus(TicketStatus status) => status switch
-    {
-        TicketStatus.InProgress => "In Progress",
-        TicketStatus.AwaitingUser => "Awaiting User",
-        _ => status.ToString()
-    };
-
-    private static DateOnly? ParseDateOnly(string? value) =>
-        !string.IsNullOrEmpty(value) && DateOnly.TryParse(value, out var date) ? date : null;
 }

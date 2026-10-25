@@ -7,20 +7,7 @@ namespace TopSupport.Services.Admin;
 /// The demo's DB.security and DB.site, stored in dbo.AppSettings under "security." / "site." keys.
 /// Security settings also drive the password rules on My Profile (pwRules in topsupport-app.js).
 /// </summary>
-public interface ISettingsService
-{
-    Task<SecuritySettingsDto> GetSecurityAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Port of ACT['sec-save']: validates, stores, audits each changed setting and returns how many changed.</summary>
-    Task<int> SaveSecurityAsync(string actorId, SecuritySettingsDto settings, CancellationToken cancellationToken = default);
-
-    Task<SiteSettingsDto> GetSiteAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Port of ACT['site-save'].</summary>
-    Task SaveSiteAsync(string actorId, SiteSettingsDto settings, CancellationToken cancellationToken = default);
-}
-
-public class SettingsService : ISettingsService
+public class SettingsService
 {
     private const string SecurityPrefix = "security.";
     private const string SitePrefix = "site.";
@@ -30,9 +17,9 @@ public class SettingsService : ISettingsService
     private static readonly string[] TwoFactorModes = { "Required", "Optional", "Off" };
 
     private readonly IAppSettingsRepository _repository;
-    private readonly IAuditService _audit;
+    private readonly AuditService _audit;
 
-    public SettingsService(IAppSettingsRepository repository, IAuditService audit)
+    public SettingsService(IAppSettingsRepository repository, AuditService audit)
     {
         _repository = repository;
         _audit = audit;
@@ -41,6 +28,7 @@ public class SettingsService : ISettingsService
     public async Task<SecuritySettingsDto> GetSecurityAsync(CancellationToken cancellationToken = default)
         => SecuritySettingsDto.FromKeyValues(await _repository.GetByPrefixAsync(SecurityPrefix, cancellationToken));
 
+    /// <summary>Port of ACT['sec-save']: validates, stores, audits each changed setting and returns how many changed.</summary>
     public async Task<int> SaveSecurityAsync(string actorId, SecuritySettingsDto settings, CancellationToken cancellationToken = default)
     {
         // The demo clamps the three number inputs to >= 0 before checking the minimum length.
@@ -82,6 +70,7 @@ public class SettingsService : ISettingsService
         return site;
     }
 
+    /// <summary>Port of ACT['site-save'].</summary>
     public async Task SaveSiteAsync(string actorId, SiteSettingsDto settings, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(settings.LandingTitle) || string.IsNullOrWhiteSpace(settings.SigninTitle))

@@ -10,15 +10,7 @@ namespace TopSupport.Blazor.Services;
 /// </summary>
 public static class EnumDisplay
 {
-    public static string Label(TicketStatus status) => status switch
-    {
-        TicketStatus.Open => "Open",
-        TicketStatus.InProgress => "In Progress",
-        TicketStatus.AwaitingUser => "Awaiting User",
-        TicketStatus.Resolved => "Resolved",
-        TicketStatus.Closed => "Closed",
-        _ => status.ToString()
-    };
+    public static string Label(TicketStatus status) => TicketStatusText.Label(status);
 
     public static string Label(TicketPriority priority) => priority switch
     {

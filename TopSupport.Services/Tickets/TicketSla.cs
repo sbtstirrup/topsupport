@@ -40,5 +40,5 @@ public static class TicketSla
 
     /// <summary>True when the ticket is active and the most recent public reply came from an agent.</summary>
     public static bool IsAnswered(TicketDto ticket) =>
-        IsActive(ticket) && ticket.LastReplyByType == "agent";
+        IsActive(ticket) && ticket.LastReplyByType == TicketActorTypes.Agent;
 }

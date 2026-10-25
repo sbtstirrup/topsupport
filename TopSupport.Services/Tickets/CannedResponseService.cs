@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using TopSupport.Models.Admin;
+using TopSupport.Models.Enums;
 using TopSupport.Models.Tickets;
 using TopSupport.Services.Abstractions;
 using TopSupport.Services.Admin;
@@ -7,20 +8,20 @@ using TopSupport.Services.Admin;
 namespace TopSupport.Services.Tickets;
 
 /// <summary>
-/// Default ICannedResponseService. FillPlaceholdersAsync is an exact port of
+/// Canned responses: CRUD validated as ACT['cn-save'] does, and FillPlaceholdersAsync, an exact port of
 /// fillPlaceholders(text, t) in topsupport-app.js (~line 1546-1551): a {token} -> value map
 /// built from the ticket/requester/acting-agent, substituted with a regex that leaves any
 /// unrecognised {token} untouched (m0 fallback in the demo).
 /// </summary>
-public partial class CannedResponseService : ICannedResponseService
+public partial class CannedResponseService
 {
     private readonly ICannedResponseRepository _repository;
     private readonly IUserRepository _users;
     private readonly IAgentRepository _agents;
-    private readonly IAuditService _audit;
+    private readonly AuditService _audit;
     private readonly TimeProvider _time;
 
-    public CannedResponseService(ICannedResponseRepository repository, IUserRepository users, IAgentRepository agents, IAuditService audit, TimeProvider time)
+    public CannedResponseService(ICannedResponseRepository repository, IUserRepository users, IAgentRepository agents, AuditService audit, TimeProvider time)
     {
         _time = time;
         _repository = repository;
@@ -32,6 +33,10 @@ public partial class CannedResponseService : ICannedResponseService
     public Task<IReadOnlyList<CannedResponseDto>> GetAllAsync(CancellationToken cancellationToken = default)
         => _repository.GetAllAsync(cancellationToken);
 
+    /// <summary>
+    /// Creates a response with a server-generated id (any client-supplied Id is ignored). Throws
+    /// <see cref="ValidationException"/> on invalid input.
+    /// </summary>
     public async Task<CannedResponseDto> CreateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default)
     {
         var all = await _repository.GetAllAsync(cancellationToken);
@@ -45,10 +50,14 @@ public partial class CannedResponseService : ICannedResponseService
             Body = response.Body,
             SortOrder = response.SortOrder
         }, cancellationToken);
-        await _audit.LogAsync(actorId ?? "system", "Created canned response", created.Title, AuditCategories.Ticket, cancellationToken);
+        await _audit.LogAsync(actorId ?? TicketActorTypes.System, "Created canned response", created.Title, AuditCategories.Ticket, cancellationToken);
         return created;
     }
 
+    /// <summary>
+    /// Returns false (nothing written or audited) when there's no such id. Throws
+    /// <see cref="ValidationException"/> on invalid input.
+    /// </summary>
     public async Task<bool> UpdateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default)
     {
         var all = await _repository.GetAllAsync(cancellationToken);
@@ -58,17 +67,18 @@ public partial class CannedResponseService : ICannedResponseService
         // Title trimmed, body as typed -- as ACT['cn-save'] stores them.
         response.Title = response.Title.Trim();
         await _repository.UpdateAsync(response, cancellationToken);
-        await _audit.LogAsync(actorId ?? "system", "Edited canned response", response.Title, AuditCategories.Ticket, cancellationToken);
+        await _audit.LogAsync(actorId ?? TicketActorTypes.System, "Edited canned response", response.Title, AuditCategories.Ticket, cancellationToken);
         return true;
     }
 
+    /// <summary>Returns false (nothing written or audited) when there's no such id.</summary>
     public async Task<bool> DeleteAsync(string id, string? actorId = null, CancellationToken cancellationToken = default)
     {
         // Look the title up first: it's the audit target, and the row is gone afterwards.
         var existing = (await _repository.GetAllAsync(cancellationToken)).FirstOrDefault(c => c.Id == id);
         if (existing is null) return false;
         await _repository.DeleteAsync(id, cancellationToken);
-        await _audit.LogAsync(actorId ?? "system", "Deleted canned response", existing.Title, AuditCategories.Ticket, cancellationToken);
+        await _audit.LogAsync(actorId ?? TicketActorTypes.System, "Deleted canned response", existing.Title, AuditCategories.Ticket, cancellationToken);
         return true;
     }
 
@@ -94,6 +104,12 @@ public partial class CannedResponseService : ICannedResponseService
         if (errors.Count > 0) throw new ValidationException(errors);
     }
 
+    /// <summary>
+    /// Substitutes the 11 {ticket.*}/{recipient.*}/{agent.*} tokens in <paramref name="body"/>.
+    /// When <paramref name="ticket"/> is null, uses the demo's exact fallback sample values
+    /// (ticket #060012, requester "Amira Patel", etc.) so a preview still renders something
+    /// sensible before a real ticket exists.
+    /// </summary>
     public async Task<string> FillPlaceholdersAsync(string body, TicketDto? ticket, string agentId, CancellationToken cancellationToken = default)
     {
         // The demo's sample values are only for a preview with no ticket (fillPlaceholders(text, null)).
@@ -114,7 +130,7 @@ public partial class CannedResponseService : ICannedResponseService
             recipientEmail = requester.Email;
             ticketNumber = "#" + ticket.Number;
             ticketSubject = ticket.Subject;
-            ticketStatus = ticket.Status.ToString();
+            ticketStatus = TicketStatusText.Label(ticket.Status);
             ticketPriority = ticket.Priority.ToString();
             slaDueText = FormatDateTime(TicketSla.SlaDue(ticket));
         }

@@ -14,9 +14,9 @@ namespace TopSupport.Api.Controllers;
 [Route("api/profile")]
 public class ProfileController : ControllerBase
 {
-    private readonly IProfileService _profiles;
+    private readonly ProfileService _profiles;
 
-    public ProfileController(IProfileService profiles)
+    public ProfileController(ProfileService profiles)
     {
         _profiles = profiles;
     }

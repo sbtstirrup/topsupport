@@ -44,7 +44,7 @@ internal static class EndUserTicketAccess
         var publicAnchorIds = PublicAgentAnchorIds(ticket);
         return attachments
             .Where(a => !IsOn(a, noteIds))
-            .Where(a => a.UploadedByType != "agent" || IsOn(a, publicAnchorIds))
+            .Where(a => a.UploadedByType != TicketActorTypes.Agent || IsOn(a, publicAnchorIds))
             .ToList();
     }
 
@@ -57,9 +57,9 @@ internal static class EndUserTicketAccess
     private static HashSet<string> PublicAgentAnchorIds(TicketDto ticket)
     {
         var ids = ticket.Timeline.Where(e => e.Kind == TicketTimelineEntryKind.Reply).Select(e => e.Id).ToHashSet();
-        if (ticket.CreatedBy.Type == "agent" &&
+        if (ticket.CreatedBy.Type == TicketActorTypes.Agent &&
             ticket.Timeline
-                .Where(e => e.Kind == TicketTimelineEntryKind.Event && e.By.Type == "agent" && e.By.Id == ticket.CreatedBy.Id)
+                .Where(e => e.Kind == TicketTimelineEntryKind.Event && e.By.Type == TicketActorTypes.Agent && e.By.Id == ticket.CreatedBy.Id)
                 .MinBy(e => e.At) is { } created)
         {
             ids.Add(created.Id);

@@ -7,31 +7,14 @@ namespace TopSupport.Services.Admin;
 /// Knowledge base reads and article save/delete -- port of PAGES.kb / ACT['ka-save'] /
 /// ACT['ka-del'] and the landing page's popular-articles query in topsupport-app.js.
 /// </summary>
-public interface IKnowledgeBaseService
-{
-    Task<KnowledgeBaseDto> GetAllAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>The landing page's "Popular Help Articles": top 3 published by views.</summary>
-    Task<IReadOnlyList<KbArticleDto>> GetPopularAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Creates (<paramref name="id"/> null) or updates an article. Returns null when updating an
-    /// id that doesn't exist. Throws <see cref="ValidationException"/> on invalid input.
-    /// </summary>
-    Task<KbArticleDto?> SaveArticleAsync(string? id, SaveKbArticleRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>Returns false when there was no such article.</summary>
-    Task<bool> DeleteArticleAsync(string id, CancellationToken cancellationToken = default);
-}
-
-public class KnowledgeBaseService : IKnowledgeBaseService
+public class KnowledgeBaseService
 {
     private const int PopularCount = 3;
 
     private readonly IKnowledgeBaseRepository _repository;
-    private readonly IAuditService _audit;
+    private readonly AuditService _audit;
 
-    public KnowledgeBaseService(IKnowledgeBaseRepository repository, IAuditService audit)
+    public KnowledgeBaseService(IKnowledgeBaseRepository repository, AuditService audit)
     {
         _repository = repository;
         _audit = audit;
@@ -40,9 +23,14 @@ public class KnowledgeBaseService : IKnowledgeBaseService
     public Task<KnowledgeBaseDto> GetAllAsync(CancellationToken cancellationToken = default)
         => _repository.GetAllAsync(cancellationToken);
 
+    /// <summary>The landing page's "Popular Help Articles": top 3 published by views.</summary>
     public Task<IReadOnlyList<KbArticleDto>> GetPopularAsync(CancellationToken cancellationToken = default)
         => _repository.GetPopularAsync(PopularCount, cancellationToken);
 
+    /// <summary>
+    /// Creates (<paramref name="id"/> null) or updates an article. Returns null when updating an
+    /// id that doesn't exist. Throws <see cref="ValidationException"/> on invalid input.
+    /// </summary>
     public async Task<KbArticleDto?> SaveArticleAsync(string? id, SaveKbArticleRequest request, CancellationToken cancellationToken = default)
     {
         var kb = await _repository.GetAllAsync(cancellationToken);
@@ -75,6 +63,7 @@ public class KnowledgeBaseService : IKnowledgeBaseService
         return saved;
     }
 
+    /// <summary>Returns false when there was no such article.</summary>
     public async Task<bool> DeleteArticleAsync(string id, CancellationToken cancellationToken = default)
     {
         var kb = await _repository.GetAllAsync(cancellationToken);

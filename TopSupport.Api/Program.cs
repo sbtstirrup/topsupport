@@ -43,28 +43,29 @@ builder.Services.AddScoped<IAgentAdminRepository, AgentAdminRepository>();
 builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
 
 // Business/service layer (Controller -> Service -> Repository).
-builder.Services.AddScoped<ITicketService, TicketService>();
-builder.Services.AddScoped<ITicketFieldOptionsResolver, TicketFieldOptionsResolver>();
-builder.Services.AddScoped<ITicketFormValidator, TicketFormValidator>();
-builder.Services.AddScoped<ICannedResponseService, CannedResponseService>();
-builder.Services.AddScoped<IQueueService, QueueService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IAuditService, AuditService>();
-builder.Services.AddScoped<IAccountPasswordService, AccountPasswordService>();
-builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
-builder.Services.AddScoped<ISettingsService, SettingsService>();
-builder.Services.AddScoped<IProfileService, ProfileService>();
-builder.Services.AddScoped<IDashboardService, DashboardService>();
-builder.Services.AddScoped<IAgentAdminService, AgentAdminService>();
-builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
+builder.Services.AddScoped<TicketService>();
+builder.Services.AddScoped<TicketAttachmentService>();
+builder.Services.AddScoped<TicketFieldOptionsResolver>();
+builder.Services.AddScoped<TicketFormValidator>();
+builder.Services.AddScoped<CannedResponseService>();
+builder.Services.AddScoped<QueueService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<AccountPasswordService>();
+builder.Services.AddScoped<KnowledgeBaseService>();
+builder.Services.AddScoped<SettingsService>();
+builder.Services.AddScoped<ProfileService>();
+builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<AgentAdminService>();
+builder.Services.AddScoped<RolePermissionService>();
 builder.Services.AddScoped<IWorkerMonitorRepository, WorkerMonitorRepository>();
-builder.Services.AddScoped<IWorkerMonitorService, WorkerMonitorService>();
+builder.Services.AddScoped<WorkerMonitorService>();
 
 // Admin: Users and Organisations.
 builder.Services.AddScoped<IUserAdminRepository, UserAdminRepository>();
 builder.Services.AddScoped<IOrgRepository, OrgRepository>();
-builder.Services.AddScoped<IUserAdminService, UserAdminService>();
-builder.Services.AddScoped<IOrgAdminService, OrgAdminService>();
+builder.Services.AddScoped<UserAdminService>();
+builder.Services.AddScoped<OrgAdminService>();
 
 // Sign-in issues a signed bearer token (AuthController); every endpoint requires one unless it
 // is [AllowAnonymous], and the admin/agent screens' endpoints also require the role.

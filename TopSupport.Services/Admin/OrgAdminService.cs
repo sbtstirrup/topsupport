@@ -10,27 +10,13 @@ namespace TopSupport.Services.Admin;
 /// topsupport-app.js. Throws <see cref="ValidationException"/> for form errors and
 /// <see cref="KeyNotFoundException"/> when the organisation doesn't exist.
 /// </summary>
-public interface IOrgAdminService
-{
-    Task<IReadOnlyList<OrgListItemDto>> GetListAsync(CancellationToken cancellationToken = default);
-
-    Task<OrgDto?> GetAsync(string id, CancellationToken cancellationToken = default);
-
-    /// <summary>Active tickets raised by or for a member, newest first (PAGES.org "Open Tickets").</summary>
-    Task<IReadOnlyList<TicketDto>> GetOpenTicketsAsync(string id, CancellationToken cancellationToken = default);
-
-    Task<OrgDto> CreateAsync(SaveOrgRequest request, CancellationToken cancellationToken = default);
-
-    Task<OrgDto> UpdateAsync(string id, SaveOrgRequest request, CancellationToken cancellationToken = default);
-}
-
-public class OrgAdminService : IOrgAdminService
+public class OrgAdminService
 {
     private readonly IOrgRepository _repository;
     private readonly ITicketRepository _tickets;
-    private readonly IAuditService _audit;
+    private readonly AuditService _audit;
 
-    public OrgAdminService(IOrgRepository repository, ITicketRepository tickets, IAuditService audit)
+    public OrgAdminService(IOrgRepository repository, ITicketRepository tickets, AuditService audit)
     {
         _repository = repository;
         _tickets = tickets;
@@ -43,6 +29,7 @@ public class OrgAdminService : IOrgAdminService
     public Task<OrgDto?> GetAsync(string id, CancellationToken cancellationToken = default)
         => _repository.GetByIdAsync(id, cancellationToken);
 
+    /// <summary>Active tickets raised by or for a member, newest first (PAGES.org "Open Tickets").</summary>
     public async Task<IReadOnlyList<TicketDto>> GetOpenTicketsAsync(string id, CancellationToken cancellationToken = default)
     {
         var ids = await _repository.GetOpenTicketIdsAsync(id, cancellationToken);

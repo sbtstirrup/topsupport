@@ -5,12 +5,12 @@ using TopSupport.Services.Abstractions;
 namespace TopSupport.Services.Tickets;
 
 /// <summary>
-/// Default ITicketFieldOptionsResolver, porting the runtime option-building expressions
+/// Fills in each topic field's options for the affected user, porting the runtime option-building expressions
 /// inside topicFields() (topsupport-app.js lines ~879-951): userAssets(aff)/filter-by-type,
 /// userOpts().filter(o => o.v !== aff), and the per-field hint/empty-message text that
 /// depends on the affected user's name.
 /// </summary>
-public class TicketFieldOptionsResolver : ITicketFieldOptionsResolver
+public class TicketFieldOptionsResolver
 {
     private readonly IUserRepository _users;
     private readonly IAssetRepository _assets;
@@ -21,6 +21,12 @@ public class TicketFieldOptionsResolver : ITicketFieldOptionsResolver
         _assets = assets;
     }
 
+    /// <summary>
+    /// Returns the topic's field list with every dynamic-option field's StaticOptions filled
+    /// in (and Hint/EmptyMessage text completed where the demo computes it per-user), given
+    /// the affected user id and the currently-submitted field values (needed for
+    /// deviceType-dependent asset filtering on the hardware topic).
+    /// </summary>
     public async Task<List<TicketFieldDescriptor>> ResolveAsync(
         string topic,
         string? affectedUserId,

@@ -16,10 +16,10 @@ namespace TopSupport.Api.Controllers;
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-    private readonly IUserAdminService _users;
+    private readonly UserAdminService _users;
     private readonly IUserRepository _userRepository;
 
-    public UsersController(IUserAdminService users, IUserRepository userRepository)
+    public UsersController(UserAdminService users, IUserRepository userRepository)
     {
         _users = users;
         _userRepository = userRepository;

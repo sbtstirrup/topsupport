@@ -12,9 +12,9 @@ namespace TopSupport.Api.Controllers;
 [Authorize(Policy = Policies.Admin)]
 public class AuditController : ControllerBase
 {
-    private readonly IAuditService _audit;
+    private readonly AuditService _audit;
 
-    public AuditController(IAuditService audit)
+    public AuditController(AuditService audit)
     {
         _audit = audit;
     }
