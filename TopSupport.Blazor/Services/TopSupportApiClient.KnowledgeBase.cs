@@ -30,7 +30,8 @@ public partial class TopSupportApiClient
         }
 
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        var saved = await response.Content.ReadFromJsonAsync<KbArticleDto>(cancellationToken);
+        var saved = await response.Content.ReadFromJsonAsync<KbArticleDto>(cancellationToken)
+            ?? throw EmptyBody(response);
         return new KbArticleSaveResult(saved, new Dictionary<string, string>());
     }
 

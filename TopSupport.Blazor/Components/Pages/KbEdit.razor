@@ -3,7 +3,6 @@
 @using TopSupport.Models.Admin
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ModalState Modal
 @inject ToastState Toasts
 @inject NavigationManager Nav
@@ -48,6 +47,10 @@ else
                             <option value="@c.Id">@c.Name</option>
                         }
                     </select>
+                    @if (_errors.GetValueOrDefault("categoryId") is { } categoryError)
+                    {
+                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@categoryError</span>
+                    }
                 </div>
                 <div class="field">
                     <label class="field-label" for="f-ka-status">Status</label>
@@ -57,6 +60,10 @@ else
                             <option value="@s">@s</option>
                         }
                     </select>
+                    @if (_errors.GetValueOrDefault("status") is { } statusError)
+                    {
+                        <span class="field-err">@((MarkupString)IconLibrary.Render("alert", 14))@statusError</span>
+                    }
                 </div>
             </div>
 
@@ -123,14 +130,8 @@ else
 
     private async Task SaveAsync()
     {
-        var errors = new Dictionary<string, string>();
-        if (string.IsNullOrWhiteSpace(_title)) errors["title"] = "Enter a title.";
-        else if (FieldLimits.TooLong(_title, FieldLimits.KbTitle) is { } titleTooLong) errors["title"] = titleTooLong;
-        if (string.IsNullOrWhiteSpace(_body)) errors["body"] = "Write the article text.";
-        else if (FieldLimits.TooLong(_body, FieldLimits.KbBody) is { } bodyTooLong) errors["body"] = bodyTooLong;
-        _errors = errors;
-        if (errors.Count > 0) return;
-
+        // The Api validates every field and returns field errors, shown inline.
+        _errors = new Dictionary<string, string>();
         _saving = true;
         try
         {
@@ -145,9 +146,6 @@ else
             if (result.Article is null)
             {
                 _errors = result.Errors;
-                // Category/status errors have no inline slot on this form (fixed selects), so surface them as a toast.
-                var other = result.Errors.Where(e => e.Key is not ("title" or "body")).Select(e => e.Value).FirstOrDefault();
-                if (other is not null) Toasts.Error(other);
                 return;
             }
 

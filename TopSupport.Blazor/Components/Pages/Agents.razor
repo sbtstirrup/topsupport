@@ -196,8 +196,10 @@ else
         // silently; showing it follows the Create User flow so the agent can actually sign in).
         if (result.TemporaryPassword is not null)
         {
-            var created = FindAgent(result.Id);
-            Modal.Show(@<AgentTempPasswordModal Name="@result.Name" Username="@(created?.Username ?? string.Empty)" Password="@result.TemporaryPassword" />);
+            // Just reloaded, so the new agent is in the list.
+            var created = _agents!.First(a => a.Id == result.Id);
+            var password = new TemporaryPasswordDto { Name = result.Name, Username = created.Username, Password = result.TemporaryPassword };
+            Modal.Show(@<TempPasswordModal Password="password" />);
         }
     }
 
@@ -221,7 +223,8 @@ else
         }
 
         await ReloadAfterChangeAsync();
-        Modal.Show(@<AgentTempPasswordModal Name="@result.Name" Username="@result.Username" Password="@result.TemporaryPassword" />);
+        var password = new TemporaryPasswordDto { Name = result.Name, Username = result.Username, Password = result.TemporaryPassword };
+        Modal.Show(@<TempPasswordModal Password="password" />);
     }
 
     private void EditTeam(TeamDto? team)

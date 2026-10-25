@@ -7,9 +7,9 @@
 @inject LookupDataService Lookup
 
 @* Port of PAGES.audit in topsupport-app.js: free-text search plus category / who / when
-   filters over the full audit list (newest first), 20 rows per page with the demo's pager()
-   markup, category tags and actorName() resolution. Filtering is client-side over one fetch,
-   as in the demo. *@
+   filters, 20 rows per page with the demo's pager() markup, category tags and actorName()
+   resolution. Filtering is client-side over one fetch, as in the demo, but that fetch is only the
+   newest 5000 entries (usp_Audit_GetRecent), so older entries never appear in the results. *@
 <section class="card" aria-label="Audit entries">
     <div class="filters">
         <div class="field grow">

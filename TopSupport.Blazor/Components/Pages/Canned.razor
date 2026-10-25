@@ -249,50 +249,26 @@
         _titleError = null;
         _bodyError = null;
 
-        var title = _title.Trim();
-        if (string.IsNullOrEmpty(title))
+        // The Api checks the title and message (required, length, unique title) and returns field
+        // errors. It doesn't know the placeholder list, so unknown placeholders are caught here.
+        var known = Placeholders.Select(p => p.Token).ToHashSet();
+        var unknown = System.Text.RegularExpressions.Regex.Matches(_body, @"\{[^}]+\}")
+            .Select(m => m.Value).Where(t => !known.Contains(t)).Distinct().ToList();
+        if (unknown.Count > 0)
         {
-            _titleError = "Enter a title.";
+            _bodyError = "Unknown placeholder: " + string.Join(", ", unknown) + ". Use one from the list.";
+            return;
         }
-        else if (FieldLimits.TooLong(title, FieldLimits.CannedTitle) is { } titleTooLong)
-        {
-            _titleError = titleTooLong;
-        }
-        else if (_responses.Any(c => c.Id != _selectedId && string.Equals(c.Title, title, StringComparison.OrdinalIgnoreCase)))
-        {
-            _titleError = "Another response already has this title.";
-        }
-
-        if (string.IsNullOrWhiteSpace(_body))
-        {
-            _bodyError = "Enter the message.";
-        }
-        else if (FieldLimits.TooLong(_body, MaxBodyLength) is { } bodyTooLong)
-        {
-            _bodyError = bodyTooLong;
-        }
-        else
-        {
-            var known = Placeholders.Select(p => p.Token).ToHashSet();
-            var unknown = System.Text.RegularExpressions.Regex.Matches(_body, @"\{[^}]+\}")
-                .Select(m => m.Value).Where(t => !known.Contains(t)).Distinct().ToList();
-            if (unknown.Count > 0)
-            {
-                _bodyError = "Unknown placeholder: " + string.Join(", ", unknown) + ". Use one from the list.";
-            }
-        }
-
-        if (_titleError is not null || _bodyError is not null) return;
 
         _saving = true;
         try
         {
             var result = _isNew
-                ? await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body })
-                : await Api.UpdateCannedResponseAsync(new CannedResponseDto { Id = _selectedId, Title = title, Body = _body, SortOrder = _responses.FirstOrDefault(c => c.Id == _selectedId)?.SortOrder ?? 0 });
+                ? await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = _title, Body = _body })
+                : await Api.UpdateCannedResponseAsync(new CannedResponseDto { Id = _selectedId, Title = _title, Body = _body, SortOrder = _responses.FirstOrDefault(c => c.Id == _selectedId)?.SortOrder ?? 0 });
             if (!result.Ok)
             {
-                // The Api's field errors (e.g. another agent took the title meanwhile); the draft stays in the editor.
+                // The Api's field errors; the draft stays in the editor.
                 _titleError = result.Errors.GetValueOrDefault("title");
                 _bodyError = result.Errors.GetValueOrDefault("body");
                 if (_titleError is null && _bodyError is null)

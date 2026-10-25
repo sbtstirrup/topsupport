@@ -44,14 +44,14 @@ public partial class TopSupportApiClient
     {
         var response = await _httpClient.PostAsync($"api/users/{Uri.EscapeDataString(id)}/toggle-lock", null, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<UserDto>(cancellationToken))!;
+        return await response.Content.ReadFromJsonAsync<UserDto>(cancellationToken) ?? throw EmptyBody(response);
     }
 
     public async Task<TemporaryPasswordDto> ResetUserPasswordAsync(string id, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsync($"api/users/{Uri.EscapeDataString(id)}/reset-password", null, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<TemporaryPasswordDto>(cancellationToken))!;
+        return await response.Content.ReadFromJsonAsync<TemporaryPasswordDto>(cancellationToken) ?? throw EmptyBody(response);
     }
 
     public async Task DeleteUserAsync(string id, CancellationToken cancellationToken = default)
@@ -93,6 +93,7 @@ public partial class TopSupportApiClient
         }
 
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return new UserOrgSaveResult<T>(await response.Content.ReadFromJsonAsync<T>(cancellationToken), new Dictionary<string, string>());
+        var value = await response.Content.ReadFromJsonAsync<T>(cancellationToken) ?? throw EmptyBody(response);
+        return new UserOrgSaveResult<T>(value, new Dictionary<string, string>());
     }
 }
