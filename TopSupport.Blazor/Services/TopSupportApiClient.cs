@@ -86,13 +86,6 @@ public partial class TopSupportApiClient
         return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
     }
 
-    public async Task<TicketDto> AssignTicketAsync(string ticketId, AssignTicketRequest assignment, CancellationToken cancellationToken = default)
-    {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/assign", assignment, cancellationToken);
-        await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<TicketDto>(cancellationToken))!;
-    }
-
     public async Task<TicketDto> ClaimTicketAsync(string ticketId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/claim", null, cancellationToken);
@@ -131,20 +124,6 @@ public partial class TopSupportApiClient
         var response = await _httpClient.PostAsJsonAsync("api/tickets/bulk/close",
             new { ticketIds = ticketIds.ToList(), status, note }, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-    }
-
-    public async Task<TicketTaskDto> AddTaskAsync(string ticketId, string text, string assigneeAgentId, DateOnly? due, CancellationToken cancellationToken = default)
-    {
-        var response = await _httpClient.PostAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/tasks", new { text, assigneeAgentId, due }, cancellationToken);
-        await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<TicketTaskDto>(cancellationToken))!;
-    }
-
-    public async Task<TicketTaskDto> SetTaskDoneAsync(string ticketId, string taskId, bool done, CancellationToken cancellationToken = default)
-    {
-        var response = await _httpClient.PutAsJsonAsync($"api/tickets/{Uri.EscapeDataString(ticketId)}/tasks/{Uri.EscapeDataString(taskId)}/done", new { done }, cancellationToken);
-        await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<TicketTaskDto>(cancellationToken))!;
     }
 
     /// <summary>
