@@ -1,13 +1,10 @@
 @page "/queue/{QueueName}"
 @attribute [Authorize(Roles = "Agent,Admin")]
-@using TopSupport.Models.Enums
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Tickets.FieldSchema
-@using TopSupport.Blazor.Components.Shared
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
 @inject LookupDataService Lookup
-@inject SessionState Session
 @inject ModalState ModalHost
 @inject NavigationManager Nav
 @implements IDisposable

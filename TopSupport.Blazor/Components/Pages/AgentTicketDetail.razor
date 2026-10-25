@@ -1,6 +1,5 @@
 @page "/agent-tickets/{Id}"
 @attribute [Authorize(Roles = "Agent,Admin")]
-@using TopSupport.Models.Enums
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Tickets.FieldSchema
 @using TopSupport.Services.Tickets
@@ -267,10 +266,9 @@ else
 
         if (_ticket is not null)
         {
-            // TicketDto.Fields is Dictionary<string, object?> and arrives from System.Text.Json
-            // as raw JsonElement values (no custom converter registered) -- normalize to plain
-            // CLR string/List<string> so ShowWhen.Evaluate and the read-only answer rendering
-            // below (both written against ordinary CLR types) work correctly.
+            // TicketDto.Fields arrives from System.Text.Json as raw JsonElement values -- normalize
+            // to plain CLR string/List<string> for AnswerText's option-label lookups.
+            // (ShowWhen.Evaluate and DevicePanel handle JsonElement themselves.)
             _ticket.Fields = NormalizeFields(_ticket.Fields);
 
             _fieldSchema = await Api.GetFieldSchemaAsync(_ticket.Topic, _ticket.AffectedUserId);
@@ -280,7 +278,7 @@ else
                 // Best-effort cross-reference per DevicePanel's doc comment: use the open queue as
                 // the candidate list (client-side filter-by-tag over whatever's already fetched).
                 var queueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "open", PageSize = 100 });
-                _candidateTickets = queueResult.Items.Select(t => { t.Fields = NormalizeFields(t.Fields); return t; }).ToList();
+                _candidateTickets = queueResult.Items;
             }
         }
 
@@ -353,7 +351,7 @@ else
     private void OpenChange()
     {
         if (_ticket is null) return;
-        ModalHost.Show(@<ChangeTicketPropertiesModal TicketId="@_ticket.Id" Ticket="_ticket" OnSaved="@(() => HandleModalChanged("Ticket updated."))" />);
+        ModalHost.Show(@<ChangeTicketPropertiesModal Ticket="_ticket" OnSaved="@(() => HandleModalChanged("Ticket updated."))" />);
     }
 
     private void OpenClose()

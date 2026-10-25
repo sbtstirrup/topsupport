@@ -1,6 +1,6 @@
 @* Generic per-topic field renderer, switching on TicketFieldDescriptor.Type -- mirrors
-   renderTopicField() in topsupport-app.js so no topic's form is ever hand-coded. Used by
-   TicketForm (raise/new-ticket) and AgentTicketDetail's always-editable topic-answer fields.
+   renderTopicField() in topsupport-app.js so no topic's form is ever hand-coded. Used by the
+   Raise (end user) and NewTicket (agent) forms.
 
    Value is two-way bound (object?): Text/TextArea/Select/Radio/Date carry a string, Checks
    carries a List<string>, Files carries a List<AttachmentRef> (via the composed
