@@ -16,6 +16,8 @@ public sealed class FakeTicketStore : IWorkerTicketStore
     public List<TeamMember> TeamMembers { get; } = new();
     public List<ResolvedTicket> Resolved { get; } = new();
     public List<string> Closed { get; } = new();
+    public List<DigestTeam> DigestTeams { get; } = new();
+    public List<DigestTicket> DigestTickets { get; } = new();
     public List<(DateTimeOffset Since, DateTimeOffset Until)> EventQueries { get; } = new();
 
     public Task<IReadOnlyList<TicketEvent>> GetEventsAsync(DateTimeOffset sinceUtc, DateTimeOffset untilUtc, CancellationToken cancellationToken)
@@ -39,7 +41,7 @@ public sealed class FakeTicketStore : IWorkerTicketStore
     }
 
     public Task<(IReadOnlyList<DigestTeam> Teams, IReadOnlyList<DigestTicket> Tickets)> GetDigestAsync(CancellationToken cancellationToken)
-        => Task.FromResult<(IReadOnlyList<DigestTeam>, IReadOnlyList<DigestTicket>)>((Array.Empty<DigestTeam>(), Array.Empty<DigestTicket>()));
+        => Task.FromResult<(IReadOnlyList<DigestTeam>, IReadOnlyList<DigestTicket>)>((DigestTeams, DigestTickets));
 }
 
 /// <summary>In-memory worker.NotificationLog with the same unique (TicketId, EventKey, Recipient) rule.</summary>
@@ -101,7 +103,7 @@ public sealed class WorkerTestContext
     public JobOptions Jobs { get; } = new();
     public AppOptions App { get; } = new() { BaseUrl = "https://topsupport.test" };
 
-    private NotificationDispatcher Dispatcher => new(Log, Email, Time);
+    public NotificationDispatcher Dispatcher => new(Log, Email, Time);
 
     public TicketEventsJob TicketEvents()
         => new(Store, Cursors, Dispatcher, Time, MsOptions.Create(App), MsOptions.Create(Jobs), NullLogger<TicketEventsJob>.Instance);
@@ -111,4 +113,7 @@ public sealed class WorkerTestContext
 
     public AutoCloseJob AutoClose()
         => new(Store, Time, MsOptions.Create(Jobs), NullLogger<AutoCloseJob>.Instance);
+
+    public DailyDigestJob DailyDigest()
+        => new(Store, Dispatcher, Time, MsOptions.Create(App), MsOptions.Create(Jobs), NullLogger<DailyDigestJob>.Instance);
 }
