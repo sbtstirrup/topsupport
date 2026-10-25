@@ -8,21 +8,29 @@ public record Toast(Guid Id, string Message, bool IsError);
 /// </summary>
 public class ToastState
 {
+    // Show runs on the circuit, the timed removal on the thread pool: the list is locked.
     private readonly List<Toast> _toasts = new();
 
-    public IReadOnlyList<Toast> Toasts => _toasts;
+    /// <summary>A snapshot of the toasts showing now.</summary>
+    public IReadOnlyList<Toast> Toasts
+    {
+        get
+        {
+            lock (_toasts) return _toasts.ToList();
+        }
+    }
 
     public event Action? Changed;
 
     public void Show(string message, bool isError = false)
     {
         var toast = new Toast(Guid.NewGuid(), message, isError);
-        _toasts.Add(toast);
+        lock (_toasts) _toasts.Add(toast);
         Changed?.Invoke();
 
         _ = Task.Delay(4200).ContinueWith(_ =>
         {
-            _toasts.Remove(toast);
+            lock (_toasts) _toasts.Remove(toast);
             Changed?.Invoke();
         }, TaskScheduler.Default);
     }

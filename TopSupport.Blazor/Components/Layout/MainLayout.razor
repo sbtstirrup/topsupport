@@ -3,6 +3,7 @@
 @inject NavProvider NavProvider
 @inject PageHeadingState Heading
 @inject NavigationManager Nav
+@inject ILogger<MainLayout> Logger
 
 <a class="skip" href="#main">Skip to content</a>
 <div class="app">
@@ -38,10 +39,6 @@
             }
         </nav>
         <div class="side-foot">
-            <button type="button" class="side-link" @onclick="@(() => Nav.NavigateTo("/diagnostics"))">
-                @((MarkupString)IconLibrary.Render("refresh"))
-                <span>Diagnostics</span>
-            </button>
             @* ACT.signout: a real form post, so the auth cookie can be cleared (see /account/signout in Program.cs). *@
             <form method="post" action="account/signout" style="display:contents">
                 <AntiforgeryToken />
@@ -86,14 +83,18 @@
         </header>
         <div class="stripe"></div>
         <div class="content">
-            @Body
+            <PageErrorBoundary>
+                @Body
+            </PageErrorBoundary>
         </div>
     </main>
 </div>
 
 @if (Session.IsSignedIn)
 {
-    <ModalHost />
+    <PageErrorBoundary>
+        <ModalHost />
+    </PageErrorBoundary>
     <ToastHost />
 }
 
@@ -130,9 +131,24 @@
 
     private async Task RefreshNavAsync()
     {
-        _navRows = Session.Role is { } role
-            ? await NavProvider.GetNavRowsAsync(role)
-            : Array.Empty<NavRow>();
+        if (Session.Role is not { } role) return;
+
+        try
+        {
+            _navRows = await NavProvider.GetNavRowsAsync(role);
+        }
+        catch (ApiSessionExpiredException)
+        {
+            Nav.NavigateTo("/account/expired", forceLoad: true);
+            return;
+        }
+        catch (HttpRequestException ex)
+        {
+            // The nav still works without its badge counts; the page itself reports the outage.
+            Logger.LogWarning(ex, "Couldn't load the nav counts for {AccountId}", Session.AccountId);
+            _navRows = NavProvider.GetNavRows(role, counts: null);
+        }
+
         await InvokeAsync(StateHasChanged);
     }
 

@@ -20,7 +20,7 @@ public sealed class TestAccountSwitcher
     /// <paramref name="accountId"/>, then goes back to <paramref name="returnUrl"/>; the app
     /// redirects to the new role's home if that page isn't theirs.
     /// </summary>
-    public static async Task<IResult> SwitchAsync(HttpContext context, TopSupportApiClient api, string? accountId, string? returnUrl)
+    public static async Task<IResult> SwitchAsync(HttpContext context, TopSupportApiClient api, ILogger<TestAccountSwitcher> logger, string? accountId, string? returnUrl)
     {
         var (account, error) = await api.TestSignInAsync(accountId ?? string.Empty);
         if (account is null)
@@ -34,9 +34,14 @@ public sealed class TestAccountSwitcher
             {
                 await api.SignOutAsync();
             }
-            catch (HttpRequestException)
+            catch (ApiSessionExpiredException)
             {
-                // The old token may have expired; switching matters more than auditing the sign-out.
+                // The old token was already refused, so there's no session left to audit.
+            }
+            catch (HttpRequestException ex)
+            {
+                // Switching matters more than auditing the old account's sign-out, but the miss is logged.
+                logger.LogWarning(ex, "Couldn't audit the sign-out before switching test account");
             }
         }
 

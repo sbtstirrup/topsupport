@@ -1,0 +1,43 @@
+@inherits ErrorBoundary
+@inject NavigationManager Nav
+@* Wraps every page (MainLayout). A refused session token sends the browser to /account/expired,
+   which signs out once the Api confirms it; any other unhandled error is shown in place of the
+   page (and logged by ErrorBoundary) instead of ending the user's circuit. *@
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else if (CurrentException is ApiSessionExpiredException)
+{
+    <div class="notice" role="status">Your session has ended. Taking you to sign in…</div>
+}
+else
+{
+    <div class="err" role="alert">
+        Something went wrong loading this page. Try again, and if it keeps happening tell IT Support.
+        <div style="margin-top:8px"><button type="button" class="btn btn-secondary btn-sm" @onclick="Recover">Try again</button></div>
+    </div>
+}
+
+@implements IDisposable
+
+@code {
+    // A new page starts without the last page's error. (Not on every parameter set: a failing
+    // page's heading change re-renders the layout, and recovering then would loop.)
+    protected override void OnInitialized() => Nav.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => _ = InvokeAsync(Recover);
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+
+    protected override async Task OnErrorAsync(Exception exception)
+    {
+        await base.OnErrorAsync(exception);
+        if (exception is ApiSessionExpiredException)
+        {
+            Nav.NavigateTo("/account/expired", forceLoad: true);
+        }
+    }
+}

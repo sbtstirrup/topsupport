@@ -68,7 +68,7 @@ public partial class TopSupportApiClient
 
         message ??= response.StatusCode switch
         {
-            HttpStatusCode.NotFound => "We could not find that ticket. It may have been deleted.",
+            HttpStatusCode.NotFound => "We could not find that. It may have been deleted -- refresh and try again.",
             HttpStatusCode.Conflict => "Someone else changed this ticket. Refresh and try again.",
             HttpStatusCode.Forbidden => "You don't have permission to do that.",
             HttpStatusCode.BadRequest => "That change could not be saved. Check the values and try again.",

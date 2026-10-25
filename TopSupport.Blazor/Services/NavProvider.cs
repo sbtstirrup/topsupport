@@ -26,28 +26,19 @@ public class NavProvider
         _api = api;
     }
 
-    /// <summary>The nav for <paramref name="role"/>, with the signed-in account's badge counts.</summary>
+    /// <summary>The nav for <paramref name="role"/>, with the signed-in account's badge counts. Api failures propagate.</summary>
     public async Task<IReadOnlyList<NavRow>> GetNavRowsAsync(AppRole role, CancellationToken cancellationToken = default)
-    {
-        TicketNavCountsDtoOrDefault counts;
-        try
-        {
-            var dto = await _api.GetNavCountsAsync(cancellationToken);
-            counts = new TicketNavCountsDtoOrDefault(dto);
-        }
-        catch
-        {
-            // Nav must still render if the Api call fails (e.g. during startup) -- just without badges.
-            counts = TicketNavCountsDtoOrDefault.Empty;
-        }
+        => GetNavRows(role, await _api.GetNavCountsAsync(cancellationToken));
 
-        return role switch
+    /// <summary>The nav for <paramref name="role"/>; with no <paramref name="counts"/> (the Api call failed) the badges are left off.</summary>
+    public static IReadOnlyList<NavRow> GetNavRows(AppRole role, TicketNavCountsDto? counts)
+        => role switch
         {
             AppRole.User => new[]
             {
                 NavRow.Group("Help"),
                 NavRow.Link(new AppNavItem { Label = "Raise a Ticket", Route = "/raise", Icon = "plus", Roles = new[] { AppRole.User } }),
-                NavRow.Link(new AppNavItem { Label = "My Tickets", Route = "/my-tickets", Icon = "ticket", Roles = new[] { AppRole.User }, Count = counts.MyOpenTickets }),
+                NavRow.Link(new AppNavItem { Label = "My Tickets", Route = "/my-tickets", Icon = "ticket", Roles = new[] { AppRole.User }, Count = counts?.MyOpenTickets }),
                 NavRow.Group("Account"),
                 NavRow.Link(new AppNavItem { Label = "My Profile", Route = "/profile", Icon = "user", Roles = new[] { AppRole.User, AppRole.Agent, AppRole.Admin } }),
             },
@@ -68,29 +59,17 @@ public class NavProvider
             }.Concat(WorkspaceNavRows(counts)).ToArray(),
             _ => Array.Empty<NavRow>()
         };
-    }
 
-    private static IReadOnlyList<NavRow> WorkspaceNavRows(TicketNavCountsDtoOrDefault counts) => new[]
+    private static IReadOnlyList<NavRow> WorkspaceNavRows(TicketNavCountsDto? counts) => new[]
     {
         NavRow.Group("Queues"),
-        NavRow.Link(new AppNavItem { Label = "Open", Route = "/queue/open", Icon = "inbox", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts.QueueOpen }),
-        NavRow.Link(new AppNavItem { Label = "Assigned to Me", Route = "/queue/mine", Icon = "user", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts.QueueMine }),
-        NavRow.Link(new AppNavItem { Label = "Overdue", Route = "/queue/overdue", Icon = "clock", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts.QueueOverdue, CountIsAlert = true }),
-        NavRow.Link(new AppNavItem { Label = "Answered", Route = "/queue/answered", Icon = "reply", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts.QueueAnswered }),
-        NavRow.Link(new AppNavItem { Label = "Closed", Route = "/queue/closed", Icon = "lock", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts.QueueClosed }),
+        NavRow.Link(new AppNavItem { Label = "Open", Route = "/queue/open", Icon = "inbox", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts?.QueueOpen }),
+        NavRow.Link(new AppNavItem { Label = "Assigned to Me", Route = "/queue/mine", Icon = "user", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts?.QueueMine }),
+        NavRow.Link(new AppNavItem { Label = "Overdue", Route = "/queue/overdue", Icon = "clock", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts?.QueueOverdue, CountIsAlert = true }),
+        NavRow.Link(new AppNavItem { Label = "Answered", Route = "/queue/answered", Icon = "reply", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts?.QueueAnswered }),
+        NavRow.Link(new AppNavItem { Label = "Closed", Route = "/queue/closed", Icon = "lock", Roles = new[] { AppRole.Agent, AppRole.Admin }, Count = counts?.QueueClosed }),
         NavRow.Group("Tickets"),
         NavRow.Link(new AppNavItem { Label = "New Ticket for a User", Route = "/new-ticket", Icon = "plus", Roles = new[] { AppRole.Agent, AppRole.Admin } }),
         NavRow.Link(new AppNavItem { Label = "Canned Responses", Route = "/canned", Icon = "note", Roles = new[] { AppRole.Agent, AppRole.Admin } }),
     };
-
-    /// <summary>Null-safe wrapper so a failed/omitted nav-counts call just means no badges, not a broken nav.</summary>
-    private readonly record struct TicketNavCountsDtoOrDefault(int MyOpenTickets, int QueueOpen, int QueueMine, int QueueOverdue, int QueueAnswered, int QueueClosed)
-    {
-        public static readonly TicketNavCountsDtoOrDefault Empty = new();
-
-        public TicketNavCountsDtoOrDefault(TicketNavCountsDto dto)
-            : this(dto.MyOpenTickets, dto.QueueOpen, dto.QueueMine, dto.QueueOverdue, dto.QueueAnswered, dto.QueueClosed)
-        {
-        }
-    }
 }

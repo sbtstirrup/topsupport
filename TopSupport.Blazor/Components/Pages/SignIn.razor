@@ -5,6 +5,7 @@
 @inject SessionState Session
 @inject NavigationManager Nav
 @inject IWebHostEnvironment Env
+@inject TestAccountSwitcher Switcher
 @using TopSupport.Models.Admin
 
 @* Port of PAGES.signin / ACT.signin in topsupport-app.js. A static server-rendered form (not an
@@ -69,15 +70,25 @@
 
     [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
 
-    /// <summary>Set by /account/test-switch when the picked test account couldn't sign in.</summary>
+    /// <summary>Set by /account/test-switch when the picked test account couldn't sign in. Ignored unless the
+    /// switcher is on, so nobody can put their own text in this page's error box with a link.</summary>
     [SupplyParameterFromQuery] private string? SwitchError { get; set; }
+
+    /// <summary>Set by /account/expired once the Api refused the session token.</summary>
+    [SupplyParameterFromQuery] private string? Expired { get; set; }
+
+    /// <summary>Set by the sign-in rate limiter (Program.cs).</summary>
+    [SupplyParameterFromQuery] private string? TooMany { get; set; }
 
     private string? _error;
 
     protected override void OnInitialized()
     {
         Input ??= new();
-        _error ??= SwitchError;
+        _error ??= TooMany is not null ? "Too many sign-in attempts. Wait a minute and try again."
+            : Expired is not null ? "Your session has ended. Sign in again."
+            : Switcher.IsEnabled ? SwitchError
+            : null;
 
         // Already signed in (e.g. the back button): go straight to their home, as the demo does.
         if (HttpMethods.IsGet(HttpContext.Request.Method) && Session.IsSignedIn)

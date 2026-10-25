@@ -6,8 +6,6 @@ using TopSupport.Models.Tickets.FieldSchema;
 
 namespace TopSupport.Blazor.Services;
 
-public record HealthStatus(string Status, DateTimeOffset Utc);
-
 /// <summary>
 /// Typed HttpClient for calling TopSupport.Api, registered via AddHttpClient in Program.cs
 /// with its BaseAddress bound to the "TopSupportApi:BaseUrl" configuration value. This is
@@ -33,10 +31,6 @@ public partial class TopSupportApiClient
             _httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         }
     }
-
-    /// <summary>Calls GET /api/health -- the one real end-to-end call wired up in the skeleton pass.</summary>
-    public async Task<HealthStatus?> GetHealthAsync(CancellationToken cancellationToken = default)
-        => await _httpClient.GetFromJsonAsync<HealthStatus>("api/health", cancellationToken);
 
     // ---------------- Tickets ----------------
 
