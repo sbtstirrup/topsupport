@@ -233,8 +233,13 @@
         }
     }
 
+    // Bumped by every refresh; a refresh only applies its results if no newer one started meanwhile,
+    // so a slow older response (e.g. a debounced search) can't overwrite a newer filter's results.
+    private int _refreshSeq;
+
     private async Task RefreshAsync()
     {
+        var seq = ++_refreshSeq;
         _loading = true;
         StateHasChanged();
 
@@ -253,19 +258,21 @@
             PageSize = _pageSize
         };
 
-        _result = await Api.GetQueueAsync(request);
+        var result = await Api.GetQueueAsync(request);
 
         // Base count (no filters) and overdue count, for the header line + overdue chip -- mirrors
         // the demo's `base.length`/`DB.tickets.filter(isOverdue).length`.
         var baseRequest = new TicketQueueRequest { Queue = QueueName, Page = 1, PageSize = 1 };
         var baseResult = await Api.GetQueueAsync(baseRequest);
-        _baseCount = baseResult.TotalCount;
+        var overdueResult = QueueName != "overdue"
+            ? await Api.GetQueueAsync(new TicketQueueRequest { Queue = "overdue", Page = 1, PageSize = 1 })
+            : null;
 
-        if (QueueName != "overdue")
-        {
-            var overdueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "overdue", Page = 1, PageSize = 1 });
-            _overdueCount = overdueResult.TotalCount;
-        }
+        if (seq != _refreshSeq) return;
+
+        _result = result;
+        _baseCount = baseResult.TotalCount;
+        if (overdueResult is not null) _overdueCount = overdueResult.TotalCount;
 
         _selectedIds = new HashSet<string>(_selectedIds.Where(id => _result.Items.Any(t => t.Id == id)));
         _loading = false;

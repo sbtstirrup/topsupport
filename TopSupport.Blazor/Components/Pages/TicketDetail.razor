@@ -108,7 +108,7 @@
                             </div>
                         }
 
-                        <RichTextEditor @bind-Html="_replyHtml" Label="Your Message" Required="true" Placeholder="Write your reply to the IT team" ErrorMessage="@_replyError" />
+                        <RichTextEditor @ref="_editorRef" @bind-Html="_replyHtml" Label="Your Message" Required="true" Placeholder="Write your reply to the IT team" ErrorMessage="@_replyError" />
                         <FileUploadDropzone Label="Attachments (Optional)" Attachments="_stagedReplyAttachments" AttachmentsChanged="OnReplyAttachmentsChanged" OnUploadFile="StageReplyFileAsync" />
 
                         <div class="row">
@@ -196,6 +196,7 @@
     private readonly List<StagedAttachment> _stagedReplyFiles = new();
     private List<AttachmentRef> _stagedReplyAttachments = new();
     private bool _isPostingReply;
+    private RichTextEditor? _editorRef;
 
     protected override void OnParametersSet() => Heading.SetHeading($"Ticket #{Id}");
 
@@ -345,12 +346,14 @@
         return Task.CompletedTask;
     }
 
-    private void ClearReply()
+    private async Task ClearReply()
     {
         _replyHtml = string.Empty;
         _replyError = null;
         _stagedReplyFiles.Clear();
         _stagedReplyAttachments = new();
+        // The editor only reads Html on first render, so it has to be cleared explicitly.
+        if (_editorRef is not null) await _editorRef.SetHtmlAsync(string.Empty);
     }
 
     private async Task PostReplyAsync()
@@ -369,33 +372,51 @@
         try
         {
             var request = new AddUserReplyRequest { Html = _replyHtml ?? string.Empty };
-            var updated = await Api.AddUserReplyAsync(_ticket.Id, request);
+            TicketDto updated;
+            try
+            {
+                updated = await Api.AddUserReplyAsync(_ticket.Id, request);
+            }
+            catch (HttpRequestException ex)
+            {
+                // e.g. the ticket was Closed meanwhile or deleted: keep the draft so nothing is lost.
+                Toasts.Error(ApiProblemException.UserMessage(ex));
+                return;
+            }
 
             // Anchor the staged files to the new reply: the newest Reply by this user.
             var entryId = updated.Timeline
                 .Where(e => e.Kind == TicketTimelineEntryKind.Reply && e.By.Type == "user" && e.By.Id == Session.AccountId)
                 .MaxBy(e => e.At)?.Id;
-            var failed = new List<string>();
-            foreach (var staged in _stagedReplyFiles)
+            if (_stagedReplyFiles.Count > 0 && entryId is null)
             {
-                try
-                {
-                    await Api.UploadAttachmentAsync(updated.Id, staged, entryId);
-                }
-                catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
-                {
-                    failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
-                }
+                // Without an anchor the files would show as creation-time attachments.
+                Toasts.Error("Your reply was posted, but the files could not be attached.");
             }
-
-            if (failed.Count > 0)
+            else
             {
-                Toasts.Show($"Your reply was posted, but these files could not be attached: {string.Join(", ", failed)}.", isError: true);
+                var failed = new List<string>();
+                foreach (var staged in _stagedReplyFiles)
+                {
+                    try
+                    {
+                        await Api.UploadAttachmentAsync(updated.Id, staged, entryId);
+                    }
+                    catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+                    {
+                        failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
+                    }
+                }
+
+                if (failed.Count > 0)
+                {
+                    Toasts.Show($"Your reply was posted, but these files could not be attached: {string.Join(", ", failed)}.", isError: true);
+                }
             }
 
             // Refresh in place so the new reply (and any reopened status) appears immediately.
             _ticket = await Api.GetTicketAsync(_ticket.Id) ?? updated;
-            ClearReply();
+            await ClearReply();
         }
         finally
         {

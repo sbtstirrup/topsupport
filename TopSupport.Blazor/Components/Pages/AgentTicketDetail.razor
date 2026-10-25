@@ -31,7 +31,8 @@
     {
         var t = _ticket;
         var mine = t.AssignedAgentId == Session.AccountId;
-        var active = TicketSla.IsActive(t);
+        // Resolved tickets still take replies and can be closed; only Closed ones must be reopened first.
+        var closed = t.Status == TicketStatus.Closed;
 
         <div class="stack">
             @if (_flashMessage is not null)
@@ -65,7 +66,7 @@
                     }
                     <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenAssign">@((MarkupString)IconLibrary.Render("users", 15))Assign</button>
                     <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenChange">@((MarkupString)IconLibrary.Render("edit", 15))Change Status, Priority or Topic</button>
-                    @if (active)
+                    @if (!closed)
                     {
                         <button type="button" class="btn btn-secondary btn-sm" @onclick="OpenClose">@((MarkupString)IconLibrary.Render("lock", 15))Close</button>
                     }
@@ -84,20 +85,21 @@
                     @foreach (var d in _fieldSchema.Where(d => d.Type != TicketFieldType.Banner && (d.ShowWhen is null || d.ShowWhen.Evaluate(t.Fields))))
                     {
                         <div class="kv">
-                            <span>@d.Label.Replace(" (optional)", "")</span>
+                            <span>@d.Label.Replace(" (optional)", "", StringComparison.OrdinalIgnoreCase)</span>
                             <div>@AnswerText(d, t.Fields.GetValueOrDefault(d.Key))</div>
                         </div>
                     }
                 </section>
 
-                @if (t.Topic == "hardware")
+                @{ var deviceTag = t.Fields.GetValueOrDefault("device")?.ToString(); }
+                @if (t.Topic == "hardware" && !string.IsNullOrWhiteSpace(deviceTag))
                 {
-                    <DevicePanel AssetTag="@(t.Fields.GetValueOrDefault("device")?.ToString() ?? "")"
+                    <DevicePanel AssetTag="@deviceTag"
                                  CandidateTickets="_candidateTickets" ExcludeTicketId="@t.Id"
                                  OnTicketClick="@(id => Nav.NavigateTo($"/agent-tickets/{id}"))" />
                 }
 
-                @if (active)
+                @if (!closed)
                 {
                     <section class="card pad-sm stack-16 reply-card @(_replyMode == "note" ? "note-mode" : "")" aria-labelledby="arp-h">
                         <div class="row between">
@@ -425,14 +427,14 @@
         return failed.Count == 0 ? null : $" These files could not be attached: {string.Join(", ", failed)}.";
     }
 
-    private void ClearReply()
+    private async Task ClearReply()
     {
         _replyHtml = "";
         _replyError = null;
         _replyFiles = new();
         _stagedReplyFiles.Clear();
         _statusAfterSending = "";
-        _editorRef?.SetHtmlAsync("");
+        if (_editorRef is not null) await _editorRef.SetHtmlAsync("");
     }
 
     private async Task SendReplyAsync()
@@ -469,7 +471,7 @@
             }
 
             _flashMessage = (_replyMode == "note" ? "Internal note added." : $"Reply sent to {RequesterName}.") + uploadProblem;
-            ClearReply();
+            await ClearReply();
             await LoadTicketAsync();
         }
         catch (HttpRequestException ex)

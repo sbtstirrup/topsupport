@@ -76,18 +76,20 @@
             {
                 await Api.BulkChangePriorityAsync(TicketIds, _selected);
             }
-
-            await OnApplied.InvokeAsync();
-            Modal.Close();
         }
         catch (HttpRequestException ex)
         {
             Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
         }
         finally
         {
             _saving = false;
         }
+
+        // Saved: a failing host reload is not a failed change, so it goes to the error boundary.
+        Modal.Close();
+        await OnApplied.InvokeAsync();
     }
 
     private void Cancel() => Modal.Close();
