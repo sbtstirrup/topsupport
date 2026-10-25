@@ -107,7 +107,7 @@ public sealed class WorkerTestContext
         => new(Store, Cursors, Dispatcher, Time, MsOptions.Create(App), MsOptions.Create(Jobs), NullLogger<TicketEventsJob>.Instance);
 
     public SlaSweepJob SlaSweep()
-        => new(Store, Dispatcher, Time, MsOptions.Create(App), NullLogger<SlaSweepJob>.Instance);
+        => new(Store, Dispatcher, Time, MsOptions.Create(App), MsOptions.Create(Jobs), NullLogger<SlaSweepJob>.Instance);
 
     public AutoCloseJob AutoClose()
         => new(Store, Time, MsOptions.Create(Jobs), NullLogger<AutoCloseJob>.Instance);

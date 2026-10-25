@@ -22,14 +22,18 @@ public sealed class SlaSweepJob
     private readonly NotificationDispatcher _dispatcher;
     private readonly TimeProvider _time;
     private readonly AppOptions _app;
+    private readonly TimeZoneInfo _timeZone;
     private readonly ILogger<SlaSweepJob> _logger;
 
-    public SlaSweepJob(IWorkerTicketStore store, NotificationDispatcher dispatcher, TimeProvider time, IOptions<AppOptions> app, ILogger<SlaSweepJob> logger)
+    public SlaSweepJob(
+        IWorkerTicketStore store, NotificationDispatcher dispatcher, TimeProvider time,
+        IOptions<AppOptions> app, IOptions<JobOptions> jobs, ILogger<SlaSweepJob> logger)
     {
         _store = store;
         _dispatcher = dispatcher;
         _time = time;
         _app = app.Value;
+        _timeZone = TimeZoneInfo.FindSystemTimeZoneById(jobs.Value.TimeZone);
         _logger = logger;
     }
 
@@ -57,7 +61,7 @@ public sealed class SlaSweepJob
 
             foreach (var (name, email) in recipients.Where(r => !string.IsNullOrWhiteSpace(r.Email)))
             {
-                var message = EmailTemplates.SlaBreach(t, email, name, due, _app.AgentTicketUrl(t.TicketId));
+                var message = EmailTemplates.SlaBreach(t, email, name, due, _app.AgentTicketUrl(t.TicketId), _timeZone);
                 if (await _dispatcher.SendOnceAsync(t.TicketId, EventKey, message, cancellationToken)) sent++;
             }
         }

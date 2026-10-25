@@ -81,7 +81,7 @@ public sealed class TicketEventsJob
                 return ($"assigned:{e.EventId}", EmailTemplates.Assigned(e, _app.AgentTicketUrl(e.TicketId)));
 
             case TicketEventType.Resolved when e.Status == TicketStatus.Resolved && HasAddress(e.RequesterEmail):
-                return ($"resolved:{e.EventId}", EmailTemplates.Resolved(e, _app.UserTicketUrl(e.TicketId)));
+                return ($"resolved:{e.EventId}", EmailTemplates.Resolved(e, _app.UserTicketUrl(e.TicketId), _jobs.AutoCloseAfterDays));
 
             default:
                 return null;

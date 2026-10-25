@@ -158,7 +158,7 @@ app.UseAuthentication();
 app.Use(async (context, next) =>
 {
     using var scope = context.User.FindFirst(JwtTokenService.AccountIdClaim) is { } accountId
-        ? app.Logger.BeginScope(new Dictionary<string, object> { ["AccountId"] = accountId.Value })
+        ? app.Logger.BeginScope("AccountId:{AccountId}", accountId.Value)
         : null;
     await next(context);
 });

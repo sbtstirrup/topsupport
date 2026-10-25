@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using TopSupport.Models.Enums;
+using TopSupport.Services.Tickets;
 using TopSupport.Worker.Data;
 
 namespace TopSupport.Worker.Email;
@@ -22,7 +23,7 @@ public static partial class EmailTemplates
         => Build(e.RequesterEmail, $"[#{e.Number}] New reply on your ticket: {e.Subject}",
             $"Hi {FirstName(e.RequesterName)},",
             new[] { $"The IT team has replied to ticket #{e.Number}:" },
-            e.ReplyHtml, "View and reply", link);
+            e.ReplyHtml is null ? null : TicketHtmlSanitizer.Sanitize(e.ReplyHtml), "View and reply", link);
 
     public static EmailMessage Assigned(TicketEvent e, string link)
         => Build(e.AgentEmail!, $"[#{e.Number}] Assigned to you: {e.Subject}",
@@ -30,22 +31,22 @@ public static partial class EmailTemplates
             new[] { $"Ticket #{e.Number} \"{e.Subject}\" from {e.RequesterName} has been assigned to you." },
             null, "Open the ticket", link);
 
-    public static EmailMessage Resolved(TicketEvent e, string link)
+    public static EmailMessage Resolved(TicketEvent e, string link, int autoCloseAfterDays)
         => Build(e.RequesterEmail, $"[#{e.Number}] Your ticket has been resolved: {e.Subject}",
             $"Hi {FirstName(e.RequesterName)},",
             new[]
             {
                 $"Ticket #{e.Number} \"{e.Subject}\" has been marked as resolved.",
-                "If the problem isn't fixed, reply on the ticket to reopen it. Resolved tickets close automatically after 7 days."
+                $"If the problem isn't fixed, reply on the ticket to reopen it. Resolved tickets close automatically after {autoCloseAfterDays} days."
             },
             null, "View your ticket", link);
 
-    public static EmailMessage SlaBreach(SlaCandidate t, string to, string recipientName, DateTimeOffset due, string link)
+    public static EmailMessage SlaBreach(SlaCandidate t, string to, string recipientName, DateTimeOffset due, string link, TimeZoneInfo timeZone)
         => Build(to, $"[#{t.Number}] Response target missed: {t.Subject}",
             $"Hi {FirstName(recipientName)},",
             new[]
             {
-                $"Ticket #{t.Number} \"{t.Subject}\" ({t.Priority} priority) has had no reply from the IT team and passed its response target at {FormatUk(due)}.",
+                $"Ticket #{t.Number} \"{t.Subject}\" ({t.Priority} priority) has had no reply from the IT team and passed its response target at {FormatLocal(due, timeZone)}.",
                 t.AgentName is null && t.TeamName is not null ? $"It is assigned to the {t.TeamName} team with no agent yet." : "Please reply to the requester as soon as you can."
             },
             null, "Open the ticket", link);
@@ -104,7 +105,7 @@ public static partial class EmailTemplates
 
         if (quotedHtml is not null)
         {
-            // Reply HTML is sanitized by the Api before it's stored (TicketHtmlSanitizer).
+            // Sanitized again by AgentReply (the Api sanitizes before storing; rows written any other way aren't).
             html.Append($"<blockquote style=\"border-left:3px solid #1b8463;margin:0 0 16px;padding:4px 14px;color:#33464d\">{quotedHtml}</blockquote>");
             text.AppendLine(ToPlainText(quotedHtml)).AppendLine();
         }
@@ -134,8 +135,9 @@ public static partial class EmailTemplates
 
     private static string FirstName(string? name) => string.IsNullOrWhiteSpace(name) ? "there" : name.Trim().Split(' ')[0];
 
-    private static string FormatUk(DateTimeOffset utc)
-        => TimeZoneInfo.ConvertTime(utc, TimeZoneInfo.FindSystemTimeZoneById("Europe/London")).ToString("dd/MM/yyyy, HH:mm");
+    /// <summary>In the jobs' time zone ("Jobs:TimeZone"), the way the UK app shows dates.</summary>
+    private static string FormatLocal(DateTimeOffset utc, TimeZoneInfo timeZone)
+        => TimeZoneInfo.ConvertTime(utc, timeZone).ToString("dd/MM/yyyy, HH:mm");
 
     private static string ToPlainText(string html)
         => WebUtility.HtmlDecode(Tags().Replace(BlockBreaks().Replace(html, "\n"), string.Empty)).Trim();

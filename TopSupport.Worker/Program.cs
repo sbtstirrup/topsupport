@@ -14,6 +14,18 @@ using TopSupport.Worker.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Structured logs with scopes, so each job's lines carry its JobId and name (JobLogScopeFilter).
+// JSON outside Development, like TopSupport.Api.
+builder.Logging.ClearProviders();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Logging.AddSimpleConsole(o => { o.IncludeScopes = true; o.SingleLine = true; });
+}
+else
+{
+    builder.Logging.AddJsonConsole(o => o.IncludeScopes = true);
+}
+
 // Outside Development, settings (and secrets) can also come from AWS Systems Manager Parameter
 // Store under "Aws:ParameterStorePath", e.g. /TopSupport/Worker/ConnectionStrings/TopSupport.
 // Locally, secrets go in user secrets (dotnet user-secrets), never appsettings.
@@ -91,7 +103,8 @@ builder.Services.AddTransient<HeartbeatJob>();
 // Hangfire: SQL Server storage in the "jobs" schema of the same database (created on first start).
 var connectionString = builder.Configuration.GetConnectionString("TopSupport")
     ?? throw new InvalidOperationException("Missing \"ConnectionStrings:TopSupport\" configuration value.");
-builder.Services.AddHangfire(config => config
+builder.Services.AddSingleton<JobLogScopeFilter>();
+builder.Services.AddHangfire((services, config) => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
@@ -99,7 +112,8 @@ builder.Services.AddHangfire(config => config
     {
         SchemaName = "jobs",
         PrepareSchemaIfNecessary = true
-    }));
+    })
+    .UseFilter(services.GetRequiredService<JobLogScopeFilter>()));
 builder.Services.AddHangfireServer(options => options.ServerName = $"TopSupport.Worker:{Environment.MachineName}");
 
 // The dashboard listens on localhost only. On EC2 it's reached through an SSM port-forwarding
@@ -107,6 +121,7 @@ builder.Services.AddHangfireServer(options => options.ServerName = $"TopSupport.
 // In a container (the .NET images set DOTNET_RUNNING_IN_CONTAINER) it has to listen on all
 // interfaces for Docker's port mapping to reach it; docker-compose.worker.yml then publishes it
 // on the host's 127.0.0.1 only, and requests arrive from the Docker gateway rather than loopback.
+// With no login there, the dashboard is read-only: it can't trigger, re-run or delete jobs.
 var inContainer = builder.Configuration.GetValue<bool>("DOTNET_RUNNING_IN_CONTAINER");
 var dashboardPort = builder.Configuration.GetValue<int?>($"{WorkerDashboardOptions.SectionName}:Port") ?? new WorkerDashboardOptions().Port;
 builder.WebHost.ConfigureKestrel(kestrel => kestrel.Listen(inContainer ? IPAddress.Any : IPAddress.Loopback, dashboardPort));
@@ -118,7 +133,8 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
     DashboardTitle = "TopSupport Worker",
     Authorization = inContainer
         ? Array.Empty<IDashboardAuthorizationFilter>()
-        : new IDashboardAuthorizationFilter[] { new LocalRequestsOnlyAuthorizationFilter() }
+        : new IDashboardAuthorizationFilter[] { new LocalRequestsOnlyAuthorizationFilter() },
+    IsReadOnlyFunc = _ => inContainer
 });
 app.MapGet("/", () => Results.Redirect("/hangfire"));
 
