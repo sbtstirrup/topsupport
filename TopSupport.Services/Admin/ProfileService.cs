@@ -12,9 +12,9 @@ public interface IProfileService
 {
     Task<ProfileDto?> GetAsync(string accountId, CancellationToken cancellationToken = default);
 
-    Task<ProfileSaveResult> UpdateDetailsAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default);
+    Task UpdateDetailsAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default);
 
-    Task<ProfileSaveResult> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default);
+    Task ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default);
 }
 
 public class ProfileService : IProfileService
@@ -35,25 +35,23 @@ public class ProfileService : IProfileService
     public Task<ProfileDto?> GetAsync(string accountId, CancellationToken cancellationToken = default)
         => _repository.GetAsync(accountId, cancellationToken);
 
-    public async Task<ProfileSaveResult> UpdateDetailsAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default)
+    public async Task UpdateDetailsAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default)
     {
-        var result = new ProfileSaveResult { Errors = ProfileRules.ValidateDetails(request.Name, request.Email, request.Phone) };
-        if (result.Errors.Count > 0) return result;
+        var errors = ProfileRules.ValidateDetails(request.Name, request.Email, request.Phone);
+        if (errors.Count > 0) throw new ValidationException(errors);
 
         var name = request.Name.Trim();
         var phone = request.Phone?.Trim();
         await _repository.UpdateAsync(request.ActorId, name, request.Email.Trim(), string.IsNullOrEmpty(phone) ? null : phone, cancellationToken);
         await _audit.LogAsync(request.ActorId, "Updated profile details", name, AuditCategories.User, cancellationToken);
-        return result;
     }
 
-    public async Task<ProfileSaveResult> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    public async Task ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default)
     {
-        var result = new ProfileSaveResult();
-        var e = result.Errors;
+        var errors = new Dictionary<string, string>();
 
-        if (string.IsNullOrEmpty(request.CurrentPassword)) e["cur"] = "Enter your current password.";
-        else if (!await _passwords.VerifyAsync(request.ActorId, request.CurrentPassword, cancellationToken)) e["cur"] = "That is not your current password.";
+        if (string.IsNullOrEmpty(request.CurrentPassword)) errors["cur"] = "Enter your current password.";
+        else if (!await _passwords.VerifyAsync(request.ActorId, request.CurrentPassword, cancellationToken)) errors["cur"] = "That is not your current password.";
 
         // pw !== m.password: only a hash is stored, so "different" means "doesn't verify".
         var differs = !string.IsNullOrEmpty(request.NewPassword)
@@ -61,14 +59,14 @@ public class ProfileService : IProfileService
         var security = await _settings.GetSecurityAsync(cancellationToken);
         var bad = ProfileRules.PasswordRules(security, request.NewPassword, request.ConfirmPassword, differs).Where(r => !r.Met).ToList();
 
-        if (string.IsNullOrEmpty(request.NewPassword)) e["nw"] = "Enter a new password.";
-        else if (bad.Count > 0) e["nw"] = "The new password does not meet: " + string.Join("; ", bad.Select(r => r.Label.ToLowerInvariant())) + ".";
+        if (string.IsNullOrEmpty(request.NewPassword)) errors["nw"] = "Enter a new password.";
+        else if (bad.Count > 0) errors["nw"] = "The new password does not meet: " + string.Join("; ", bad.Select(r => r.Label.ToLowerInvariant())) + ".";
 
-        if (e.Count > 0) return result;
+        if (errors.Count > 0) throw new ValidationException(errors);
 
         await _passwords.ChangeOwnAsync(request.ActorId, request.NewPassword, cancellationToken);
-        var profile = await _repository.GetAsync(request.ActorId, cancellationToken);
-        await _audit.LogAsync(request.ActorId, "Changed own password", profile?.Name ?? request.ActorId, AuditCategories.User, cancellationToken);
-        return result;
+        var profile = await _repository.GetAsync(request.ActorId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Account '{request.ActorId}' changed its password but has no profile.");
+        await _audit.LogAsync(request.ActorId, "Changed own password", profile.Name, AuditCategories.User, cancellationToken);
     }
 }

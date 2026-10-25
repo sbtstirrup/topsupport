@@ -27,19 +27,22 @@ public class DashboardService : IDashboardService
     private readonly IAgentRepository _agents;
     private readonly ITeamRepository _teams;
     private readonly IUserRepository _users;
+    private readonly TimeProvider _time;
 
     public DashboardService(
         ITicketRepository tickets,
         IDashboardRepository dashboard,
         IAgentRepository agents,
         ITeamRepository teams,
-        IUserRepository users)
+        IUserRepository users,
+        TimeProvider time)
     {
         _tickets = tickets;
         _dashboard = dashboard;
         _agents = agents;
         _teams = teams;
         _users = users;
+        _time = time;
     }
 
     public async Task<DashboardDto> GetDashboardAsync(CancellationToken cancellationToken = default)
@@ -55,14 +58,14 @@ public class DashboardService : IDashboardService
         DateTimeOffset? ClosedAt(TicketDto t) =>
             !TicketSla.IsActive(t) && closedAtById.TryGetValue(t.Id, out var at) ? at : null;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var week = TimeSpan.FromDays(7);
         var last30 = now.AddDays(-30);
 
         var result = new DashboardDto
         {
             ActiveCount = all.Count(TicketSla.IsActive),
-            OverdueCount = all.Count(TicketSla.IsOverdue),
+            OverdueCount = all.Count(t => TicketSla.IsOverdue(t, now)),
             OpenedLast30Days = all.Count(t => t.Created >= last30),
             ClosedLast30Days = all.Count(t => ClosedAt(t) is { } c && c >= last30),
             AvgFirstResponseHours = AvgHours(all)
@@ -91,7 +94,7 @@ public class DashboardService : IDashboardService
             {
                 Department = dept,
                 Active = inDept.Count(TicketSla.IsActive),
-                Overdue = inDept.Count(TicketSla.IsOverdue),
+                Overdue = inDept.Count(t => TicketSla.IsOverdue(t, now)),
                 AvgFirstResponseHours = AvgHours(inDept)
             });
         }
@@ -112,15 +115,15 @@ public class DashboardService : IDashboardService
                 Active = mine.Count(TicketSla.IsActive),
                 ResolvedOrClosed = mine.Count(t => !TicketSla.IsActive(t)),
                 AvgFirstResponseHours = AvgHours(mine),
-                Overdue = mine.Count(TicketSla.IsOverdue)
+                Overdue = mine.Count(t => TicketSla.IsOverdue(t, now))
             });
         }
 
         result.UnassignedActive = all.Count(t => TicketSla.IsActive(t) && t.AssignedAgentId == null);
-        result.UnassignedOverdue = all.Count(t => TicketSla.IsOverdue(t) && t.AssignedAgentId == null);
+        result.UnassignedOverdue = all.Count(t => TicketSla.IsOverdue(t, now) && t.AssignedAgentId == null);
 
         // DB.tickets order in the demo is creation order (oldest first).
-        foreach (var t in all.Where(TicketSla.IsOverdue).OrderBy(t => t.Created))
+        foreach (var t in all.Where(t => TicketSla.IsOverdue(t, now)).OrderBy(t => t.Created))
         {
             var requester = users.FirstOrDefault(u => u.Id == t.RequesterUserId)
                 ?? await _users.GetByIdAsync(t.RequesterUserId, cancellationToken);

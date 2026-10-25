@@ -71,6 +71,9 @@ builder.Services.AddScoped<IOrgAdminService, OrgAdminService>();
 var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.AddSingleton<JwtTokenService>();
+
+// Services read the time through TimeProvider (never DateTimeOffset.UtcNow), so tests can fix it.
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

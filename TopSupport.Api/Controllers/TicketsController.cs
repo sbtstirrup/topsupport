@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+using TopSupport.Services;
 using TopSupport.Api.Auth;
 using TopSupport.Models.Tickets;
 using TopSupport.Models.Tickets.FieldSchema;
@@ -82,25 +82,8 @@ public class TicketsController : ControllerBase
     {
         if (User.IsEndUser() && body.Request.RequesterUserId != User.AccountId()) return Forbid();
 
-        try
-        {
-            var ticket = await _ticketService.CreateTicketAsync(body.Request, User.Actor(), cancellationToken);
-            return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, User.ForCaller(ticket));
-        }
-        catch (TicketValidationException ex)
-        {
-            return ValidationProblem(ToModelState(ex.ValidationResult));
-        }
-    }
-
-    private static ModelStateDictionary ToModelState(TicketFormValidationResult result)
-    {
-        var modelState = new ModelStateDictionary();
-        foreach (var (key, message) in result.Errors)
-        {
-            modelState.AddModelError(key, message);
-        }
-        return modelState;
+        var ticket = await _ticketService.CreateTicketAsync(body.Request, User.Actor(), cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, User.ForCaller(ticket));
     }
 
     /// <summary>End users only, on their own tickets; agents reply through replies/agent.</summary>
@@ -114,10 +97,6 @@ public class TicketsController : ControllerBase
         try
         {
             return Ok(User.ForCaller(await _ticketService.AddUserReplyAsync(id, request, cancellationToken)));
-        }
-        catch (TicketClosedException ex)
-        {
-            return BadRequest(new { message = ex.Message });
         }
         catch (KeyNotFoundException)
         {
@@ -133,10 +112,6 @@ public class TicketsController : ControllerBase
         try
         {
             return Ok(await _ticketService.AddAgentReplyAsync(id, request, cancellationToken));
-        }
-        catch (TicketClosedException ex)
-        {
-            return BadRequest(new { message = ex.Message });
         }
         catch (KeyNotFoundException)
         {
@@ -220,7 +195,7 @@ public class TicketsController : ControllerBase
             {
                 "agent" => await _ticketService.AssignToAgentAsync(id, request.Assignment.Id, User.Actor(), cancellationToken),
                 "team" => await _ticketService.AssignToTeamAsync(id, request.Assignment.Id, User.Actor(), cancellationToken),
-                _ => throw new ArgumentException("Choose an agent or a team.")
+                _ => throw new ValidationException("kind", "Choose an agent or a team.")
             };
             return Ok(ticket);
         }
@@ -240,11 +215,6 @@ public class TicketsController : ControllerBase
         try
         {
             return Ok(await _ticketService.ClaimAsync(id, User.AccountId(), cancellationToken));
-        }
-        catch (TicketConflictException ex)
-        {
-            // Another agent claimed/reassigned it between this agent loading the ticket and clicking Claim.
-            return Conflict(new { message = ex.Message });
         }
         catch (KeyNotFoundException)
         {
@@ -342,11 +312,8 @@ public class TicketsController : ControllerBase
             return NotFound();
         }
 
-        if (file is null) return BadRequest(new { message = "Choose a file to attach." });
-        if (file.Length > TicketAttachmentRules.MaxFileSizeBytes)
-        {
-            return BadRequest(new { message = TicketAttachmentRules.TooLargeMessage });
-        }
+        if (file is null) throw new ValidationException("file", "Choose a file to attach.");
+        if (file.Length > TicketAttachmentRules.MaxFileSizeBytes) throw new ValidationException("file", TicketAttachmentRules.TooLargeMessage);
 
         await using var stream = new MemoryStream();
         await file.CopyToAsync(stream, cancellationToken);
@@ -358,19 +325,11 @@ public class TicketsController : ControllerBase
                 User.Actor(), cancellationToken);
             return Ok(attachment);
         }
-        catch (Exception ex) when (ex is AttachmentTooLargeException or TicketClosedException or ArgumentException)
-        {
-            return BadRequest(new { message = ArgumentMessage(ex) });
-        }
         catch (KeyNotFoundException)
         {
             return NotFound();
         }
     }
-
-    /// <summary>The exception message without the " (Parameter 'x')" suffix ArgumentException appends.</summary>
-    private static string ArgumentMessage(Exception ex)
-        => ex is ArgumentException { ParamName: { } param } ? ex.Message.Replace($" (Parameter '{param}')", string.Empty) : ex.Message;
 
     /// <summary>ActingAgentId ("mine" queue / "assigned to me" filter) is always the signed-in agent.</summary>
     [HttpGet("queue")]

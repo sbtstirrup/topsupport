@@ -116,7 +116,7 @@ public partial class AgentAdminService : IAgentAdminService
             errors["role"] = "Keep at least one active Administrator.";
         }
 
-        if (errors.Count > 0) return result;
+        if (errors.Count > 0) throw new ValidationException(errors);
 
         var agent = new AgentDto
         {
@@ -196,7 +196,7 @@ public partial class AgentAdminService : IAgentAdminService
         else if (members.Count == 0) errors["members"] = "Add at least one member.";
         if (lead.Length > 0 && !members.Contains(lead)) errors["lead"] = "Choose a lead from the team members.";
 
-        if (errors.Count > 0) return result;
+        if (errors.Count > 0) throw new ValidationException(errors);
 
         var team = new TeamDto
         {

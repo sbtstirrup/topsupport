@@ -20,10 +20,12 @@ public class WorkerMonitorService : IWorkerMonitorService
     public const int MaxPageSize = 100;
 
     private readonly IWorkerMonitorRepository _repository;
+    private readonly TimeProvider _time;
 
-    public WorkerMonitorService(IWorkerMonitorRepository repository)
+    public WorkerMonitorService(IWorkerMonitorRepository repository, TimeProvider time)
     {
         _repository = repository;
+        _time = time;
     }
 
     public Task<WorkerJobsDto> GetJobsAsync(CancellationToken cancellationToken = default)
@@ -34,7 +36,7 @@ public class WorkerMonitorService : IWorkerMonitorService
         // Unknown types are rejected rather than silently showing nothing.
         if (!string.IsNullOrEmpty(eventType) && WorkerEmailTypes.All.All(t => t.Key != eventType))
         {
-            throw new ArgumentException($"Unknown email type '{eventType}'.", nameof(eventType));
+            throw new ValidationException("type", $"Unknown email type '{eventType}'.");
         }
 
         var term = search?.Trim();
@@ -45,7 +47,7 @@ public class WorkerMonitorService : IWorkerMonitorService
             string.IsNullOrEmpty(term) ? null : EscapeLike(term),
             Math.Max(1, page),
             Math.Clamp(pageSize, 1, MaxPageSize),
-            DateTimeOffset.UtcNow,
+            _time.GetUtcNow(),
             cancellationToken);
     }
 

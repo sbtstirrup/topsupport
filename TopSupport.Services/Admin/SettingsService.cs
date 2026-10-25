@@ -3,14 +3,6 @@ using TopSupport.Services.Abstractions;
 
 namespace TopSupport.Services.Admin;
 
-/// <summary>Thrown when a settings save is rejected (the demo's error toast). Mapped to 400 by the Api.</summary>
-public class SettingsValidationException : Exception
-{
-    public SettingsValidationException(string message) : base(message)
-    {
-    }
-}
-
 /// <summary>
 /// The demo's DB.security and DB.site, stored in dbo.AppSettings under "security." / "site." keys.
 /// Security settings also drive the password rules on My Profile (pwRules in topsupport-app.js).
@@ -55,17 +47,17 @@ public class SettingsService : ISettingsService
         settings.MinLength = Math.Max(0, settings.MinLength);
         settings.ExpiryDays = Math.Max(0, settings.ExpiryDays);
         settings.History = Math.Max(0, settings.History);
-        if (settings.MinLength < 8) throw new SettingsValidationException("Minimum length must be at least 8.");
+        if (settings.MinLength < 8) throw new ValidationException("minLength", "Minimum length must be at least 8.");
 
         // Upper bounds the demo doesn't have: the Security page's number inputs share these ranges,
         // and the session/lockout/2FA settings (no editor) still mustn't be posted out of range.
-        if (settings.MinLength > MaxMinLength) throw new SettingsValidationException($"Minimum length must be {MaxMinLength} or fewer.");
-        if (settings.ExpiryDays > 365) throw new SettingsValidationException("Password expiry must be 365 days or fewer.");
-        if (settings.History > 24) throw new SettingsValidationException("Password history must be 24 or fewer.");
-        if (settings.SessionTimeout is < 5 or > 480) throw new SettingsValidationException("Session timeout must be between 5 and 480 minutes.");
-        if (settings.LockoutAttempts is < 0 or > 20) throw new SettingsValidationException("Lockout attempts must be between 0 and 20.");
-        if (!TwoFactorModes.Contains(settings.TwoFactorAgents)) throw new SettingsValidationException("Two-factor for agents must be Required, Optional or Off.");
-        if (!TwoFactorModes.Contains(settings.TwoFactorUsers)) throw new SettingsValidationException("Two-factor for users must be Required, Optional or Off.");
+        if (settings.MinLength > MaxMinLength) throw new ValidationException("minLength", $"Minimum length must be {MaxMinLength} or fewer.");
+        if (settings.ExpiryDays > 365) throw new ValidationException("expiryDays", "Password expiry must be 365 days or fewer.");
+        if (settings.History > 24) throw new ValidationException("history", "Password history must be 24 or fewer.");
+        if (settings.SessionTimeout is < 5 or > 480) throw new ValidationException("sessionTimeout", "Session timeout must be between 5 and 480 minutes.");
+        if (settings.LockoutAttempts is < 0 or > 20) throw new ValidationException("lockoutAttempts", "Lockout attempts must be between 0 and 20.");
+        if (!TwoFactorModes.Contains(settings.TwoFactorAgents)) throw new ValidationException("twoFactorAgents", "Two-factor for agents must be Required, Optional or Off.");
+        if (!TwoFactorModes.Contains(settings.TwoFactorUsers)) throw new ValidationException("twoFactorUsers", "Two-factor for users must be Required, Optional or Off.");
 
         var current = (await GetSecurityAsync(cancellationToken)).ToKeyValues().ToDictionary(kv => kv.Key, kv => kv.Value);
         var changed = settings.ToKeyValues().Where(kv => current[kv.Key] != kv.Value).ToList();
@@ -94,20 +86,20 @@ public class SettingsService : ISettingsService
     {
         if (string.IsNullOrWhiteSpace(settings.LandingTitle) || string.IsNullOrWhiteSpace(settings.SigninTitle))
         {
-            throw new SettingsValidationException("Headings cannot be empty.");
+            throw new ValidationException("", "Headings cannot be empty.");
         }
 
         // SQL Server would silently truncate an over-long value, so reject it, naming the field.
-        var tooLong = new (string Label, string? Value, int Max)[]
+        var tooLong = new (string Key, string Label, string? Value, int Max)[]
         {
-            ("Welcome heading", settings.LandingTitle, FieldLimits.SiteHeading),
-            ("Welcome message", settings.LandingBody, FieldLimits.SiteBody),
-            ("Sign-in heading", settings.SigninTitle, FieldLimits.SiteHeading),
-            ("Sign-in instructions", settings.SigninBody, FieldLimits.SiteBody)
+            ("landingTitle", "Welcome heading", settings.LandingTitle, FieldLimits.SiteHeading),
+            ("landingBody", "Welcome message", settings.LandingBody, FieldLimits.SiteBody),
+            ("signinTitle", "Sign-in heading", settings.SigninTitle, FieldLimits.SiteHeading),
+            ("signinBody", "Sign-in instructions", settings.SigninBody, FieldLimits.SiteBody)
         }.FirstOrDefault(f => f.Value is not null && f.Value.Length > f.Max);
         if (tooLong.Label is not null)
         {
-            throw new SettingsValidationException($"{tooLong.Label} must be {tooLong.Max:N0} characters or fewer.");
+            throw new ValidationException(tooLong.Key, $"{tooLong.Label} must be {tooLong.Max:N0} characters or fewer.");
         }
 
         // Stored as typed, like DB.site = Object.assign({}, F) in the demo (no trimming).

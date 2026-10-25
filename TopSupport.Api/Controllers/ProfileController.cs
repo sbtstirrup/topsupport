@@ -29,16 +29,18 @@ public class ProfileController : ControllerBase
     }
 
     [HttpPut]
-    public async Task<ActionResult<ProfileSaveResult>> UpdateDetails(UpdateProfileRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateDetails(UpdateProfileRequest request, CancellationToken cancellationToken)
     {
         request.ActorId = User.AccountId();
-        return Ok(await _profiles.UpdateDetailsAsync(request, cancellationToken));
+        await _profiles.UpdateDetailsAsync(request, cancellationToken);
+        return Ok();
     }
 
     [HttpPost("password")]
-    public async Task<ActionResult<ProfileSaveResult>> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
     {
         request.ActorId = User.AccountId();
-        return Ok(await _profiles.ChangePasswordAsync(request, cancellationToken));
+        await _profiles.ChangePasswordAsync(request, cancellationToken);
+        return Ok();
     }
 }

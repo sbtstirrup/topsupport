@@ -47,7 +47,7 @@
                         <div class="row" style="margin-top:8px">
                             <StatusBadge Status="t.Status" />
                             <PriorityBadge Priority="t.Priority" />
-                            @if (TicketSla.IsOverdue(t))
+                            @if (TicketSla.IsOverdue(t, DateTimeOffset.UtcNow))
                             {
                                 <span class="tag overdue">@((MarkupString)IconLibrary.Render("clock", 13)) Overdue</span>
                             }

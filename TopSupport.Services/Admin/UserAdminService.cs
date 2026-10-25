@@ -8,7 +8,7 @@ namespace TopSupport.Services.Admin;
 /// <summary>
 /// Admin Users screens: port of PAGES.users/PAGES.user, ACT['user-save'], ACT['user-lock'],
 /// ACT['user-reset'] and ACT['user-del'] in topsupport-app.js. Every mutation audits with the
-/// demo's wording. Throws <see cref="UserOrgValidationException"/> for form errors and
+/// demo's wording. Throws <see cref="ValidationException"/> for form errors and
 /// <see cref="KeyNotFoundException"/> when the user doesn't exist (or is deleted).
 /// </summary>
 public interface IUserAdminService
@@ -149,7 +149,7 @@ public partial class UserAdminService : IUserAdminService
         if (string.IsNullOrWhiteSpace(request.JobTitle)) errors["jobTitle"] = "Enter a job title.";
         else if (FieldLimits.TooLong(request.JobTitle, FieldLimits.JobTitle) is { } jobErr) errors["jobTitle"] = jobErr;
 
-        if (errors.Count > 0) throw new UserOrgValidationException(errors);
+        if (errors.Count > 0) throw new ValidationException(errors);
     }
 
     private static UserDto ToUser(string id, SaveUserRequest request) => new()

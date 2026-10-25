@@ -89,8 +89,7 @@ public partial class TopSupportApiClient
     {
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
-            var body = await response.Content.ReadFromJsonAsync<AdminValidationErrorDto>(cancellationToken);
-            return new UserOrgSaveResult<T>(default, body?.Errors ?? new Dictionary<string, string>());
+            return new UserOrgSaveResult<T>(default, await ReadValidationErrorsAsync(response, cancellationToken));
         }
 
         response.EnsureSuccessStatusCode();

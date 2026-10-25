@@ -57,7 +57,7 @@ Every script is written to be safely re-run (`IF OBJECT_ID(...) IS NULL`, `CREAT
 | `04_Schema_Extensions.sql` | `TicketAttachments` (VARBINARY(MAX) file storage), `CannedResponses`, and the `TicketNumberSeq` sequence (ticket numbering, replacing the original demo's in-memory counter). |
 | `05_StoredProcedures_Extensions.sql` | The full ticket-lifecycle stored proc set: status/priority/topic/assign updates, timeline/task/attachment/canned-response CRUD, queue search, and User/Agent/Team/Asset lookups. |
 | `06_Admin_Audit.sql` | `AuditEntries` table, insert/read procs and the demo's 16 seed audit entries (audit trail page; every admin change writes here). |
-| `07_Admin_Accounts.sql` | `PasswordHash` columns on `Users`/`Agents` (PBKDF2; NULL = buildSeed() demo password) and the get/set password procs. |
+| `07_Admin_Accounts.sql` | `PasswordHash` columns on `Users`/`Agents` (PBKDF2; NULL = no password set, so no sign-in) and the get/set password procs. |
 | `08_Admin_UsersOrgs.sql` | `Users.Deleted` soft-delete flag plus user and organisation admin procs (list, create/edit, lock, delete). |
 | `09_Admin_AgentsRoles.sql` | `RolePermissions` table (seeded from buildSeed()'s `perms`), `Created` ordering columns on `Agents`/`Teams`, and agent/team admin procs. |
 | `10_Admin_SecuritySiteProfile.sql` | `AppSettings` key/value table (security password rules and site page text) plus My Profile procs. |
@@ -68,14 +68,14 @@ Every script is written to be safely re-run (`IF OBJECT_ID(...) IS NULL`, `CREAT
 | `15_Worker.sql` | The `worker` schema for TopSupport.Worker (the Hangfire job runner): `NotificationLog` (unique on ticket, event key and recipient, so no email is sent twice), `JobCursor`, and the read procs each job uses, plus `usp_AutoClose_CloseTicket`. Hangfire creates its own tables in the `jobs` schema. See `TopSupport.Worker/README.md`. |
 | `16_Dev_TestAccounts.sql` | `usp_Account_ListForTesting`: the accounts the development-only test-account switcher lists. The Api only exposes it in Development with `Auth:TestAccountSwitcher:Enabled` on. |
 | `17_Admin_WorkerMonitor.sql` | Read-only procs for the admin Background Jobs page: the worker's servers, recurring jobs and recent runs (from Hangfire's `jobs` tables) and the emails in `worker.NotificationLog`. Run after `15_Worker.sql`. |
-| `99_SeedData.sql` | Full reference data ported from `buildSeed()` in the original `topsupport-app.js` demo: 12 users, 5 agents, 2 teams, 15 assets, 5 canned responses, and all 30 seed tickets with their complete timelines and leaver-checklist tasks. Also realigns `TicketNumberSeq` past the highest seeded ticket number so real ticket creation never collides with seed data. |
+| `99_SeedData.sql` | Full reference data ported from `buildSeed()` in the original `topsupport-app.js` demo: 12 users, 5 agents, 2 teams, 15 assets, 5 canned responses, and all 30 seed tickets with their complete timelines and leaver-checklist tasks. Also realigns `TicketNumberSeq` past the highest seeded ticket number so real ticket creation never collides with seed data. Finally sets PBKDF2 hashes of the development passwords (shown on the development sign-in page) for the seeded accounts; development databases only. |
 
 ## Sign-in and the unused Identity tables
 
 Sign-in does not use ASP.NET Core Identity. `POST api/auth/sign-in` (AuthController →
 AuthService) looks the username up with `usp_Account_GetByUsername`, verifies the password against
-the PBKDF2 `PasswordHash` from `07_Admin_Accounts.sql` (a NULL hash still means the buildSeed()
-demo password), applies the lockout, and returns a signed bearer token (JWT, HMAC-SHA256) carrying
+the PBKDF2 `PasswordHash` from `07_Admin_Accounts.sql` (an account with no hash can't sign
+in; `99_SeedData.sql` sets development passwords for the seeded accounts), applies the lockout, and returns a signed bearer token (JWT, HMAC-SHA256) carrying
 the account id, name and role. Every other Api endpoint requires that token, and the admin and
 agent endpoints require the role. The Blazor app keeps the token in its encrypted, HttpOnly auth
 cookie and sends it on every Api call.

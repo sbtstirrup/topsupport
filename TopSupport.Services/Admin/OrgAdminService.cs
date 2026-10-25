@@ -7,7 +7,7 @@ namespace TopSupport.Services.Admin;
 
 /// <summary>
 /// Admin Organisations screens: port of PAGES.orgs/PAGES.org and ACT['org-save'] in
-/// topsupport-app.js. Throws <see cref="UserOrgValidationException"/> for form errors and
+/// topsupport-app.js. Throws <see cref="ValidationException"/> for form errors and
 /// <see cref="KeyNotFoundException"/> when the organisation doesn't exist.
 /// </summary>
 public interface IOrgAdminService
@@ -106,7 +106,7 @@ public class OrgAdminService : IOrgAdminService
 
         if (FieldLimits.TooLong(request.Note, FieldLimits.OrgNote) is { } noteErr) errors["note"] = noteErr;
 
-        if (errors.Count > 0) throw new UserOrgValidationException(errors);
+        if (errors.Count > 0) throw new ValidationException(errors);
     }
 
     private static OrgDto ToOrg(string id, SaveOrgRequest request) => new()

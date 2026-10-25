@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace TopSupport.Blazor.Services;
@@ -21,6 +22,19 @@ public class ApiProblemException : HttpRequestException
 
 public partial class TopSupportApiClient
 {
+    /// <summary>
+    /// Field -> message (first per field) from the Api's 400 ValidationProblemDetails, which every
+    /// endpoint uses for invalid input. Key "" holds a message that isn't about one field.
+    /// </summary>
+    private static async Task<Dictionary<string, string>> ReadValidationErrorsAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemBody>(cancellationToken)
+            ?? throw new HttpRequestException($"The Api returned {(int)response.StatusCode} with no error body.", null, response.StatusCode);
+        return (problem.Errors ?? new()).Where(e => e.Value.Length > 0).ToDictionary(e => e.Key, e => e.Value[0]);
+    }
+
+    private sealed record ValidationProblemBody(Dictionary<string, string[]>? Errors, string? Detail);
+
     /// <summary>EnsureSuccessStatusCode, but throws ApiProblemException carrying the Api's error message.</summary>
     private static async Task EnsureSuccessWithMessageAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {

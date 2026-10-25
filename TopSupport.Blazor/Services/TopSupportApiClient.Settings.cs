@@ -39,10 +39,8 @@ public partial class TopSupportApiClient
         return new SettingsSaveOutcome(0, null);
     }
 
-    private sealed record SettingsError(string? Message);
-
     private static async Task<string> ReadSettingsErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-        => (await response.Content.ReadFromJsonAsync<SettingsError>(cancellationToken))?.Message ?? "The settings could not be saved.";
+        => string.Join(" ", (await ReadValidationErrorsAsync(response, cancellationToken)).Values);
 
     // ---------------- My Profile (ProfileController) ----------------
 
@@ -58,14 +56,24 @@ public partial class TopSupportApiClient
     public async Task<ProfileSaveResult> UpdateProfileAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync("api/profile", request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            return new ProfileSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
+        }
+
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ProfileSaveResult>(cancellationToken) ?? new();
+        return new ProfileSaveResult();
     }
 
     public async Task<ProfileSaveResult> ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("api/profile/password", request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            return new ProfileSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
+        }
+
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ProfileSaveResult>(cancellationToken) ?? new();
+        return new ProfileSaveResult();
     }
 }

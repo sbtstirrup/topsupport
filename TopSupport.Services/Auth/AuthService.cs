@@ -39,8 +39,13 @@ public class AuthService : IAuthService
             ? await _credentials.GetByUsernameAsync(un, cancellationToken)
             : null;
 
-        // An inactive agent can't sign in; treated as unknown so it doesn't reveal the account.
-        if (account is null || !account.Active || !await _passwords.VerifyAsync(account.Id, password, cancellationToken))
+        // An inactive agent can't sign in; treated as unknown so it doesn't reveal the account. An
+        // unknown username still does the hashing work (unless the password is over the cap), so the
+        // response time doesn't say whether the username exists.
+        var passwordMatches = account is { Active: true }
+            ? await _passwords.VerifyAsync(account.Id, password, cancellationToken)
+            : password.Length <= FieldLimits.Password && _passwords.VerifyUnknownAccount(password);
+        if (account is null || !passwordMatches)
         {
             await _audit.LogAsync(account?.Id ?? "unknown", "Failed sign-in (" + Truncate(un, 100) + ")", "Sign-in page", AuditCategories.SignIn, cancellationToken);
 

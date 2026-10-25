@@ -64,7 +64,7 @@
         <tbody>
             @foreach (var t in Tickets)
             {
-                var overdue = TicketSla.IsOverdue(t);
+                var overdue = TicketSla.IsOverdue(t, DateTimeOffset.UtcNow);
                 <tr class="@(overdue ? "is-overdue" : "") @(SelectedIds.Contains(t.Id) ? "selected" : "")">
                     @if (ColumnSet == QueueTableColumnSet.Agent)
                     {

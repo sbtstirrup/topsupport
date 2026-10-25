@@ -21,6 +21,11 @@ public partial class TopSupportApiClient
     public async Task<AgentAdminSaveResult> SaveAgentAsync(AgentSaveRequest request, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("api/admin/agents", request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            return new AgentAdminSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
+        }
+
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? new();
     }
@@ -35,6 +40,11 @@ public partial class TopSupportApiClient
     public async Task<AgentAdminSaveResult> SaveTeamAsync(TeamSaveRequest request, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("api/admin/teams", request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            return new AgentAdminSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
+        }
+
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? new();
     }

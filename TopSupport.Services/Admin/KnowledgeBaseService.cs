@@ -3,19 +3,6 @@ using TopSupport.Services.Abstractions;
 
 namespace TopSupport.Services.Admin;
 
-/// <summary>Thrown by IKnowledgeBaseService.SaveArticleAsync when the form is invalid. Mapped to 400 by the Api.</summary>
-public class KbArticleValidationException : Exception
-{
-    /// <summary>Field key ("title" / "body" / "categoryId" / "status") -> message, like the demo's F.errs.</summary>
-    public IReadOnlyDictionary<string, string> Errors { get; }
-
-    public KbArticleValidationException(IReadOnlyDictionary<string, string> errors)
-        : base("The article has validation errors.")
-    {
-        Errors = errors;
-    }
-}
-
 /// <summary>
 /// Knowledge base reads and article save/delete -- port of PAGES.kb / ACT['ka-save'] /
 /// ACT['ka-del'] and the landing page's popular-articles query in topsupport-app.js.
@@ -29,7 +16,7 @@ public interface IKnowledgeBaseService
 
     /// <summary>
     /// Creates (<paramref name="id"/> null) or updates an article. Returns null when updating an
-    /// id that doesn't exist. Throws <see cref="KbArticleValidationException"/> on invalid input.
+    /// id that doesn't exist. Throws <see cref="ValidationException"/> on invalid input.
     /// </summary>
     Task<KbArticleDto?> SaveArticleAsync(string? id, SaveKbArticleRequest request, CancellationToken cancellationToken = default);
 
@@ -70,7 +57,7 @@ public class KnowledgeBaseService : IKnowledgeBaseService
         else if (FieldLimits.TooLong(request.Body, FieldLimits.KbBody) is { } bodyTooLong) errors["body"] = bodyTooLong;
         if (!kb.Categories.Any(c => c.Id == request.CategoryId)) errors["categoryId"] = "Choose a category.";
         if (!KbArticleStatuses.All.Contains(request.Status)) errors["status"] = "Choose a status.";
-        if (errors.Count > 0) throw new KbArticleValidationException(errors);
+        if (errors.Count > 0) throw new ValidationException(errors);
 
         if (id is not null && !kb.Articles.Any(a => a.Id == id)) return null;
 

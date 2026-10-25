@@ -26,8 +26,7 @@ public partial class TopSupportApiClient
 
         if (response.StatusCode == HttpStatusCode.BadRequest)
         {
-            var errors = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>(cancellationToken) ?? new();
-            return new KbArticleSaveResult(null, errors);
+            return new KbArticleSaveResult(null, await ReadValidationErrorsAsync(response, cancellationToken));
         }
 
         response.EnsureSuccessStatusCode();

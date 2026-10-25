@@ -1148,3 +1148,27 @@ BEGIN
     EXEC (@sql);
 END
 GO
+
+-- Development passwords for the seeded accounts, stored as the same PBKDF2 hashes the app
+-- writes (AccountPasswordService): users TopCashback1!, Administrator agents AdminDemo1!, other
+-- agents ServiceDesk1! (shown on the development sign-in page). Every account needs a real hash:
+-- an account with no hash cannot sign in. Only for development databases -- these are well-known
+-- passwords. Re-runnable: an account whose password has since been changed keeps it.
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$IFwOWXNse+Dcl/QfTuSA7Q==$pxFIjbbbW7ERTQBtYcLOHm+gHpjpVCtxBEAu7Ci+5bY=' WHERE Id = N'u1' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$r53mEA9NSlNWWUDfGSBYWw==$6F+G3uCrEWpLzvkO9ZkYe+Yc4ixuXtcdLERtbB6GVgU=' WHERE Id = N'u2' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$Z79WhAULBJ3uN6vUp2kr8w==$YWLJHbdKsS8dZDi5O4/riFHIe1jXASItVY4fjXkYWgU=' WHERE Id = N'u3' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$NnufY6ZlYEAgFodfkJk0MA==$xKIZbdxWHnm41xjgoJ6rqKQtqa2tfjm5uDhd+UcD5H8=' WHERE Id = N'u4' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$Hca5x+2NOhT2J/5T6BTyfA==$0vcFt5OPUuFxOcnlGWp+eyj/LJrACjgZvXrufjV8ZmY=' WHERE Id = N'u5' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$FETsj0yJH6R5nzKNPfqWFg==$r33r4nzcjiJWITY/Br4OALwis2XYEtL/A2IVDgvRmp8=' WHERE Id = N'u6' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$ddb16baMGmgWIBGH3VIywA==$i1+up06jgX8tSGOGZQee5iwpG8YRdUkXwreImL+KzP8=' WHERE Id = N'u7' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$AqoT/RwS8ceYPYwbsYCE7A==$DWB8X/tFKwoci1bxMil8H/Y8or10FqlcGmk6BSalDZw=' WHERE Id = N'u8' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$A/iyN92hwGkkwIJfZVUTiQ==$6ChfXIMGmWAvySviEU9U3L94QCp6TJ8qD+s3do0daZQ=' WHERE Id = N'u9' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$YOkRO8dTNqnWGuI5ywUHkw==$GBTuvL0xTV/8k49ZdD2appG5ZR4lpTlRmOJhydwTl+E=' WHERE Id = N'u10' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$+tkuBAkPKRkckjEUppl4aQ==$3U8QhBRTsH+/UlSjO12DHh/raMUWOFB5hnaxJYazSX8=' WHERE Id = N'u11' AND PasswordHash IS NULL;
+UPDATE dbo.Users SET PasswordHash = N'pbkdf2-sha256$600000$D6aqXjyp+GDaIiztSP2Gqg==$+lXKAfeWkDylmbUI01fd90KYCkAsdBeFNjMsmhbCdGE=' WHERE Id = N'u12' AND PasswordHash IS NULL;
+UPDATE dbo.Agents SET PasswordHash = N'pbkdf2-sha256$600000$9Qy318Uj8faIKP17fRdxqA==$DGK4Ls6K4eTvJhUqOeZzV/BtBKS+nsruaAV4fQdbbUY=' WHERE Id = N'a1' AND PasswordHash IS NULL;
+UPDATE dbo.Agents SET PasswordHash = N'pbkdf2-sha256$600000$+U3+o8sXE5BSkmVUV6jKuw==$zquisU3ucNvsbpRsqQFHhCRpX6tSOU3eM5UTRsV5pSI=' WHERE Id = N'a2' AND PasswordHash IS NULL;
+UPDATE dbo.Agents SET PasswordHash = N'pbkdf2-sha256$600000$2T5xVsY/RDJn5qMwJRKiyg==$/MathyfpAWXrvlDgRehvlvMUWZEysmDP0Eq+bRoAzhQ=' WHERE Id = N'a3' AND PasswordHash IS NULL;
+UPDATE dbo.Agents SET PasswordHash = N'pbkdf2-sha256$600000$4lkz/W5KsDO6dA9jSXCbsQ==$Z0nTI6DV25dOo8EDAJZnIbA4JVLFstLgi1rLdF3RkWM=' WHERE Id = N'a4' AND PasswordHash IS NULL;
+UPDATE dbo.Agents SET PasswordHash = N'pbkdf2-sha256$600000$QscX61wGcgGCPPbRokwBHQ==$3lHC4zIJeppo58q9sbM2q+4nZkrqalEuLOiSgkvywRQ=' WHERE Id = N'a5' AND PasswordHash IS NULL;
+GO

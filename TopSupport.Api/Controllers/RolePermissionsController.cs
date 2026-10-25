@@ -27,14 +27,7 @@ public class RolePermissionsController : ControllerBase
     public async Task<IActionResult> Set(SetRolePermissionRequest request, CancellationToken cancellationToken)
     {
         request.ActorId = User.AccountId();
-        try
-        {
-            await _service.SetAsync(request, cancellationToken);
-            return Ok();
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        await _service.SetAsync(request, cancellationToken);
+        return Ok();
     }
 }

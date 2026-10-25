@@ -2,9 +2,9 @@
     07_Admin_Accounts.sql
     Password storage shared by the admin screens (create user/agent, reset password) and My
     Profile (change own password). The demo keeps plaintext u.password / a.password; here only a
-    PBKDF2 hash is stored (see AccountPasswordService). A NULL PasswordHash means the account still
-    has its buildSeed() demo password ('TopCashback1!' for users, 'AdminDemo1!' for Administrator
-    agents, 'ServiceDesk1!' for other agents), so the seed scripts don't need precomputed hashes.
+    PBKDF2 hash is stored (see AccountPasswordService). A NULL PasswordHash means no password
+    has been set, so the account can't sign in; 99_SeedData.sql sets hashes of the development
+    passwords for the seeded accounts.
 */
 USE TopSupport;
 GO
@@ -17,8 +17,8 @@ IF COL_LENGTH(N'dbo.Agents', N'PasswordHash') IS NULL
     ALTER TABLE dbo.Agents ADD PasswordHash NVARCHAR(400) NULL;
 GO
 
--- One row: which table the account lives in, its stored hash (NULL = demo default) and, for
--- agents, their role (which decides the demo default password).
+-- One row: which table the account lives in, its stored hash (NULL = no password set) and, for
+-- agents, their role.
 CREATE OR ALTER PROCEDURE dbo.usp_Account_GetPasswordHash
     @AccountId NVARCHAR(50)
 AS

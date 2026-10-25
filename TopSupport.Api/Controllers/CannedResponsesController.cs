@@ -26,33 +26,17 @@ public class CannedResponsesController : ControllerBase
         => Ok(await _cannedResponses.GetAllAsync(cancellationToken));
 
     // Mutations attribute the audit entry to the signed-in agent; any ?actorId= the caller sends is ignored.
-    // Validation failures come back as 400 with a field key -> message map, like KnowledgeBaseController.
+    // Invalid input throws ValidationException, which ApiExceptionHandler turns into a 400.
 
     [HttpPost]
     public async Task<ActionResult<CannedResponseDto>> Create(CannedResponseDto response, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _cannedResponses.CreateAsync(response, User.AccountId(), cancellationToken));
-        }
-        catch (CannedResponseValidationException ex)
-        {
-            return BadRequest(ex.Errors);
-        }
-    }
+        => Ok(await _cannedResponses.CreateAsync(response, User.AccountId(), cancellationToken));
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, CannedResponseDto response, CancellationToken cancellationToken)
     {
         response.Id = id;
-        try
-        {
-            return await _cannedResponses.UpdateAsync(response, User.AccountId(), cancellationToken) ? Ok() : NotFound();
-        }
-        catch (CannedResponseValidationException ex)
-        {
-            return BadRequest(ex.Errors);
-        }
+        return await _cannedResponses.UpdateAsync(response, User.AccountId(), cancellationToken) ? Ok() : NotFound();
     }
 
     [HttpDelete("{id}")]
@@ -69,9 +53,13 @@ public class CannedResponsesController : ControllerBase
         var response = responses.FirstOrDefault(r => r.Id == id);
         if (response is null) return NotFound();
 
-        var ticket = string.IsNullOrEmpty(request.TicketId)
-            ? null
-            : await _ticketService.GetTicketAsync(request.TicketId, cancellationToken);
+        // No ticket id: the sample values (a preview). An id that doesn't exist is a 404, never the samples.
+        TicketDto? ticket = null;
+        if (!string.IsNullOrEmpty(request.TicketId))
+        {
+            ticket = await _ticketService.GetTicketAsync(request.TicketId, cancellationToken);
+            if (ticket is null) return NotFound();
+        }
 
         var filled = await _cannedResponses.FillPlaceholdersAsync(response.Body, ticket, User.AccountId(), cancellationToken);
         return Ok(new { text = filled });

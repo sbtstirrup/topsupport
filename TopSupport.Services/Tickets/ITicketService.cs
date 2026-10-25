@@ -17,7 +17,7 @@ public interface ITicketService
 
     /// <summary>
     /// Validates via ITicketFormValidator first (agentMode = createdBy.Type == "agent"); on
-    /// failure throws TicketValidationException. Numbers via usp_Ticket_NextNumber (zero-padded
+    /// failure throws ValidationException. Numbers via usp_Ticket_NextNumber (zero-padded
     /// to 6 digits, "T" prefix), assigns the department's default team, leaves agent null,
     /// forces status Open, derives priority from IMPACT_PRI when the topic has an impact
     /// field, and seeds the "Created by"/"Assigned to team" timeline events (plus the leaver

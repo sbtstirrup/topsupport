@@ -18,9 +18,11 @@ public partial class CannedResponseService : ICannedResponseService
     private readonly IUserRepository _users;
     private readonly IAgentRepository _agents;
     private readonly IAuditService _audit;
+    private readonly TimeProvider _time;
 
-    public CannedResponseService(ICannedResponseRepository repository, IUserRepository users, IAgentRepository agents, IAuditService audit)
+    public CannedResponseService(ICannedResponseRepository repository, IUserRepository users, IAgentRepository agents, IAuditService audit, TimeProvider time)
     {
+        _time = time;
         _repository = repository;
         _users = users;
         _agents = agents;
@@ -89,25 +91,27 @@ public partial class CannedResponseService : ICannedResponseService
         if (string.IsNullOrWhiteSpace(response.Body)) errors["body"] = "Enter the message.";
         else if (FieldLimits.TooLong(response.Body, MaxBodyLength) is { } bodyTooLong) errors["body"] = bodyTooLong;
 
-        if (errors.Count > 0) throw new CannedResponseValidationException(errors);
+        if (errors.Count > 0) throw new ValidationException(errors);
     }
 
-    public async Task<string> FillPlaceholdersAsync(string body, TicketDto? ticket, string? agentId, CancellationToken cancellationToken = default)
+    public async Task<string> FillPlaceholdersAsync(string body, TicketDto? ticket, string agentId, CancellationToken cancellationToken = default)
     {
-        // Demo's fallback sample values when there's no ticket yet (fillPlaceholders(text, null)).
+        // The demo's sample values are only for a preview with no ticket (fillPlaceholders(text, null)).
+        // With a real ticket, a missing requester is an error -- never a sample person in a real email.
         string recipientName = "Amira Patel";
         string recipientEmail = "amira.patel@topcashback.example";
         string ticketNumber = "#060012";
         string ticketSubject = "Laptop will not charge";
         string ticketStatus = "Open";
         string ticketPriority = "Normal";
-        string slaDueText = FormatDateTime(DateTimeOffset.UtcNow);
+        string slaDueText = FormatDateTime(_time.GetUtcNow());
 
         if (ticket != null)
         {
-            var requester = await _users.GetByIdAsync(ticket.RequesterUserId, cancellationToken);
-            recipientName = requester?.Name ?? recipientName;
-            recipientEmail = requester?.Email ?? recipientEmail;
+            var requester = await _users.GetByIdAsync(ticket.RequesterUserId, cancellationToken)
+                ?? throw new InvalidOperationException($"Ticket '{ticket.Id}' has requester '{ticket.RequesterUserId}', who doesn't exist.");
+            recipientName = requester.Name;
+            recipientEmail = requester.Email;
             ticketNumber = "#" + ticket.Number;
             ticketSubject = ticket.Subject;
             ticketStatus = ticket.Status.ToString();
@@ -115,17 +119,11 @@ public partial class CannedResponseService : ICannedResponseService
             slaDueText = FormatDateTime(TicketSla.SlaDue(ticket));
         }
 
-        string agentName = "Amira Patel";
-        string agentPhone = string.Empty;
-        if (!string.IsNullOrEmpty(agentId))
-        {
-            var agent = await _agents.GetByIdAsync(agentId, cancellationToken);
-            if (agent != null)
-            {
-                agentName = agent.Name;
-                agentPhone = agent.Phone ?? string.Empty;
-            }
-        }
+        // The signed-in agent always exists; if not, that's a bug to surface, not paper over.
+        var agent = await _agents.GetByIdAsync(agentId, cancellationToken)
+            ?? throw new InvalidOperationException($"Agent '{agentId}' filling a canned response doesn't exist.");
+        var agentName = agent.Name;
+        var agentPhone = agent.Phone ?? string.Empty;
 
         var map = new Dictionary<string, string>
         {

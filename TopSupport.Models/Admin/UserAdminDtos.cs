@@ -44,15 +44,6 @@ public class SaveUserResult
     public TemporaryPasswordDto? TemporaryPassword { get; set; }
 }
 
-/// <summary>
-/// 400 body for admin form validation: field key (the demo's errs keys, e.g. "email") to the
-/// demo's exact message.
-/// </summary>
-public class AdminValidationErrorDto
-{
-    public Dictionary<string, string> Errors { get; set; } = new();
-}
-
 /// <summary>ORG_DEPTS in topsupport-app.js: the departments an end user can belong to.</summary>
 public static class UserDepartments
 {

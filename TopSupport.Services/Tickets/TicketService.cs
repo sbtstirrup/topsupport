@@ -38,6 +38,7 @@ public class TicketService : ITicketService
     private readonly ITicketAttachmentRepository _attachmentRepository;
     private readonly ITicketFormValidator _validator;
     private readonly IAuditService _audit;
+    private readonly TimeProvider _time;
 
     public TicketService(
         ITicketRepository ticketRepository,
@@ -46,7 +47,8 @@ public class TicketService : ITicketService
         IUserRepository userRepository,
         ITicketAttachmentRepository attachmentRepository,
         ITicketFormValidator validator,
-        IAuditService audit)
+        IAuditService audit,
+        TimeProvider time)
     {
         _ticketRepository = ticketRepository;
         _teamRepository = teamRepository;
@@ -55,6 +57,7 @@ public class TicketService : ITicketService
         _attachmentRepository = attachmentRepository;
         _validator = validator;
         _audit = audit;
+        _time = time;
     }
 
     public Task<TicketDto?> GetTicketAsync(string ticketId, CancellationToken cancellationToken = default)
@@ -70,11 +73,11 @@ public class TicketService : ITicketService
         var validation = await _validator.ValidateAsync(request, agentMode, cancellationToken);
         if (!validation.IsValid)
         {
-            throw new TicketValidationException(validation);
+            throw new ValidationException(validation.Errors);
         }
 
         var topicDef = TicketTopics.Find(request.Topic)
-            ?? throw new ArgumentException($"Unknown topic '{request.Topic}'.", nameof(request));
+            ?? throw new InvalidOperationException($"Topic '{request.Topic}' passed validation but is unknown.");
 
         // Everything derived from the answers is worked out before the first insert, so a bad
         // value can't leave a half-created ticket. Only answers to fields currently shown are kept.
@@ -88,12 +91,12 @@ public class TicketService : ITicketService
             // leavingDate is required for leavers, so the validator has already checked it parses.
             if (!TicketFormValidator.TryParseFieldDate(storedFields.GetValueOrDefault("leavingDate"), out var leavingDate))
             {
-                throw new ArgumentException("Enter a valid leaving date.", nameof(request));
+                throw new InvalidOperationException($"Ticket leavingDate '{storedFields.GetValueOrDefault("leavingDate")}' passed validation but doesn't parse.");
             }
             leaverDue = leavingDate;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var nextNumber = await _ticketRepository.GetNextNumberAsync(cancellationToken);
         var number = nextNumber.ToString("D6");
         var id = "T" + number;
@@ -131,8 +134,7 @@ public class TicketService : ITicketService
 
         await _ticketRepository.CreateAsync(ticket, cancellationToken);
 
-        var requester = await _userRepository.GetByIdAsync(request.RequesterUserId, cancellationToken);
-        var requesterShortName = ShortName(requester?.Name);
+        var requesterShortName = await ShortNameForActorAsync(new TicketActorRef { Type = "user", Id = request.RequesterUserId }, cancellationToken);
         var creatorShortName = agentMode ? await ShortNameForActorAsync(createdBy, cancellationToken) : requesterShortName;
 
         var createdText = agentMode
@@ -170,11 +172,11 @@ public class TicketService : ITicketService
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         if (ticket.Status == TicketStatus.Closed)
         {
-            throw new TicketClosedException("This ticket is closed. You can't reply to it.");
+            throw new ValidationException("", "This ticket is closed. You can't reply to it.");
         }
 
         var by = new TicketActorRef { Type = "user", Id = request.UserId };
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
 
         await AppendReplyAsync(ticket, by, request.Html, now, isNote: false, cancellationToken);
 
@@ -203,7 +205,7 @@ public class TicketService : ITicketService
         {
             // Same rule as the user reply: Closed is final, so no replies or notes (the agent view
             // hides the reply box -- "Reopen it to reply or add notes." -- this enforces it).
-            throw new TicketClosedException("This ticket is closed. Reopen it to reply or add notes.");
+            throw new ValidationException("", "This ticket is closed. Reopen it to reply or add notes.");
         }
 
         // Validate "status after sending" before anything is written.
@@ -212,7 +214,7 @@ public class TicketService : ITicketService
             : (TicketStatus?)null;
 
         var by = new TicketActorRef { Type = "agent", Id = request.AgentId };
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
 
         await AppendReplyAsync(ticket, by, request.Html, now, request.IsNote, cancellationToken);
 
@@ -229,14 +231,14 @@ public class TicketService : ITicketService
     public async Task<TicketDto> ChangeStatusAsync(string ticketId, string status, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
-        await ChangeStatusInternalAsync(ticket, status, changedBy, DateTimeOffset.UtcNow, quiet: false, cancellationToken);
+        await ChangeStatusInternalAsync(ticket, status, changedBy, _time.GetUtcNow(), quiet: false, cancellationToken);
         return ticket;
     }
 
     public async Task<TicketDto> ChangePriorityAsync(string ticketId, string priority, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var prev = ticket.Priority;
         var next = ParseDefined<TicketPriority>(priority, nameof(priority));
         if (prev == next) return ticket;
@@ -254,10 +256,10 @@ public class TicketService : ITicketService
     public async Task<TicketDto> ChangeTopicAsync(string ticketId, string topic, TicketActorRef changedBy, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
-        var topicDef = TicketTopics.Find(topic) ?? throw new ArgumentException($"Unknown topic '{topic}'.", nameof(topic));
+        var topicDef = TicketTopics.Find(topic) ?? throw new ValidationException("topic", $"Unknown topic '{topic}'.");
         if (topic == ticket.Topic) return ticket;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var prevLabel = TicketTopics.Find(ticket.Topic)?.Label ?? ticket.Topic;
 
         ticket.Topic = topic;
@@ -279,9 +281,9 @@ public class TicketService : ITicketService
         // Validate all three before writing anything, so a bad value can't leave a half-applied change.
         var nextPriority = ParseDefined<TicketPriority>(priority, nameof(priority));
         var nextStatus = ParseDefined<TicketStatus>(status, nameof(status));
-        var topicDef = TicketTopics.Find(topic) ?? throw new ArgumentException($"Unknown topic '{topic}'.", nameof(topic));
+        var topicDef = TicketTopics.Find(topic) ?? throw new ValidationException("topic", $"Unknown topic '{topic}'.");
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var shortName = await ShortNameForActorAsync(changedBy, cancellationToken);
         var changed = 0;
 
@@ -322,7 +324,7 @@ public class TicketService : ITicketService
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         var agent = await RequireActiveAgentAsync(agentId, cancellationToken);
-        await AssignToAgentInternalAsync(ticket, agent, assignedBy, DateTimeOffset.UtcNow, cancellationToken);
+        await AssignToAgentInternalAsync(ticket, agent, assignedBy, _time.GetUtcNow(), cancellationToken);
         return ticket;
     }
 
@@ -330,7 +332,7 @@ public class TicketService : ITicketService
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         var team = await RequireTeamAsync(teamId, cancellationToken);
-        await AssignToTeamInternalAsync(ticket, team, assignedBy, DateTimeOffset.UtcNow, cancellationToken);
+        await AssignToTeamInternalAsync(ticket, team, assignedBy, _time.GetUtcNow(), cancellationToken);
         return ticket;
     }
 
@@ -347,7 +349,7 @@ public class TicketService : ITicketService
         var agent = await RequireActiveAgentAsync(agentId, cancellationToken);
         if (ticket.AssignedAgentId == agentId) return ticket;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var teamId = ticket.AssignedTeamId ?? (agent.TeamIds.Count > 0 ? agent.TeamIds[0] : null);
         if (!await _ticketRepository.ClaimIfUnchangedAsync(ticket.Id, agentId, teamId, ticket.AssignedAgentId, now, cancellationToken))
         {
@@ -373,7 +375,7 @@ public class TicketService : ITicketService
     {
         var next = ParseDefined<TicketStatus>(status, nameof(status));
         var tickets = await RequireTicketsAsync(ticketIds, cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         foreach (var ticket in tickets)
         {
             await ChangeStatusInternalAsync(ticket, next.ToString(), changedBy, now, quiet: false, cancellationToken);
@@ -395,10 +397,10 @@ public class TicketService : ITicketService
         // Resolve the assignee and every ticket before changing any, so nothing is half-applied.
         var agent = kind == "agent" ? await RequireActiveAgentAsync(id, cancellationToken) : null;
         var team = kind == "team" ? await RequireTeamAsync(id, cancellationToken) : null;
-        if (agent is null && team is null) throw new ArgumentException("Choose an agent or a team.", nameof(kind));
+        if (agent is null && team is null) throw new ValidationException("kind", "Choose an agent or a team.");
 
         var tickets = await RequireTicketsAsync(ticketIds, cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         foreach (var ticket in tickets)
         {
             if (agent is not null)
@@ -423,14 +425,14 @@ public class TicketService : ITicketService
         var next = ParseDefined<TicketStatus>(status, nameof(status));
         if (next is not (TicketStatus.Resolved or TicketStatus.Closed))
         {
-            throw new ArgumentException("Close with status Resolved or Closed.", nameof(status));
+            throw new ValidationException("status", "Close with status Resolved or Closed.");
         }
 
         note = note?.Trim();
-        if (FieldLimits.TooLong(note, BulkCloseRequest.MaxNoteLength) is { } noteTooLong) throw new ArgumentException(noteTooLong, nameof(note));
+        if (FieldLimits.TooLong(note, BulkCloseRequest.MaxNoteLength) is { } noteTooLong) throw new ValidationException("note", noteTooLong);
 
         var tickets = await RequireTicketsAsync(ticketIds, cancellationToken);
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var closed = 0;
         foreach (var ticket in tickets)
         {
@@ -453,17 +455,17 @@ public class TicketService : ITicketService
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
 
         text = (text ?? string.Empty).Trim();
-        if (text.Length == 0) throw new ArgumentException("Enter the task.", nameof(text));
-        if (FieldLimits.TooLong(text, FieldLimits.TaskText) is { } textTooLong) throw new ArgumentException(textTooLong, nameof(text));
+        if (text.Length == 0) throw new ValidationException("text", "Enter the task.");
+        if (FieldLimits.TooLong(text, FieldLimits.TaskText) is { } textTooLong) throw new ValidationException("text", textTooLong);
 
         var assignee = await RequireActiveAgentAsync(assigneeAgentId, cancellationToken);
 
         if (due is { } dueDate)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
             if (dueDate < today.AddYears(-1) || dueDate > today.AddYears(5))
             {
-                throw new ArgumentException("Choose a due date within the last year or the next five years.", nameof(due));
+                throw new ValidationException("due", "Choose a due date within the last year or the next five years.");
             }
         }
 
@@ -478,7 +480,7 @@ public class TicketService : ITicketService
         }, cancellationToken);
         ticket.Tasks.Add(task);
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var shortName = await ShortNameForActorAsync(addedBy, cancellationToken);
         await AppendEventAsync(ticket, addedBy, $"Task added by {shortName}: {text} (assigned to {ShortName(assignee.Name)})", now, cancellationToken);
         await AuditAsync(addedBy, "Added task", ticket, cancellationToken);
@@ -496,7 +498,7 @@ public class TicketService : ITicketService
         await _ticketRepository.SetTaskDoneAsync(task.Id, done, cancellationToken);
         task.Done = done;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var shortName = await ShortNameForActorAsync(changedBy, cancellationToken);
         await AppendEventAsync(ticket, changedBy, $"Task {(done ? "completed" : "reopened")} by {shortName}: {task.Text}", now, cancellationToken);
         await AuditAsync(changedBy, done ? "Completed task" : "Reopened task", ticket, cancellationToken);
@@ -519,31 +521,31 @@ public class TicketService : ITicketService
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         if (ticket.Status == TicketStatus.Closed)
         {
-            throw new TicketClosedException("This ticket is closed.");
+            throw new ValidationException("", "This ticket is closed.");
         }
 
         var safeName = SanitizeAttachmentFileName(fileName);
         var storedContentType = TicketAttachmentRules.ContentTypeFor(safeName)
-            ?? throw new ArgumentException(TicketAttachmentRules.TypeNotAllowedMessage, nameof(fileName));
+            ?? throw new ValidationException("file", TicketAttachmentRules.TypeNotAllowedMessage);
 
         if (content.LongLength == 0)
         {
-            throw new ArgumentException(TicketAttachmentRules.EmptyFileMessage, nameof(content));
+            throw new ValidationException("file", TicketAttachmentRules.EmptyFileMessage);
         }
 
         if (content.LongLength > MaxAttachmentSizeBytes)
         {
-            throw new AttachmentTooLargeException($"'{safeName}' is over 10 MB and was not added.");
+            throw new ValidationException("file", $"'{safeName}' is over 10 MB and was not added.");
         }
 
         if (ticket.Attachments.Count >= TicketAttachmentRules.MaxFilesPerTicket)
         {
-            throw new ArgumentException(TicketAttachmentRules.TooManyFilesMessage, nameof(ticketId));
+            throw new ValidationException("file", TicketAttachmentRules.TooManyFilesMessage);
         }
 
         if (ticket.Attachments.Sum(a => a.SizeBytes) + content.LongLength > TicketAttachmentRules.MaxTotalBytesPerTicket)
         {
-            throw new ArgumentException(TicketAttachmentRules.TotalTooLargeMessage, nameof(ticketId));
+            throw new ValidationException("file", TicketAttachmentRules.TotalTooLargeMessage);
         }
 
         if (!string.IsNullOrEmpty(timelineEntryId))
@@ -555,7 +557,7 @@ public class TicketService : ITicketService
                  (entry.Kind == TicketTimelineEntryKind.Reply && entry.By.Type == "user" && entry.By.Id == uploadedBy.Id));
             if (!allowed)
             {
-                throw new ArgumentException("That file can't be attached to that message.", nameof(timelineEntryId));
+                throw new ValidationException("timelineEntryId", "That file can't be attached to that message.");
             }
         }
         else
@@ -564,7 +566,7 @@ public class TicketService : ITicketService
         }
 
         var attachment = await _attachmentRepository.InsertAsync(
-            ticketId, timelineEntryId, safeName, storedContentType, content, uploadedBy, DateTimeOffset.UtcNow, cancellationToken);
+            ticketId, timelineEntryId, safeName, storedContentType, content, uploadedBy, _time.GetUtcNow(), cancellationToken);
 
         await AuditAsync(uploadedBy, "Attached file", ticket, cancellationToken);
         return attachment;
@@ -647,21 +649,21 @@ public class TicketService : ITicketService
     /// </summary>
     private async Task<List<TicketDto>> RequireTicketsAsync(IEnumerable<string>? ticketIds, CancellationToken cancellationToken)
     {
-        if (ticketIds is null) throw new ArgumentException("Choose at least one ticket.", nameof(ticketIds));
+        if (ticketIds is null) throw new ValidationException("ticketIds", "Choose at least one ticket.");
 
         var ids = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var id in ticketIds)
         {
-            if (string.IsNullOrWhiteSpace(id)) throw new ArgumentException("Every selected ticket needs an id.", nameof(ticketIds));
+            if (string.IsNullOrWhiteSpace(id)) throw new ValidationException("ticketIds", "Every selected ticket needs an id.");
             if (seen.Add(id)) ids.Add(id);
             if (ids.Count > BulkCloseRequest.MaxTickets)
             {
-                throw new ArgumentException($"Choose {BulkCloseRequest.MaxTickets} tickets or fewer.", nameof(ticketIds));
+                throw new ValidationException("ticketIds", $"Choose {BulkCloseRequest.MaxTickets} tickets or fewer.");
             }
         }
 
-        if (ids.Count == 0) throw new ArgumentException("Choose at least one ticket.", nameof(ticketIds));
+        if (ids.Count == 0) throw new ValidationException("ticketIds", "Choose at least one ticket.");
 
         var tickets = new List<TicketDto>(ids.Count);
         foreach (var id in ids)
@@ -677,12 +679,12 @@ public class TicketService : ITicketService
         var agent = string.IsNullOrWhiteSpace(agentId) ? null : await _agentRepository.GetByIdAsync(agentId, cancellationToken);
         return agent is { Active: true, Locked: false }
             ? agent
-            : throw new ArgumentException("Choose an active agent.", nameof(agentId));
+            : throw new ValidationException("agentId", "Choose an active agent.");
     }
 
     private async Task<TeamDto> RequireTeamAsync(string? teamId, CancellationToken cancellationToken)
         => (string.IsNullOrWhiteSpace(teamId) ? null : await _teamRepository.GetByIdAsync(teamId, cancellationToken))
-            ?? throw new ArgumentException("Choose a team.", nameof(teamId));
+            ?? throw new ValidationException("teamId", "Choose a team.");
 
     /// <summary>assignTicket(t, 'agent', id).</summary>
     private async Task AssignToAgentInternalAsync(TicketDto ticket, AgentDto agent, TicketActorRef assignedBy, DateTimeOffset now, CancellationToken cancellationToken)
@@ -755,7 +757,7 @@ public class TicketService : ITicketService
     private async Task AppendReplyAsync(TicketDto ticket, TicketActorRef by, string html, DateTimeOffset at, bool isNote, CancellationToken cancellationToken)
     {
         // cleanHTML(F.html): the timeline renders this as raw markup, so sanitize before storing.
-        if (html.Length > TicketHtmlSanitizer.MaxLength) throw new ArgumentException("The message is too long.", nameof(html));
+        if (html.Length > TicketHtmlSanitizer.MaxLength) throw new ValidationException("html", "The message is too long.");
         html = TicketHtmlSanitizer.Sanitize(html);
 
         var entry = await _ticketRepository.AppendTimelineEntryAsync(new TicketTimelineEntryDto
@@ -778,7 +780,7 @@ public class TicketService : ITicketService
     /// </summary>
     private static T ParseDefined<T>(string value, string paramName) where T : struct, Enum
         => Enum.GetNames<T>().Contains(value) ? Enum.Parse<T>(value)
-            : throw new ArgumentException($"Unknown {paramName} '{value}'.", paramName);
+            : throw new ValidationException(paramName, $"Unknown {paramName} '{value}'.");
 
     private async Task AppendEventAsync(TicketDto ticket, TicketActorRef by, string text, DateTimeOffset at, CancellationToken cancellationToken)
     {
@@ -800,11 +802,13 @@ public class TicketService : ITicketService
     {
         if (actor.Type == "system" || actor.Id == null) return "System";
 
+        // The actor comes from the signed-in account or a validated id, so a missing one is a bug:
+        // fail rather than write "Closed by  with status ..." into the timeline.
         var name = actor.Type == "agent"
             ? (await _agentRepository.GetByIdAsync(actor.Id, cancellationToken))?.Name
             : (await _userRepository.GetByIdAsync(actor.Id, cancellationToken))?.Name;
 
-        return ShortName(name);
+        return ShortName(name ?? throw new InvalidOperationException($"No {actor.Type} with id '{actor.Id}' for a ticket timeline entry."));
     }
 
     /// <summary>Ports `short(n)` from topsupport-app.js: "Jamie Moore" -> "J. Moore", single-word names pass through unchanged.</summary>

@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using TopSupport.Services.Abstractions;
 
 namespace TopSupport.Services.Admin;
@@ -17,6 +16,12 @@ public interface IAccountPasswordService
 
     /// <summary>False if the account doesn't exist or the password is wrong.</summary>
     Task<bool> VerifyAsync(string accountId, string password, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Does the same PBKDF2 work as a real check and returns false, so a sign-in for an unknown
+    /// username takes as long as one for a real account (no username enumeration by timing).
+    /// </summary>
+    bool VerifyUnknownAccount(string password);
 
     /// <summary>Admin reset: hashes and stores the password, and unlocks the account (ACT['user-reset']).</summary>
     Task SetAsync(string accountId, string password, CancellationToken cancellationToken = default);
@@ -37,6 +42,9 @@ public class AccountPasswordService : IAccountPasswordService
     // OWASP Password Storage Cheat Sheet figure for PBKDF2-HMAC-SHA256. The count is stored in each
     // hash, so hashes made with the earlier 100,000 still verify.
     private const int Iterations = 600_000;
+
+    // Any well-formed hash at the current iteration count (its password is irrelevant).
+    private static readonly string UnknownAccountHash = Hash(Guid.NewGuid().ToString());
 
     private readonly IAccountCredentialRepository _repository;
 
@@ -65,16 +73,14 @@ public class AccountPasswordService : IAccountPasswordService
         var credential = await _repository.GetAsync(accountId, cancellationToken);
         if (credential is null) return false;
 
-        if (credential.PasswordHash is null)
-        {
-            // Never changed since seeding: the buildSeed() demo password applies.
-            var demoDefault = credential.AccountType == "User" ? "TopCashback1!"
-                : credential.AgentRole == "Administrator" ? "AdminDemo1!"
-                : "ServiceDesk1!";
-            return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(password), Encoding.UTF8.GetBytes(demoDefault));
-        }
+        // No hash means no password has been set, so nothing can match (never a default password).
+        return credential.PasswordHash is not null && VerifyHash(password, credential.PasswordHash);
+    }
 
-        return VerifyHash(password, credential.PasswordHash);
+    public bool VerifyUnknownAccount(string password)
+    {
+        VerifyHash(password, UnknownAccountHash);
+        return false;
     }
 
     public Task SetAsync(string accountId, string password, CancellationToken cancellationToken = default)

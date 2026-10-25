@@ -13,7 +13,7 @@ public interface IRolePermissionService
 {
     Task<IReadOnlyList<RolePermissionDto>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Throws ArgumentException for an unknown department, role or permission.</summary>
+    /// <summary>Throws ValidationException for an unknown department, role or permission.</summary>
     Task SetAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default);
 }
 
@@ -33,10 +33,10 @@ public class RolePermissionService : IRolePermissionService
 
     public async Task SetAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default)
     {
-        if (!TicketTopics.DEPTS.Contains(request.Department)) throw new ArgumentException($"Unknown department \"{request.Department}\".", nameof(request));
-        if (!AgentRoles.All.Contains(request.Role)) throw new ArgumentException($"Unknown role \"{request.Role}\".", nameof(request));
+        if (!TicketTopics.DEPTS.Contains(request.Department)) throw new ValidationException("department", $"Unknown department \"{request.Department}\".");
+        if (!AgentRoles.All.Contains(request.Role)) throw new ValidationException("role", $"Unknown role \"{request.Role}\".");
         var permission = RolePermissionKeys.All.FirstOrDefault(p => p.Key == request.Permission);
-        if (permission.Key is null) throw new ArgumentException($"Unknown permission \"{request.Permission}\".", nameof(request));
+        if (permission.Key is null) throw new ValidationException("permission", $"Unknown permission \"{request.Permission}\".");
 
         await _repository.SetAsync(request.Department, request.Role, permission.Key, request.Allowed, cancellationToken);
         await _audit.LogAsync(request.ActorId,

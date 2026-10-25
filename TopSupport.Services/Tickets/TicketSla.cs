@@ -34,8 +34,9 @@ public static class TicketSla
     /// for the *first* agent response, matching firstResponse(t) in the demo).</summary>
     public static bool HasFirstResponse(TicketDto ticket) => ticket.FirstAgentReplyAt.HasValue;
 
-    public static bool IsOverdue(TicketDto ticket) =>
-        IsActive(ticket) && !HasFirstResponse(ticket) && DateTimeOffset.UtcNow > SlaDue(ticket);
+    /// <summary>Active, no agent reply yet, and past its response target at <paramref name="now"/>.</summary>
+    public static bool IsOverdue(TicketDto ticket, DateTimeOffset now) =>
+        IsActive(ticket) && !HasFirstResponse(ticket) && now > SlaDue(ticket);
 
     /// <summary>True when the ticket is active and the most recent public reply came from an agent.</summary>
     public static bool IsAnswered(TicketDto ticket) =>

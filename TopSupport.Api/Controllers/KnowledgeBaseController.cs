@@ -51,14 +51,7 @@ public class KnowledgeBaseController : ControllerBase
     private async Task<ActionResult<KbArticleDto>> SaveAsync(string? id, SaveKbArticleRequest request, CancellationToken cancellationToken)
     {
         request.ActorId = User.AccountId();
-        try
-        {
-            var saved = await _kb.SaveArticleAsync(id, request, cancellationToken);
-            return saved is null ? NotFound() : Ok(saved);
-        }
-        catch (KbArticleValidationException ex)
-        {
-            return BadRequest(ex.Errors);
-        }
+        var saved = await _kb.SaveArticleAsync(id, request, cancellationToken);
+        return saved is null ? NotFound() : Ok(saved);
     }
 }

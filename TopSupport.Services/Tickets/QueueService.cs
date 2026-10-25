@@ -18,11 +18,13 @@ public class QueueService : IQueueService
 
     private readonly ITicketRepository _tickets;
     private readonly IUserRepository _users;
+    private readonly TimeProvider _time;
 
-    public QueueService(ITicketRepository tickets, IUserRepository users)
+    public QueueService(ITicketRepository tickets, IUserRepository users, TimeProvider time)
     {
         _tickets = tickets;
         _users = users;
+        _time = time;
     }
 
     public async Task<TicketQueuePageResult> SearchAsync(TicketQueueRequest request, CancellationToken cancellationToken = default)
@@ -32,6 +34,7 @@ public class QueueService : IQueueService
         if (searchText?.Length > FieldLimits.SearchText) searchText = searchText[..FieldLimits.SearchText].TrimEnd();
         request.SearchText = string.IsNullOrEmpty(searchText) ? null : searchText;
 
+        var now = _time.GetUtcNow();
         IReadOnlyList<TicketDto> source;
 
         // The 4 active-derived queues (open/mine/overdue/answered), and a plain unfiltered
@@ -59,7 +62,7 @@ public class QueueService : IQueueService
         {
             "open" => source.Where(TicketSla.IsActive),
             "mine" => source.Where(t => TicketSla.IsActive(t) && t.AssignedAgentId == request.ActingAgentId),
-            "overdue" => source.Where(TicketSla.IsOverdue),
+            "overdue" => source.Where(t => TicketSla.IsOverdue(t, now)),
             "answered" => source.Where(TicketSla.IsAnswered),
             "closed" => source.Where(t => !TicketSla.IsActive(t)),
             _ => source
@@ -101,7 +104,8 @@ public class QueueService : IQueueService
 
         var active = await _tickets.GetActiveForQueueAsync(cancellationToken);
         result.QueueOpen = active.Count(TicketSla.IsActive);
-        result.QueueOverdue = active.Count(TicketSla.IsOverdue);
+        var now = _time.GetUtcNow();
+        result.QueueOverdue = active.Count(t => TicketSla.IsOverdue(t, now));
         result.QueueAnswered = active.Count(TicketSla.IsAnswered);
         if (!string.IsNullOrEmpty(agentId))
         {

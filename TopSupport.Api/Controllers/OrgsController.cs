@@ -56,10 +56,6 @@ public class OrgsController : ControllerBase
         {
             return Ok(await action());
         }
-        catch (UserOrgValidationException ex)
-        {
-            return BadRequest(new AdminValidationErrorDto { Errors = new Dictionary<string, string>(ex.Errors) });
-        }
         catch (KeyNotFoundException)
         {
             return NotFound();
