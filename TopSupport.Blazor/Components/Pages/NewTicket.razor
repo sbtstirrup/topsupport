@@ -392,7 +392,7 @@
                 }
                 catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
                 {
-                    failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
+                    failed.Add($"\"{staged.Reference.Name}\" ({ApiProblemException.FileUploadReason(ex)})");
                 }
             }
 

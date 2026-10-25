@@ -262,7 +262,21 @@
         await RefreshAsync();
         if (RendererInfo.IsInteractive)
         {
-            _timer = new Timer(_ => InvokeAsync(RefreshAsync), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+            _timer = new Timer(_ => _ = InvokeAsync(TimedRefreshAsync), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        }
+    }
+
+    // The timer's refresh runs outside any event handler: hand its failures (an ended session, say)
+    // to the page's error boundary instead of letting them go unobserved.
+    private async Task TimedRefreshAsync()
+    {
+        try
+        {
+            await RefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            await DispatchExceptionAsync(ex);
         }
     }
 

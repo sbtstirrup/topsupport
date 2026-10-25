@@ -243,7 +243,7 @@
                     // uploaded at ticket-creation time (TimelineEntryId == null), matching
                     // the JS demo's "files" answerText (filenames, one per line).
                     var createdFiles = _ticket.Attachments.Where(a => a.TimelineEntryId is null).ToList();
-                    result.Add((d.Label.Replace(" (Optional)", ""), string.Join(", ", createdFiles.Select(f => f.FileName))));
+                    result.Add((d.Label.Replace(" (Optional)", "", StringComparison.OrdinalIgnoreCase), string.Join(", ", createdFiles.Select(f => f.FileName))));
                     continue;
                 }
 
@@ -404,7 +404,7 @@
                     }
                     catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
                     {
-                        failed.Add($"\"{staged.Reference.Name}\" ({ex.Message})");
+                        failed.Add($"\"{staged.Reference.Name}\" ({ApiProblemException.FileUploadReason(ex)})");
                     }
                 }
 

@@ -18,6 +18,15 @@ public class ApiProblemException : HttpRequestException
     /// <summary>The message to toast for <paramref name="ex"/>: the Api's own message, or a generic one (never transport details).</summary>
     public static string UserMessage(HttpRequestException ex)
         => ex is ApiProblemException ? ex.Message : "Something went wrong. Check your connection and try again.";
+
+    /// <summary>Why one staged file couldn't be uploaded, for "these files could not be attached" messages.</summary>
+    public static string FileUploadReason(Exception ex) => ex switch
+    {
+        ApiProblemException => ex.Message,
+        IOException => "it could not be read",
+        TaskCanceledException => "the upload took too long",
+        _ => "the upload failed"
+    };
 }
 
 public partial class TopSupportApiClient

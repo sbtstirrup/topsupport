@@ -195,7 +195,7 @@ public partial class TopSupportApiClient
         if (!response.IsSuccessStatusCode)
         {
             // A rejected file is a 400 with { message } (or ProblemDetails' detail): surface that text.
-            throw new HttpRequestException(await ReadUploadErrorAsync(response, cancellationToken), null, response.StatusCode);
+            throw new ApiProblemException(await ReadUploadErrorAsync(response, cancellationToken), response.StatusCode);
         }
 
         return (await response.Content.ReadFromJsonAsync<TicketAttachmentDto>(cancellationToken))!;
