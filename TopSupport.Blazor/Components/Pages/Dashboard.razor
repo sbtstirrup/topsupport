@@ -122,7 +122,7 @@
                     <h2 id="ch5" class="card-title">Overdue Now</h2>
                     @foreach (var t in d.OverdueTickets)
                     {
-                        <button type="button" class="list-item" @onclick="@(() => Nav.NavigateTo($"/agent-tickets/{t.Id}"))">
+                        <button type="button" class="list-item" @onclick="@(() => Nav.NavigateTo($"/agent-tickets/{Uri.EscapeDataString(t.Id)}"))">
                             <PriorityBadge Priority="@t.Priority" />
                             <span style="flex:1;min-width:0">
                                 <strong style="font-size:14px">#@t.Number @t.Subject</strong>

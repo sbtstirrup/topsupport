@@ -20,7 +20,7 @@ public partial class TopSupportApiClient
         {
             return new SettingsSaveOutcome(0, await ReadSettingsErrorAsync(response, cancellationToken));
         }
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         var result = await response.Content.ReadFromJsonAsync<SaveSecuritySettingsResult>(cancellationToken);
         return new SettingsSaveOutcome(result?.Changed ?? 0, null);
     }
@@ -35,7 +35,7 @@ public partial class TopSupportApiClient
         {
             return new SettingsSaveOutcome(0, await ReadSettingsErrorAsync(response, cancellationToken));
         }
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return new SettingsSaveOutcome(0, null);
     }
 
@@ -61,7 +61,7 @@ public partial class TopSupportApiClient
             return new ProfileSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return new ProfileSaveResult();
     }
 
@@ -73,7 +73,7 @@ public partial class TopSupportApiClient
             return new ProfileSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return new ProfileSaveResult();
     }
 }

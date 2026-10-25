@@ -156,6 +156,10 @@
             Toasts.Show("Article saved.");
             Nav.NavigateTo("/kb");
         }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+        }
         finally
         {
             _saving = false;
@@ -171,7 +175,16 @@
 
     private async Task DeleteAsync()
     {
-        await Api.DeleteKbArticleAsync(Id);
+        try
+        {
+            await Api.DeleteKbArticleAsync(Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
+        }
+
         Toasts.Show("Article deleted.");
         Nav.NavigateTo("/kb");
     }

@@ -26,14 +26,14 @@ public partial class TopSupportApiClient
             return new AgentAdminSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? new();
     }
 
     public async Task<AgentPasswordResetResult> ResetAgentPasswordAsync(string agentId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsync($"api/admin/agents/{Uri.EscapeDataString(agentId)}/reset-password", null, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<AgentPasswordResetResult>(cancellationToken))!;
     }
 
@@ -45,7 +45,7 @@ public partial class TopSupportApiClient
             return new AgentAdminSaveResult { Errors = await ReadValidationErrorsAsync(response, cancellationToken) };
         }
 
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? new();
     }
 
@@ -55,7 +55,7 @@ public partial class TopSupportApiClient
     public async Task<TeamDeleteResult> DeleteTeamAsync(string teamId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.DeleteAsync($"api/admin/teams/{Uri.EscapeDataString(teamId)}", cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
         return await response.Content.ReadFromJsonAsync<TeamDeleteResult>(cancellationToken) ?? new();
     }
 
@@ -67,6 +67,6 @@ public partial class TopSupportApiClient
     public async Task SetRolePermissionAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync("api/admin/permissions", request, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        await EnsureSuccessWithMessageAsync(response, cancellationToken);
     }
 }

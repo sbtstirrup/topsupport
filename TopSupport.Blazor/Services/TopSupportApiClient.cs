@@ -297,29 +297,36 @@ public partial class TopSupportApiClient
     public async Task<IReadOnlyList<CannedResponseDto>> GetCannedResponsesAsync(CancellationToken cancellationToken = default)
         => await _httpClient.GetFromJsonAsync<List<CannedResponseDto>>("api/CannedResponses", cancellationToken) ?? new();
 
-    public async Task<CannedResponseDto> CreateCannedResponseAsync(CannedResponseDto response, CancellationToken cancellationToken = default)
+    /// <summary>The created response, or the Api's field errors ("title", "body") from a 400.</summary>
+    public async Task<UserOrgSaveResult<CannedResponseDto>> CreateCannedResponseAsync(CannedResponseDto response, CancellationToken cancellationToken = default)
     {
         var httpResponse = await _httpClient.PostAsJsonAsync("api/CannedResponses", response, cancellationToken);
-        httpResponse.EnsureSuccessStatusCode();
-        return (await httpResponse.Content.ReadFromJsonAsync<CannedResponseDto>(cancellationToken))!;
+        return await ReadSaveResultAsync<CannedResponseDto>(httpResponse, cancellationToken);
     }
 
-    public async Task UpdateCannedResponseAsync(CannedResponseDto response, CancellationToken cancellationToken = default)
+    /// <summary>No value (the Api returns no body), or the Api's field errors ("title", "body") from a 400.</summary>
+    public async Task<UserOrgSaveResult<CannedResponseDto>> UpdateCannedResponseAsync(CannedResponseDto response, CancellationToken cancellationToken = default)
     {
-        var httpResponse = await _httpClient.PutAsJsonAsync($"api/CannedResponses/{response.Id}", response, cancellationToken);
-        httpResponse.EnsureSuccessStatusCode();
+        var httpResponse = await _httpClient.PutAsJsonAsync($"api/CannedResponses/{Uri.EscapeDataString(response.Id)}", response, cancellationToken);
+        if (httpResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            return new UserOrgSaveResult<CannedResponseDto>(null, await ReadValidationErrorsAsync(httpResponse, cancellationToken));
+        }
+
+        await EnsureSuccessWithMessageAsync(httpResponse, cancellationToken);
+        return new UserOrgSaveResult<CannedResponseDto>(null, new Dictionary<string, string>());
     }
 
     public async Task DeleteCannedResponseAsync(string id, CancellationToken cancellationToken = default)
     {
-        var httpResponse = await _httpClient.DeleteAsync($"api/CannedResponses/{id}", cancellationToken);
-        httpResponse.EnsureSuccessStatusCode();
+        var httpResponse = await _httpClient.DeleteAsync($"api/CannedResponses/{Uri.EscapeDataString(id)}", cancellationToken);
+        await EnsureSuccessWithMessageAsync(httpResponse, cancellationToken);
     }
 
     /// <summary>POST /api/CannedResponses/{id}/preview -- fills the body's placeholder tokens against a real ticket and the signed-in agent.</summary>
     public async Task<string> PreviewCannedResponseAsync(string id, string? ticketId, CancellationToken cancellationToken = default)
     {
-        var httpResponse = await _httpClient.PostAsJsonAsync($"api/CannedResponses/{id}/preview", new { ticketId }, cancellationToken);
+        var httpResponse = await _httpClient.PostAsJsonAsync($"api/CannedResponses/{Uri.EscapeDataString(id)}/preview", new { ticketId }, cancellationToken);
         httpResponse.EnsureSuccessStatusCode();
         var body = await httpResponse.Content.ReadFromJsonAsync<PreviewResult>(cancellationToken);
         return body?.Text ?? string.Empty;

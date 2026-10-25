@@ -24,9 +24,21 @@
     public void Edit(UserDto? user)
         => Modal.Show(@<UserEditModal User="user" Orgs="Orgs" OnSaved="ChangedAsync" />, wide: true);
 
+    // Each action toasts the Api's message when it fails (e.g. another admin deleted the user
+    // meanwhile); a confirm modal has already closed by the time its action runs.
     public async Task ToggleLockAsync(UserDto user)
     {
-        var updated = await Api.ToggleUserLockAsync(user.Id);
+        UserDto updated;
+        try
+        {
+            updated = await Api.ToggleUserLockAsync(user.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
+        }
+
         await ChangedAsync();
         Toasts.Show(updated.Name + (updated.Locked ? " is locked and cannot sign in." : " is unlocked."));
     }
@@ -48,14 +60,33 @@
 
     private async Task ResetConfirmedAsync(UserDto user)
     {
-        var password = await Api.ResetUserPasswordAsync(user.Id);
+        TemporaryPasswordDto password;
+        try
+        {
+            password = await Api.ResetUserPasswordAsync(user.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
+        }
+
         Modal.Show(@<TempPasswordModal Password="password" />);
         await ChangedAsync();
     }
 
     private async Task DeleteConfirmedAsync(UserDto user)
     {
-        await Api.DeleteUserAsync(user.Id);
+        try
+        {
+            await Api.DeleteUserAsync(user.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
+        }
+
         await Lookup.GetUsersAsync(forceRefresh: true);
         Toasts.Show(user.Name + " deleted. Their equipment is now unassigned.");
         await (OnDeleted.HasDelegate ? OnDeleted : OnChanged).InvokeAsync();

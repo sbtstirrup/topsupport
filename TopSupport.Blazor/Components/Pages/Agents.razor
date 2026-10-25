@@ -214,7 +214,17 @@
 
     private async Task ResetAsync(AgentDto agent)
     {
-        var result = await Api.ResetAgentPasswordAsync(agent.Id);
+        AgentPasswordResetResult result;
+        try
+        {
+            result = await Api.ResetAgentPasswordAsync(agent.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
+        }
+
         await ReloadAfterChangeAsync();
         Modal.Show(@<AgentTempPasswordModal Name="@result.Name" Username="@result.Username" Password="@result.TemporaryPassword" />);
     }
@@ -247,7 +257,17 @@
 
     private async Task ConfirmDeleteTeamAsync(TeamDto team)
     {
-        var result = await Api.DeleteTeamAsync(team.Id);
+        TeamDeleteResult result;
+        try
+        {
+            result = await Api.DeleteTeamAsync(team.Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
+            return;
+        }
+
         if (result.Error is not null)
         {
             Toasts.Error(result.Error);

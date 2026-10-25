@@ -12,6 +12,13 @@
    itself every 30 seconds. *@
 <RoleGate AllowedRoles="new[] { AppRole.Admin }">
     <div class="stack-16">
+        @if (_refreshFailedAt is { } failedAt)
+        {
+            <div class="notice alert" role="status">
+                @((MarkupString)IconLibrary.Render("alert", 18))
+                <span>Couldn't refresh at @failedAt.ToLocalTime().ToString("HH:mm") &mdash; retrying every 30 seconds.@(_jobs is null ? "" : " The figures below are from the last successful refresh.")</span>
+            </div>
+        }
         @if (_jobs is null)
         {
             <div class="card"><div class="empty"><span class="empty-icon">@((MarkupString)IconLibrary.Render("refresh", 26))</span><h3>Loading&hellip;</h3></div></div>
@@ -239,7 +246,8 @@
     private string _search = string.Empty;
     private string _type = string.Empty;
     private int _page = 1;
-    private CancellationTokenSource? _searchDebounce;
+    private DateTimeOffset? _refreshFailedAt;
+    private CancellationTokenSource? _notificationsLoad;
     private Timer? _timer;
 
     private int FailedRuns => _jobs?.RecentRuns.Count(r => r.State == "Failed") ?? 0;
@@ -265,12 +273,14 @@
         try
         {
             _jobs = await Api.GetWorkerJobsAsync();
-            _notifications = await Api.GetWorkerNotificationsAsync(_type, _search, _page, PageSize);
+            await LoadNotificationsAsync();
             _refreshedAt = DateTimeOffset.UtcNow;
+            _refreshFailedAt = null;
         }
         catch (HttpRequestException)
         {
-            // Keep showing the last data; the next refresh tries again.
+            // Keep showing the last data, with a notice; the next refresh tries again.
+            _refreshFailedAt = DateTimeOffset.UtcNow;
         }
         finally
         {
@@ -279,9 +289,21 @@
         }
     }
 
-    private async Task LoadNotificationsAsync()
+    // Each load cancels the one before, so an older, slower request (a superseded search, filter
+    // or page) never overwrites a newer one's results.
+    private async Task LoadNotificationsAsync(int debounceMs = 0)
     {
-        _notifications = await Api.GetWorkerNotificationsAsync(_type, _search, _page, PageSize);
+        _notificationsLoad?.Cancel();
+        var load = _notificationsLoad = new CancellationTokenSource();
+        try
+        {
+            if (debounceMs > 0) await Task.Delay(debounceMs, load.Token);
+            _notifications = await Api.GetWorkerNotificationsAsync(_type, _search, _page, PageSize, load.Token);
+        }
+        catch (OperationCanceledException) when (load.IsCancellationRequested)
+        {
+            // Superseded by a newer load.
+        }
     }
 
     private async Task OnSearchInput(ChangeEventArgs e)
@@ -290,18 +312,7 @@
         _page = 1;
 
         // Wait for a pause in typing before asking the Api.
-        _searchDebounce?.Cancel();
-        var debounce = _searchDebounce = new CancellationTokenSource();
-        try
-        {
-            await Task.Delay(300, debounce.Token);
-        }
-        catch (TaskCanceledException)
-        {
-            return;
-        }
-
-        await LoadNotificationsAsync();
+        await LoadNotificationsAsync(debounceMs: 300);
     }
 
     private async Task OnTypeChanged(ChangeEventArgs e)
@@ -399,6 +410,6 @@
     public void Dispose()
     {
         _timer?.Dispose();
-        _searchDebounce?.Cancel();
+        _notificationsLoad?.Cancel();
     }
 }

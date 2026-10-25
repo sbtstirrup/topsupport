@@ -6,6 +6,7 @@
 @using TopSupport.Models.Admin
 @inject TopSupportApiClient Api
 @inject ModalState Modal
+@inject ILogger<KbPopularArticles> Logger
 
 @if (_articles.Count > 0)
 {
@@ -37,9 +38,10 @@
         {
             _articles = await Api.GetPopularKbArticlesAsync();
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            // Public page: if the Api is unreachable, just leave the help articles out.
+            // Public page: if the Api is unreachable, just leave the help articles out (but log it).
+            Logger.LogWarning(ex, "Couldn't load the popular knowledge base articles");
         }
     }
 
