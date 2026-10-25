@@ -34,7 +34,7 @@ public class UserAdminService
         => _repository.GetAllIncludingDeletedAsync(cancellationToken);
 
     /// <summary>Creates the user with a generated temporary password, returned once in the result.</summary>
-    public async Task<SaveUserResult> CreateAsync(SaveUserRequest request, CancellationToken cancellationToken = default)
+    public async Task<SaveUserResult> CreateAsync(SaveUserRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         await ValidateAsync(string.Empty, request, cancellationToken);
 
@@ -43,7 +43,7 @@ public class UserAdminService
 
         var password = _passwords.GenerateTemporary();
         await _passwords.SetAsync(user.Id, password, cancellationToken);
-        await _audit.LogAsync(request.ActorId, "Created user", user.Name, AuditCategories.User, cancellationToken);
+        await _audit.LogAsync(actorId, "Created user", user.Name, AuditCategories.User, cancellationToken);
 
         return new SaveUserResult
         {
@@ -52,7 +52,7 @@ public class UserAdminService
         };
     }
 
-    public async Task<SaveUserResult> UpdateAsync(string id, SaveUserRequest request, CancellationToken cancellationToken = default)
+    public async Task<SaveUserResult> UpdateAsync(string id, SaveUserRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         var existing = await GetActiveUserAsync(id, cancellationToken);
         await ValidateAsync(id, request, cancellationToken);
@@ -60,7 +60,7 @@ public class UserAdminService
         var user = ToUser(id, request);
         user.Locked = existing.Locked;
         await _repository.UpdateAsync(user, cancellationToken);
-        await _audit.LogAsync(request.ActorId, "Edited user", user.Name, AuditCategories.User, cancellationToken);
+        await _audit.LogAsync(actorId, "Edited user", user.Name, AuditCategories.User, cancellationToken);
 
         return new SaveUserResult { User = user };
     }

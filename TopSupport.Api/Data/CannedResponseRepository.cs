@@ -10,9 +10,9 @@ namespace TopSupport.Api.Data;
 /// </summary>
 public class CannedResponseRepository : ICannedResponseRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public CannedResponseRepository(IDbExecutor db)
+    public CannedResponseRepository(DbExecutor db)
     {
         _db = db;
     }

@@ -6,9 +6,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IProfileRepository.</summary>
 public class ProfileRepository : IProfileRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public ProfileRepository(IDbExecutor db)
+    public ProfileRepository(DbExecutor db)
     {
         _db = db;
     }

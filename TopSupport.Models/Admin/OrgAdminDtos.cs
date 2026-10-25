@@ -15,7 +15,6 @@ public class OrgListItemDto : OrgDto
 /// <summary>Create/edit organisation form (MODALS.orgedit / S.forms.oe).</summary>
 public class SaveOrgRequest
 {
-    public string ActorId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;

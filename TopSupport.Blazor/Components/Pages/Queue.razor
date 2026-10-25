@@ -241,7 +241,6 @@
         var request = new TicketQueueRequest
         {
             Queue = QueueName,
-            ActingAgentId = Session.AccountId,
             SearchText = string.IsNullOrWhiteSpace(_searchText) ? null : _searchText,
             Status = string.IsNullOrEmpty(_status) ? null : _status,
             Priority = string.IsNullOrEmpty(_priority) ? null : _priority,
@@ -258,13 +257,13 @@
 
         // Base count (no filters) and overdue count, for the header line + overdue chip -- mirrors
         // the demo's `base.length`/`DB.tickets.filter(isOverdue).length`.
-        var baseRequest = new TicketQueueRequest { Queue = QueueName, ActingAgentId = Session.AccountId, Page = 1, PageSize = 1 };
+        var baseRequest = new TicketQueueRequest { Queue = QueueName, Page = 1, PageSize = 1 };
         var baseResult = await Api.GetQueueAsync(baseRequest);
         _baseCount = baseResult.TotalCount;
 
         if (QueueName != "overdue")
         {
-            var overdueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "overdue", ActingAgentId = Session.AccountId, Page = 1, PageSize = 1 });
+            var overdueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "overdue", Page = 1, PageSize = 1 });
             _overdueCount = overdueResult.TotalCount;
         }
 

@@ -9,8 +9,8 @@ namespace TopSupport.Api.Controllers;
 
 /// <summary>
 /// Admin "Agents and Teams" screen: agents (all, including inactive), teams, active ticket counts,
-/// agent/team create-edit, team delete and agent password reset. Saves return 200 with an
-/// AgentAdminSaveResult whose Errors carry the demo's field validation messages. Admins only.
+/// agent/team create-edit, team delete and agent password reset. Invalid saves are a 400 with the
+/// demo's field messages. The acting admin is always the signed-in account. Admins only.
 /// </summary>
 [ApiController]
 [Route("api/admin")]
@@ -38,19 +38,8 @@ public class AdminAgentsController : ControllerBase
 
     [HttpPost("agents")]
     public async Task<ActionResult<AgentAdminSaveResult>> SaveAgent(AgentSaveRequest request, CancellationToken cancellationToken)
-    {
-        request.ActorId = User.AccountId();
-        try
-        {
-            return Ok(await _service.SaveAgentAsync(request, cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _service.SaveAgentAsync(request, User.AccountId(), cancellationToken));
 
-    /// <summary>Any body the caller sends (the old { actorId }) is ignored: the actor is the signed-in admin.</summary>
     [HttpPost("agents/{id}/reset-password")]
     public async Task<ActionResult<AgentPasswordResetResult>> ResetPassword(string id, CancellationToken cancellationToken)
     {
@@ -60,41 +49,13 @@ public class AdminAgentsController : ControllerBase
 
     [HttpPost("teams")]
     public async Task<ActionResult<AgentAdminSaveResult>> SaveTeam(TeamSaveRequest request, CancellationToken cancellationToken)
-    {
-        request.ActorId = User.AccountId();
-        try
-        {
-            return Ok(await _service.SaveTeamAsync(request, cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _service.SaveTeamAsync(request, User.AccountId(), cancellationToken));
 
     [HttpGet("teams/{id}/delete-check")]
     public async Task<ActionResult<TeamDeleteResult>> CheckTeamDelete(string id, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _service.CheckTeamDeleteAsync(id, cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _service.CheckTeamDeleteAsync(id, cancellationToken));
 
     [HttpDelete("teams/{id}")]
     public async Task<ActionResult<TeamDeleteResult>> DeleteTeam(string id, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _service.DeleteTeamAsync(User.AccountId(), id, cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _service.DeleteTeamAsync(User.AccountId(), id, cancellationToken));
 }

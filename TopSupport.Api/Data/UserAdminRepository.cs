@@ -8,9 +8,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IUserAdminRepository (procs in 08_Admin_UsersOrgs.sql).</summary>
 public class UserAdminRepository : IUserAdminRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public UserAdminRepository(IDbExecutor db)
+    public UserAdminRepository(DbExecutor db)
     {
         _db = db;
     }

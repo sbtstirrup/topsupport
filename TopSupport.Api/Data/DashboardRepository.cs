@@ -5,9 +5,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IDashboardRepository, calling usp_Dashboard_GetTicketClosedAt.</summary>
 public class DashboardRepository : IDashboardRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public DashboardRepository(IDbExecutor db)
+    public DashboardRepository(DbExecutor db)
     {
         _db = db;
     }

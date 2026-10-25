@@ -67,13 +67,6 @@ public class SecuritySettingsDto
     private static string Js(bool b) => b ? "true" : "false";
 }
 
-/// <summary>ACT['sec-save'] payload. ActorId is the signed-in admin, for the audit trail.</summary>
-public class SaveSecuritySettingsRequest
-{
-    public string ActorId { get; set; } = string.Empty;
-    public SecuritySettingsDto Settings { get; set; } = new();
-}
-
 /// <summary>How many settings changed (the "(N changed)" in the demo's toast).</summary>
 public class SaveSecuritySettingsResult
 {

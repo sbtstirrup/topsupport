@@ -26,27 +26,27 @@ public class ProfileService
     public Task<ProfileDto?> GetAsync(string accountId, CancellationToken cancellationToken = default)
         => _repository.GetAsync(accountId, cancellationToken);
 
-    public async Task UpdateDetailsAsync(UpdateProfileRequest request, CancellationToken cancellationToken = default)
+    public async Task UpdateDetailsAsync(string accountId, UpdateProfileRequest request, CancellationToken cancellationToken = default)
     {
         var errors = ProfileRules.ValidateDetails(request.Name, request.Email, request.Phone);
         if (errors.Count > 0) throw new ValidationException(errors);
 
         var name = request.Name.Trim();
         var phone = request.Phone?.Trim();
-        await _repository.UpdateAsync(request.ActorId, name, request.Email.Trim(), string.IsNullOrEmpty(phone) ? null : phone, cancellationToken);
-        await _audit.LogAsync(request.ActorId, "Updated profile details", name, AuditCategories.User, cancellationToken);
+        await _repository.UpdateAsync(accountId, name, request.Email.Trim(), string.IsNullOrEmpty(phone) ? null : phone, cancellationToken);
+        await _audit.LogAsync(accountId, "Updated profile details", name, AuditCategories.User, cancellationToken);
     }
 
-    public async Task ChangePasswordAsync(ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    public async Task ChangePasswordAsync(string accountId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
     {
         var errors = new Dictionary<string, string>();
 
         if (string.IsNullOrEmpty(request.CurrentPassword)) errors["cur"] = "Enter your current password.";
-        else if (!await _passwords.VerifyAsync(request.ActorId, request.CurrentPassword, cancellationToken)) errors["cur"] = "That is not your current password.";
+        else if (!await _passwords.VerifyAsync(accountId, request.CurrentPassword, cancellationToken)) errors["cur"] = "That is not your current password.";
 
         // pw !== m.password: only a hash is stored, so "different" means "doesn't verify".
         var differs = !string.IsNullOrEmpty(request.NewPassword)
-            && !await _passwords.VerifyAsync(request.ActorId, request.NewPassword, cancellationToken);
+            && !await _passwords.VerifyAsync(accountId, request.NewPassword, cancellationToken);
         var security = await _settings.GetSecurityAsync(cancellationToken);
         var bad = ProfileRules.PasswordRules(security, request.NewPassword, request.ConfirmPassword, differs).Where(r => !r.Met).ToList();
 
@@ -55,9 +55,9 @@ public class ProfileService
 
         if (errors.Count > 0) throw new ValidationException(errors);
 
-        await _passwords.ChangeOwnAsync(request.ActorId, request.NewPassword, cancellationToken);
-        var profile = await _repository.GetAsync(request.ActorId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Account '{request.ActorId}' changed its password but has no profile.");
-        await _audit.LogAsync(request.ActorId, "Changed own password", profile.Name, AuditCategories.User, cancellationToken);
+        await _passwords.ChangeOwnAsync(accountId, request.NewPassword, cancellationToken);
+        var profile = await _repository.GetAsync(accountId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Account '{accountId}' changed its password but has no profile.");
+        await _audit.LogAsync(accountId, "Changed own password", profile.Name, AuditCategories.User, cancellationToken);
     }
 }

@@ -6,7 +6,6 @@
 @using TopSupport.Models.Enums
 @inject LookupDataService Lookup
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ModalState Modal
 @inject ToastState Toasts
 
@@ -91,11 +90,9 @@
         _saving = true;
         try
         {
-            var actor = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
-
             // One call so the Api can write a single "Changed ticket properties" audit entry
             // (ACT['change-go']); it skips whichever of the three are unchanged.
-            await Api.ChangeTicketPropertiesAsync(TicketId, _status, _priority, _topic, actor);
+            await Api.ChangeTicketPropertiesAsync(TicketId, _status, _priority, _topic);
 
             await OnSaved.InvokeAsync();
             Modal.Close();

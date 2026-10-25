@@ -9,10 +9,9 @@ public class UserListItemDto : UserDto
     public int OpenTicketCount { get; set; }
 }
 
-/// <summary>Create/edit user form (MODALS.useredit / S.forms.ue). ActorId is the acting admin, for the audit trail.</summary>
+/// <summary>Create/edit user form (MODALS.useredit / S.forms.ue).</summary>
 public class SaveUserRequest
 {
-    public string ActorId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
@@ -21,12 +20,6 @@ public class SaveUserRequest
     public string Office { get; set; } = string.Empty;
     public string Department { get; set; } = string.Empty;
     public string JobTitle { get; set; } = string.Empty;
-}
-
-/// <summary>Body for admin actions that need nothing but the acting account (lock, reset, delete).</summary>
-public class AdminActionRequest
-{
-    public string ActorId { get; set; } = string.Empty;
 }
 
 /// <summary>What MODALS.temppw shows once: who it's for and the generated password.</summary>

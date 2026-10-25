@@ -33,7 +33,7 @@ public class AgentAdminService
         => _repository.GetActiveTicketCountsAsync(cancellationToken);
 
     /// <summary>Creates (empty Id) or edits an agent. A new agent gets a temporary password, returned once.</summary>
-    public async Task<AgentAdminSaveResult> SaveAgentAsync(AgentSaveRequest request, CancellationToken cancellationToken = default)
+    public async Task<AgentAdminSaveResult> SaveAgentAsync(AgentSaveRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         var result = new AgentAdminSaveResult();
         var errors = result.Errors;
@@ -115,11 +115,11 @@ public class AgentAdminService
             var password = _passwords.GenerateTemporary();
             await _passwords.SetAsync(agent.Id, password, cancellationToken);
             result.TemporaryPassword = password;
-            await _audit.LogAsync(request.ActorId, "Created agent", agent.Name, AuditCategories.Permission, cancellationToken);
+            await _audit.LogAsync(actorId, "Created agent", agent.Name, AuditCategories.Permission, cancellationToken);
         }
         else
         {
-            await _audit.LogAsync(request.ActorId,
+            await _audit.LogAsync(actorId,
                 "Edited agent (role " + agent.Role + "; departments " + string.Join(", ", agent.Departments) + ")",
                 agent.Name, AuditCategories.Permission, cancellationToken);
         }
@@ -145,7 +145,7 @@ public class AgentAdminService
     }
 
     /// <summary>Creates (empty Id) or edits a team.</summary>
-    public async Task<AgentAdminSaveResult> SaveTeamAsync(TeamSaveRequest request, CancellationToken cancellationToken = default)
+    public async Task<AgentAdminSaveResult> SaveTeamAsync(TeamSaveRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         var result = new AgentAdminSaveResult();
         var errors = result.Errors;
@@ -185,7 +185,7 @@ public class AgentAdminService
         };
 
         await _repository.SaveTeamAsync(team, cancellationToken);
-        await _audit.LogAsync(request.ActorId,
+        await _audit.LogAsync(actorId,
             (isNew ? "Created" : "Edited") + " team (" + team.MemberAgentIds.Count + " members)",
             team.Name, AuditCategories.Permission, cancellationToken);
 

@@ -40,24 +40,24 @@ public class OrgAdminService
         return ids.Where(active.ContainsKey).Select(ticketId => active[ticketId]).ToList();
     }
 
-    public async Task<OrgDto> CreateAsync(SaveOrgRequest request, CancellationToken cancellationToken = default)
+    public async Task<OrgDto> CreateAsync(SaveOrgRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         await ValidateAsync(string.Empty, request, cancellationToken);
 
         var org = ToOrg("o" + Guid.NewGuid().ToString("n")[..12], request);
         await _repository.InsertAsync(org, cancellationToken);
-        await _audit.LogAsync(request.ActorId, "Created organisation", org.Name, AuditCategories.Organisation, cancellationToken);
+        await _audit.LogAsync(actorId, "Created organisation", org.Name, AuditCategories.Organisation, cancellationToken);
         return org;
     }
 
-    public async Task<OrgDto> UpdateAsync(string id, SaveOrgRequest request, CancellationToken cancellationToken = default)
+    public async Task<OrgDto> UpdateAsync(string id, SaveOrgRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         if (await _repository.GetByIdAsync(id, cancellationToken) is null) throw new KeyNotFoundException($"Organisation {id} not found.");
         await ValidateAsync(id, request, cancellationToken);
 
         var org = ToOrg(id, request);
         await _repository.UpdateAsync(org, cancellationToken);
-        await _audit.LogAsync(request.ActorId, "Edited organisation", org.Name, AuditCategories.Organisation, cancellationToken);
+        await _audit.LogAsync(actorId, "Edited organisation", org.Name, AuditCategories.Organisation, cancellationToken);
         return org;
     }
 

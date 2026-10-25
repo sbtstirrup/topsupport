@@ -30,9 +30,9 @@ public partial class TopSupportApiClient
         return await response.Content.ReadFromJsonAsync<AgentAdminSaveResult>(cancellationToken) ?? new();
     }
 
-    public async Task<AgentPasswordResetResult> ResetAgentPasswordAsync(string agentId, string actorId, CancellationToken cancellationToken = default)
+    public async Task<AgentPasswordResetResult> ResetAgentPasswordAsync(string agentId, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/admin/agents/{Uri.EscapeDataString(agentId)}/reset-password", new { actorId }, cancellationToken);
+        var response = await _httpClient.PostAsync($"api/admin/agents/{Uri.EscapeDataString(agentId)}/reset-password", null, cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<AgentPasswordResetResult>(cancellationToken))!;
     }
@@ -52,9 +52,9 @@ public partial class TopSupportApiClient
     public async Task<TeamDeleteResult> CheckTeamDeleteAsync(string teamId, CancellationToken cancellationToken = default)
         => await _httpClient.GetFromJsonAsync<TeamDeleteResult>($"api/admin/teams/{Uri.EscapeDataString(teamId)}/delete-check", cancellationToken) ?? new();
 
-    public async Task<TeamDeleteResult> DeleteTeamAsync(string teamId, string actorId, CancellationToken cancellationToken = default)
+    public async Task<TeamDeleteResult> DeleteTeamAsync(string teamId, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.DeleteAsync($"api/admin/teams/{Uri.EscapeDataString(teamId)}?actorId={Uri.EscapeDataString(actorId)}", cancellationToken);
+        var response = await _httpClient.DeleteAsync($"api/admin/teams/{Uri.EscapeDataString(teamId)}", cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<TeamDeleteResult>(cancellationToken) ?? new();
     }

@@ -23,9 +23,6 @@ public static class RolePermissionKeys
 /// <summary>Form state of MODALS.agentedit / ACT['agent-save']. Id is empty to create.</summary>
 public class AgentSaveRequest
 {
-    /// <summary>Account doing the save, for the audit entry.</summary>
-    public string ActorId { get; set; } = string.Empty;
-
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
@@ -41,8 +38,6 @@ public class AgentSaveRequest
 /// <summary>Form state of MODALS.teamedit / ACT['team-save']. Id is empty to create.</summary>
 public class TeamSaveRequest
 {
-    public string ActorId { get; set; } = string.Empty;
-
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Department { get; set; } = string.Empty;
@@ -97,7 +92,6 @@ public class RolePermissionDto
 
 public class SetRolePermissionRequest
 {
-    public string ActorId { get; set; } = string.Empty;
     public string Department { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string Permission { get; set; } = string.Empty;

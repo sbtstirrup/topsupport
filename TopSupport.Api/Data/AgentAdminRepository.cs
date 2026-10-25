@@ -14,9 +14,9 @@ namespace TopSupport.Api.Data;
 /// </summary>
 public class AgentAdminRepository : IAgentAdminRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public AgentAdminRepository(IDbExecutor db)
+    public AgentAdminRepository(DbExecutor db)
     {
         _db = db;
     }

@@ -279,7 +279,7 @@
             {
                 // Best-effort cross-reference per DevicePanel's doc comment: use the open queue as
                 // the candidate list (client-side filter-by-tag over whatever's already fetched).
-                var queueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "open", ActingAgentId = Session.AccountId, PageSize = 100 });
+                var queueResult = await Api.GetQueueAsync(new TicketQueueRequest { Queue = "open", PageSize = 100 });
                 _candidateTickets = queueResult.Items.Select(t => { t.Fields = NormalizeFields(t.Fields); return t; }).ToList();
             }
         }
@@ -313,14 +313,12 @@
         };
     }
 
-    private TicketActorRef ActingAgent => new() { Type = "agent", Id = Session.AccountId };
-
     private async Task ClaimAsync()
     {
         if (_ticket is null) return;
         try
         {
-            await Api.ClaimTicketAsync(_ticket.Id, Session.AccountId);
+            await Api.ClaimTicketAsync(_ticket.Id);
             _flashMessage = $"You claimed #{_ticket.Number}.";
         }
         catch (HttpRequestException ex)
@@ -336,7 +334,7 @@
         if (_ticket is null) return;
         try
         {
-            await Api.ChangeStatusAsync(_ticket.Id, nameof(TicketStatus.Open), ActingAgent);
+            await Api.ChangeStatusAsync(_ticket.Id, nameof(TicketStatus.Open));
             _flashMessage = $"#{_ticket.Number} reopened.";
             await LoadTicketAsync();
         }
@@ -381,7 +379,7 @@
         var id = e.Value?.ToString();
         if (string.IsNullOrEmpty(id) || _ticket is null) return;
 
-        var filled = await Api.PreviewCannedResponseAsync(id, _ticket.Id, Session.AccountId);
+        var filled = await Api.PreviewCannedResponseAsync(id, _ticket.Id);
         if (_editorRef is not null)
         {
             // textToHTML(fillPlaceholders(...)): the body and filled-in values (e.g. the ticket subject) are plain text.
@@ -416,7 +414,7 @@
         {
             try
             {
-                await Api.UploadAttachmentAsync(ticketId, staged, "agent", Session.AccountId, timelineEntryId);
+                await Api.UploadAttachmentAsync(ticketId, staged, timelineEntryId);
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
             {
@@ -453,7 +451,6 @@
         {
             var request = new AddAgentReplyRequest
             {
-                AgentId = Session.AccountId,
                 Html = _replyHtml ?? string.Empty,
                 IsNote = _replyMode == "note",
                 StatusAfterSending = _replyMode == "note" || string.IsNullOrEmpty(_statusAfterSending) ? null : _statusAfterSending

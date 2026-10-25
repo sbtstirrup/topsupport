@@ -132,7 +132,7 @@
         _saving = true;
         try
         {
-            var result = await Api.UpdateProfileAsync(new UpdateProfileRequest { ActorId = Session.AccountId, Name = _name, Email = _email, Phone = _phone });
+            var result = await Api.UpdateProfileAsync(new UpdateProfileRequest { Name = _name, Email = _email, Phone = _phone });
             _errs = result.Errors;
             if (_errs.Count > 0) return;
 
@@ -153,7 +153,7 @@
         _saving = true;
         try
         {
-            var result = await Api.ChangePasswordAsync(new ChangePasswordRequest { ActorId = Session.AccountId, CurrentPassword = _cur, NewPassword = _nw, ConfirmPassword = _cf });
+            var result = await Api.ChangePasswordAsync(new ChangePasswordRequest { CurrentPassword = _cur, NewPassword = _nw, ConfirmPassword = _cf });
             _pwErrs = result.Errors;
             if (_pwErrs.Count > 0) return;
 

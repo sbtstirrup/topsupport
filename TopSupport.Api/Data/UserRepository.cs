@@ -7,9 +7,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IUserRepository, calling usp_User_GetById/usp_User_GetAllActive.</summary>
 public class UserRepository : IUserRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public UserRepository(IDbExecutor db)
+    public UserRepository(DbExecutor db)
     {
         _db = db;
     }

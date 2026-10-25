@@ -368,7 +368,7 @@
         _isPostingReply = true;
         try
         {
-            var request = new AddUserReplyRequest { UserId = Session.AccountId, Html = _replyHtml ?? string.Empty };
+            var request = new AddUserReplyRequest { Html = _replyHtml ?? string.Empty };
             var updated = await Api.AddUserReplyAsync(_ticket.Id, request);
 
             // Anchor the staged files to the new reply: the newest Reply by this user.
@@ -380,7 +380,7 @@
             {
                 try
                 {
-                    await Api.UploadAttachmentAsync(updated.Id, staged, "user", Session.AccountId, entryId);
+                    await Api.UploadAttachmentAsync(updated.Id, staged, entryId);
                 }
                 catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
                 {

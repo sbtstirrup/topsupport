@@ -4,7 +4,6 @@
 @using TopSupport.Models.Tickets
 @using TopSupport.Models.Enums
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ModalState Modal
 @inject ToastState Toasts
 
@@ -58,12 +57,10 @@
         _saving = true;
         try
         {
-            var actor = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
-
             // One call: the Api validates every ticket first, then adds the note and closes each
             // (ACT['close-go']), so a failed close can't leave orphaned notes behind.
             var note = _note.Trim();
-            await Api.BulkCloseAsync(TicketIds, _status.ToString(), note.Length > 0 ? note : null, actor);
+            await Api.BulkCloseAsync(TicketIds, _status.ToString(), note.Length > 0 ? note : null);
 
             await OnClosed.InvokeAsync();
             Modal.Close();

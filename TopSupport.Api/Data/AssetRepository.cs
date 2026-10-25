@@ -7,9 +7,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IAssetRepository, calling usp_Asset_GetByTag/usp_Asset_GetByUserId.</summary>
 public class AssetRepository : IAssetRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public AssetRepository(IDbExecutor db)
+    public AssetRepository(DbExecutor db)
     {
         _db = db;
     }

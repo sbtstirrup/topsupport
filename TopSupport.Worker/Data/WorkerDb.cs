@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 namespace TopSupport.Worker.Data;
 
 /// <summary>
-/// The worker's equivalent of TopSupport.Api's SqlConnectionFactory/DbExecutor (those live in
+/// The worker's equivalent of TopSupport.Api's DbExecutor (that lives in
 /// the Api project, so can't be referenced): runs stored procedures against the same
 /// "ConnectionStrings:TopSupport" database. No EF Core, no Dapper, as in the rest of the solution.
 /// </summary>

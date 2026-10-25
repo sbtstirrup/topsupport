@@ -293,8 +293,7 @@
                 Fields = fields
             };
 
-            var createdBy = new TicketActorRef { Type = "user", Id = Session.AccountId };
-            var response = await Api.CreateTicketRawAsync(request, createdBy);
+            var response = await Api.CreateTicketRawAsync(request);
 
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
@@ -312,7 +311,7 @@
             {
                 try
                 {
-                    await Api.UploadAttachmentAsync(ticket.Id, staged, "user", Session.AccountId);
+                    await Api.UploadAttachmentAsync(ticket.Id, staged);
                 }
                 catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
                 {

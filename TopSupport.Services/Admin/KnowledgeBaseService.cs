@@ -31,7 +31,7 @@ public class KnowledgeBaseService
     /// Creates (<paramref name="id"/> null) or updates an article. Returns null when updating an
     /// id that doesn't exist. Throws <see cref="ValidationException"/> on invalid input.
     /// </summary>
-    public async Task<KbArticleDto?> SaveArticleAsync(string? id, SaveKbArticleRequest request, CancellationToken cancellationToken = default)
+    public async Task<KbArticleDto?> SaveArticleAsync(string? id, SaveKbArticleRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         var kb = await _repository.GetAllAsync(cancellationToken);
 
@@ -59,7 +59,7 @@ public class KnowledgeBaseService
             Body = request.Body.Trim()
         }, cancellationToken);
 
-        await _audit.LogAsync(request.ActorId, "Saved knowledge base article (" + saved.Status + ")", saved.Title, AuditCategories.Permission, cancellationToken);
+        await _audit.LogAsync(actorId, "Saved knowledge base article (" + saved.Status + ")", saved.Title, AuditCategories.Permission, cancellationToken);
         return saved;
     }
 

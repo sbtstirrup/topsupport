@@ -10,9 +10,6 @@ public class TicketQueueRequest
     /// <summary>"open" | "mine" | "overdue" | "answered" | "closed" | null for a plain filtered search.</summary>
     public string? Queue { get; set; }
 
-    /// <summary>Required when Queue == "mine" (or when filtering by "assigned to me").</summary>
-    public string? ActingAgentId { get; set; }
-
     public string? SearchText { get; set; }
     public string? Status { get; set; }
     public string? Priority { get; set; }

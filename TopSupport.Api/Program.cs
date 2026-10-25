@@ -30,61 +30,57 @@ builder.Services.AddControllers();
 // ValidationException -> 400, KeyNotFoundException -> 404, anything else a logged 500.
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
 // ADO.NET data access (no EF Core, no Dapper -- see TopSupport.Database/README.md).
-builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
-builder.Services.AddScoped<IDbExecutor, DbExecutor>();
-builder.Services.AddScoped<ITicketRepository, TicketRepository>();
-builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<IAgentRepository, AgentRepository>();
-builder.Services.AddScoped<ITeamRepository, TeamRepository>();
-builder.Services.AddScoped<IAssetRepository, AssetRepository>();
-builder.Services.AddScoped<ITicketAttachmentRepository, TicketAttachmentRepository>();
-builder.Services.AddScoped<ICannedResponseRepository, CannedResponseRepository>();
-builder.Services.AddScoped<IAuditRepository, AuditRepository>();
+builder.Services.AddSingleton<DbExecutor>();
 builder.Services.AddScoped<IAccountCredentialRepository, AccountCredentialRepository>();
-builder.Services.AddScoped<IKnowledgeBaseRepository, KnowledgeBaseRepository>();
-builder.Services.AddScoped<IAppSettingsRepository, AppSettingsRepository>();
-builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
-builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IAgentAdminRepository, AgentAdminRepository>();
+builder.Services.AddScoped<IAgentRepository, AgentRepository>();
+builder.Services.AddScoped<IAppSettingsRepository, AppSettingsRepository>();
+builder.Services.AddScoped<IAssetRepository, AssetRepository>();
+builder.Services.AddScoped<IAuditRepository, AuditRepository>();
+builder.Services.AddScoped<ICannedResponseRepository, CannedResponseRepository>();
+builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+builder.Services.AddScoped<IKnowledgeBaseRepository, KnowledgeBaseRepository>();
+builder.Services.AddScoped<IOrgRepository, OrgRepository>();
+builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
 builder.Services.AddScoped<IRolePermissionRepository, RolePermissionRepository>();
+builder.Services.AddScoped<ITeamRepository, TeamRepository>();
+builder.Services.AddScoped<ITicketAttachmentRepository, TicketAttachmentRepository>();
+builder.Services.AddScoped<ITicketRepository, TicketRepository>();
+builder.Services.AddScoped<IUserAdminRepository, UserAdminRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IWorkerMonitorRepository, WorkerMonitorRepository>();
 
-// Business/service layer (Controller -> Service -> Repository).
-builder.Services.AddScoped<TicketService>();
+// Services (Controller -> Service -> Repository).
+builder.Services.AddScoped<AccountPasswordService>();
+builder.Services.AddScoped<AgentAdminService>();
+builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<CannedResponseService>();
+builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<KnowledgeBaseService>();
+builder.Services.AddScoped<OrgAdminService>();
+builder.Services.AddScoped<ProfileService>();
+builder.Services.AddScoped<QueueService>();
+builder.Services.AddScoped<RolePermissionService>();
+builder.Services.AddScoped<SettingsService>();
 builder.Services.AddScoped<TicketAttachmentService>();
 builder.Services.AddScoped<TicketFieldOptionsResolver>();
 builder.Services.AddScoped<TicketFormValidator>();
-builder.Services.AddScoped<CannedResponseService>();
-builder.Services.AddScoped<QueueService>();
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<AuditService>();
-builder.Services.AddScoped<AccountPasswordService>();
-builder.Services.AddScoped<KnowledgeBaseService>();
-builder.Services.AddScoped<SettingsService>();
-builder.Services.AddScoped<ProfileService>();
-builder.Services.AddScoped<DashboardService>();
-builder.Services.AddScoped<AgentAdminService>();
-builder.Services.AddScoped<RolePermissionService>();
-builder.Services.AddScoped<IWorkerMonitorRepository, WorkerMonitorRepository>();
+builder.Services.AddScoped<TicketService>();
+builder.Services.AddScoped<UserAdminService>();
 builder.Services.AddScoped<WorkerMonitorService>();
 
-// Admin: Users and Organisations.
-builder.Services.AddScoped<IUserAdminRepository, UserAdminRepository>();
-builder.Services.AddScoped<IOrgRepository, OrgRepository>();
-builder.Services.AddScoped<UserAdminService>();
-builder.Services.AddScoped<OrgAdminService>();
+// Services read the time through TimeProvider (never DateTimeOffset.UtcNow), so tests can fix it.
+builder.Services.AddSingleton(TimeProvider.System);
 
 // Sign-in issues a signed bearer token (AuthController); every endpoint requires one unless it
 // is [AllowAnonymous], and the admin/agent screens' endpoints also require the role.
 var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.AddSingleton<JwtTokenService>();
-
-// Services read the time through TimeProvider (never DateTimeOffset.UtcNow), so tests can fix it.
-builder.Services.AddSingleton(TimeProvider.System);
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -115,8 +111,6 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.Admin, p => p.RequireRole(nameof(AppRole.Admin)));
 
 var app = builder.Build();
-
-// Configure the HTTP request pipeline.
 
 // The Api only returns JSON and attachment downloads: never sniff a client-declared content
 // type into something executable, and never allow framing. Set on OnStarting so the headers

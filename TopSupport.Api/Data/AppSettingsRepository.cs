@@ -5,9 +5,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IAppSettingsRepository.</summary>
 public class AppSettingsRepository : IAppSettingsRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public AppSettingsRepository(IDbExecutor db)
+    public AppSettingsRepository(DbExecutor db)
     {
         _db = db;
     }

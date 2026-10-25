@@ -5,7 +5,6 @@
 @using TopSupport.Models.People
 @inject LookupDataService Lookup
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ModalState Modal
 @inject ToastState Toasts
 
@@ -80,9 +79,8 @@
         {
             var kind = _selected.StartsWith("a:", StringComparison.Ordinal) ? "agent" : "team";
             var id = _selected[2..];
-            var assignedBy = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
 
-            await Api.BulkAssignAsync(TicketIds, kind, id, assignedBy);
+            await Api.BulkAssignAsync(TicketIds, kind, id);
 
             await OnAssigned.InvokeAsync();
             Modal.Close();

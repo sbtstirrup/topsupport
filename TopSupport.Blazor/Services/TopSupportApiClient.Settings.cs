@@ -13,9 +13,9 @@ public partial class TopSupportApiClient
     public async Task<SecuritySettingsDto> GetSecuritySettingsAsync(CancellationToken cancellationToken = default)
         => await _httpClient.GetFromJsonAsync<SecuritySettingsDto>("api/settings/security", cancellationToken) ?? new();
 
-    public async Task<SettingsSaveOutcome> SaveSecuritySettingsAsync(string actorId, SecuritySettingsDto settings, CancellationToken cancellationToken = default)
+    public async Task<SettingsSaveOutcome> SaveSecuritySettingsAsync(SecuritySettingsDto settings, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync("api/settings/security", new SaveSecuritySettingsRequest { ActorId = actorId, Settings = settings }, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync("api/settings/security", settings, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
             return new SettingsSaveOutcome(0, await ReadSettingsErrorAsync(response, cancellationToken));
@@ -28,9 +28,9 @@ public partial class TopSupportApiClient
     public async Task<SiteSettingsDto> GetSiteSettingsAsync(CancellationToken cancellationToken = default)
         => await _httpClient.GetFromJsonAsync<SiteSettingsDto>("api/settings/site", cancellationToken) ?? new();
 
-    public async Task<SettingsSaveOutcome> SaveSiteSettingsAsync(string actorId, SiteSettingsDto settings, CancellationToken cancellationToken = default)
+    public async Task<SettingsSaveOutcome> SaveSiteSettingsAsync(SiteSettingsDto settings, CancellationToken cancellationToken = default)
     {
-        var response = await _httpClient.PutAsJsonAsync("api/settings/site", new SaveSiteSettingsRequest { ActorId = actorId, Settings = settings }, cancellationToken);
+        var response = await _httpClient.PutAsJsonAsync("api/settings/site", settings, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
             return new SettingsSaveOutcome(0, await ReadSettingsErrorAsync(response, cancellationToken));

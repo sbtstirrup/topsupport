@@ -9,9 +9,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IWorkerMonitorRepository over worker.usp_Monitor_*.</summary>
 public class WorkerMonitorRepository : IWorkerMonitorRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public WorkerMonitorRepository(IDbExecutor db)
+    public WorkerMonitorRepository(DbExecutor db)
     {
         _db = db;
     }

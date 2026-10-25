@@ -11,6 +11,7 @@ namespace TopSupport.Api.Controllers;
 /// <summary>
 /// Admin Users screens: list, detail, create/edit, lock/unlock, reset password, delete. Admins
 /// only, except GET api/users/all, which every signed-in account needs to name people on tickets.
+/// The acting admin is always the signed-in account.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -51,57 +52,29 @@ public class UsersController : ControllerBase
 
     [HttpPost]
     [Authorize(Policy = Policies.Admin)]
-    public Task<ActionResult<SaveUserResult>> Create(SaveUserRequest request, CancellationToken cancellationToken)
-    {
-        request.ActorId = User.AccountId();
-        return Run(() => _users.CreateAsync(request, cancellationToken));
-    }
+    public async Task<ActionResult<SaveUserResult>> Create(SaveUserRequest request, CancellationToken cancellationToken)
+        => Ok(await _users.CreateAsync(request, User.AccountId(), cancellationToken));
 
     [HttpPut("{id}")]
     [Authorize(Policy = Policies.Admin)]
-    public Task<ActionResult<SaveUserResult>> Update(string id, SaveUserRequest request, CancellationToken cancellationToken)
-    {
-        request.ActorId = User.AccountId();
-        return Run(() => _users.UpdateAsync(id, request, cancellationToken));
-    }
-
-    // The lock/reset/delete bodies (AdminActionRequest) only carry an ActorId, which is ignored:
-    // the acting admin is always the signed-in account.
+    public async Task<ActionResult<SaveUserResult>> Update(string id, SaveUserRequest request, CancellationToken cancellationToken)
+        => Ok(await _users.UpdateAsync(id, request, User.AccountId(), cancellationToken));
 
     [HttpPost("{id}/toggle-lock")]
     [Authorize(Policy = Policies.Admin)]
-    public Task<ActionResult<UserDto>> ToggleLock(string id, CancellationToken cancellationToken)
-        => Run(() => _users.ToggleLockAsync(id, User.AccountId(), cancellationToken));
+    public async Task<ActionResult<UserDto>> ToggleLock(string id, CancellationToken cancellationToken)
+        => Ok(await _users.ToggleLockAsync(id, User.AccountId(), cancellationToken));
 
     [HttpPost("{id}/reset-password")]
     [Authorize(Policy = Policies.Admin)]
-    public Task<ActionResult<TemporaryPasswordDto>> ResetPassword(string id, CancellationToken cancellationToken)
-        => Run(() => _users.ResetPasswordAsync(id, User.AccountId(), cancellationToken));
+    public async Task<ActionResult<TemporaryPasswordDto>> ResetPassword(string id, CancellationToken cancellationToken)
+        => Ok(await _users.ResetPasswordAsync(id, User.AccountId(), cancellationToken));
 
     [HttpPost("{id}/delete")]
     [Authorize(Policy = Policies.Admin)]
     public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
     {
-        try
-        {
-            await _users.DeleteAsync(id, User.AccountId(), cancellationToken);
-            return Ok();
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
-
-    private async Task<ActionResult<T>> Run<T>(Func<Task<T>> action)
-    {
-        try
-        {
-            return Ok(await action());
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        await _users.DeleteAsync(id, User.AccountId(), cancellationToken);
+        return Ok();
     }
 }

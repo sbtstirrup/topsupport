@@ -6,7 +6,6 @@
 @using TopSupport.Models.Admin
 @using TopSupport.Models.People
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ModalState Modal
 @inject ToastState Toasts
 @inject LookupDataService Lookup
@@ -27,7 +26,7 @@
 
     public async Task ToggleLockAsync(UserDto user)
     {
-        var updated = await Api.ToggleUserLockAsync(user.Id, Session.AccountId);
+        var updated = await Api.ToggleUserLockAsync(user.Id);
         await ChangedAsync();
         Toasts.Show(updated.Name + (updated.Locked ? " is locked and cannot sign in." : " is unlocked."));
     }
@@ -49,14 +48,14 @@
 
     private async Task ResetConfirmedAsync(UserDto user)
     {
-        var password = await Api.ResetUserPasswordAsync(user.Id, Session.AccountId);
+        var password = await Api.ResetUserPasswordAsync(user.Id);
         Modal.Show(@<TempPasswordModal Password="password" />);
         await ChangedAsync();
     }
 
     private async Task DeleteConfirmedAsync(UserDto user)
     {
-        await Api.DeleteUserAsync(user.Id, Session.AccountId);
+        await Api.DeleteUserAsync(user.Id);
         await Lookup.GetUsersAsync(forceRefresh: true);
         Toasts.Show(user.Name + " deleted. Their equipment is now unassigned.");
         await (OnDeleted.HasDelegate ? OnDeleted : OnChanged).InvokeAsync();

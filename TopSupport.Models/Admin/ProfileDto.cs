@@ -25,7 +25,6 @@ public class ProfileDto
 /// <summary>ACT['pf-save'] payload. The account being edited is always the actor's own.</summary>
 public class UpdateProfileRequest
 {
-    public string ActorId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
@@ -34,7 +33,6 @@ public class UpdateProfileRequest
 /// <summary>ACT['pf-pw'] payload: the actor changes their own password.</summary>
 public class ChangePasswordRequest
 {
-    public string ActorId { get; set; } = string.Empty;
     public string CurrentPassword { get; set; } = string.Empty;
     public string NewPassword { get; set; } = string.Empty;
     public string ConfirmPassword { get; set; } = string.Empty;

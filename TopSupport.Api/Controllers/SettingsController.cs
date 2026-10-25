@@ -27,9 +27,9 @@ public class SettingsController : ControllerBase
 
     [HttpPut("security")]
     [Authorize(Policy = Policies.Admin)]
-    public async Task<ActionResult<SaveSecuritySettingsResult>> SaveSecurity(SaveSecuritySettingsRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<SaveSecuritySettingsResult>> SaveSecurity(SecuritySettingsDto settings, CancellationToken cancellationToken)
     {
-        var changed = await _settings.SaveSecurityAsync(User.AccountId(), request.Settings, cancellationToken);
+        var changed = await _settings.SaveSecurityAsync(User.AccountId(), settings, cancellationToken);
         return Ok(new SaveSecuritySettingsResult { Changed = changed });
     }
 
@@ -40,9 +40,9 @@ public class SettingsController : ControllerBase
 
     [HttpPut("site")]
     [Authorize(Policy = Policies.Admin)]
-    public async Task<IActionResult> SaveSite(SaveSiteSettingsRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> SaveSite(SiteSettingsDto settings, CancellationToken cancellationToken)
     {
-        await _settings.SaveSiteAsync(User.AccountId(), request.Settings, cancellationToken);
+        await _settings.SaveSiteAsync(User.AccountId(), settings, cancellationToken);
         return Ok();
     }
 }

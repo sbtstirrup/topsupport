@@ -37,7 +37,7 @@ public partial class CannedResponseService
     /// Creates a response with a server-generated id (any client-supplied Id is ignored). Throws
     /// <see cref="ValidationException"/> on invalid input.
     /// </summary>
-    public async Task<CannedResponseDto> CreateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default)
+    public async Task<CannedResponseDto> CreateAsync(CannedResponseDto response, string actorId, CancellationToken cancellationToken = default)
     {
         var all = await _repository.GetAllAsync(cancellationToken);
         Validate(response, null, all);
@@ -50,7 +50,7 @@ public partial class CannedResponseService
             Body = response.Body,
             SortOrder = response.SortOrder
         }, cancellationToken);
-        await _audit.LogAsync(actorId ?? TicketActorTypes.System, "Created canned response", created.Title, AuditCategories.Ticket, cancellationToken);
+        await _audit.LogAsync(actorId, "Created canned response", created.Title, AuditCategories.Ticket, cancellationToken);
         return created;
     }
 
@@ -58,7 +58,7 @@ public partial class CannedResponseService
     /// Returns false (nothing written or audited) when there's no such id. Throws
     /// <see cref="ValidationException"/> on invalid input.
     /// </summary>
-    public async Task<bool> UpdateAsync(CannedResponseDto response, string? actorId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(CannedResponseDto response, string actorId, CancellationToken cancellationToken = default)
     {
         var all = await _repository.GetAllAsync(cancellationToken);
         if (!all.Any(c => c.Id == response.Id)) return false;
@@ -67,18 +67,18 @@ public partial class CannedResponseService
         // Title trimmed, body as typed -- as ACT['cn-save'] stores them.
         response.Title = response.Title.Trim();
         await _repository.UpdateAsync(response, cancellationToken);
-        await _audit.LogAsync(actorId ?? TicketActorTypes.System, "Edited canned response", response.Title, AuditCategories.Ticket, cancellationToken);
+        await _audit.LogAsync(actorId, "Edited canned response", response.Title, AuditCategories.Ticket, cancellationToken);
         return true;
     }
 
     /// <summary>Returns false (nothing written or audited) when there's no such id.</summary>
-    public async Task<bool> DeleteAsync(string id, string? actorId = null, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(string id, string actorId, CancellationToken cancellationToken = default)
     {
         // Look the title up first: it's the audit target, and the row is gone afterwards.
         var existing = (await _repository.GetAllAsync(cancellationToken)).FirstOrDefault(c => c.Id == id);
         if (existing is null) return false;
         await _repository.DeleteAsync(id, cancellationToken);
-        await _audit.LogAsync(actorId ?? TicketActorTypes.System, "Deleted canned response", existing.Title, AuditCategories.Ticket, cancellationToken);
+        await _audit.LogAsync(actorId, "Deleted canned response", existing.Title, AuditCategories.Ticket, cancellationToken);
         return true;
     }
 

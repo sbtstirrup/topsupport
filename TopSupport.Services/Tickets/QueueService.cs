@@ -27,7 +27,7 @@ public class QueueService
         _time = time;
     }
 
-    public async Task<TicketQueuePageResult> SearchAsync(TicketQueueRequest request, CancellationToken cancellationToken = default)
+    public async Task<TicketQueuePageResult> SearchAsync(TicketQueueRequest request, string actingAgentId, CancellationToken cancellationToken = default)
     {
         // Free text is capped at FieldLimits.SearchText (the search box's maxlength) -- longer input is truncated.
         var searchText = request.SearchText?.Trim();
@@ -61,7 +61,7 @@ public class QueueService
         IEnumerable<TicketDto> filtered = request.Queue switch
         {
             "open" => source.Where(TicketSla.IsActive),
-            "mine" => source.Where(t => TicketSla.IsActive(t) && t.AssignedAgentId == request.ActingAgentId),
+            "mine" => source.Where(t => TicketSla.IsActive(t) && t.AssignedAgentId == actingAgentId),
             "overdue" => source.Where(t => TicketSla.IsOverdue(t, now)),
             "answered" => source.Where(TicketSla.IsAnswered),
             "closed" => source.Where(t => !TicketSla.IsActive(t)),
@@ -73,7 +73,7 @@ public class QueueService
             ? new Dictionary<string, string>()
             : (await _users.GetAllActiveAsync(cancellationToken)).ToDictionary(u => u.Id, u => u.Name);
 
-        filtered = ApplyFilters(filtered, request, searchText, userNames);
+        filtered = ApplyFilters(filtered, request, actingAgentId, searchText, userNames);
 
         var sorted = ApplySort(filtered, request.SortKey, request.SortDescending).ToList();
 
@@ -125,7 +125,7 @@ public class QueueService
     private static string? AssignedTeamIdFilter(string? assignee) =>
         assignee != null && assignee.StartsWith("t:", StringComparison.Ordinal) ? assignee[2..] : null;
 
-    private static IEnumerable<TicketDto> ApplyFilters(IEnumerable<TicketDto> list, TicketQueueRequest request, string? searchText, IReadOnlyDictionary<string, string> userNames)
+    private static IEnumerable<TicketDto> ApplyFilters(IEnumerable<TicketDto> list, TicketQueueRequest request, string actingAgentId, string? searchText, IReadOnlyDictionary<string, string> userNames)
     {
         var q = (searchText ?? string.Empty).ToLowerInvariant();
 
@@ -138,7 +138,7 @@ public class QueueService
 
             if (!string.IsNullOrEmpty(request.Assignee))
             {
-                if (request.Assignee == "me" && t.AssignedAgentId != request.ActingAgentId) return false;
+                if (request.Assignee == "me" && t.AssignedAgentId != actingAgentId) return false;
                 if (request.Assignee == "none" && t.AssignedAgentId != null) return false;
                 if (request.Assignee.StartsWith("a:", StringComparison.Ordinal) && t.AssignedAgentId != request.Assignee[2..]) return false;
                 if (request.Assignee.StartsWith("t:", StringComparison.Ordinal) && t.AssignedTeamId != request.Assignee[2..]) return false;

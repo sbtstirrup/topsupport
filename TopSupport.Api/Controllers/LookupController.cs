@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TopSupport.Api.Auth;
 using TopSupport.Models.People;
+using TopSupport.Services;
 using TopSupport.Services.Abstractions;
 
 namespace TopSupport.Api.Controllers;
@@ -9,7 +10,7 @@ namespace TopSupport.Api.Controllers;
 /// <summary>
 /// Read-only lookup data (active users/agents/teams/assets) for Blazor dropdowns/combos
 /// (PersonCombo, DynamicTopicField asset pickers, assignment modals, etc.). Thin pass-through
-/// over the repositories built in Tier 2 -- no business logic lives here. Agents and teams are
+/// over the repositories -- no business logic lives here. Agents and teams are
 /// open to any signed-in account (end-user ticket pages name the assignee); the user list is
 /// agents only; end users may only list their own assets.
 /// </summary>
@@ -43,20 +44,11 @@ public class LookupController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<TeamDto>>> GetTeams(CancellationToken cancellationToken)
         => Ok(User.ForCaller(await _teams.GetAllAsync(cancellationToken)));
 
-    /// <summary>
-    /// Assets for a given user. NOTE: IAssetRepository only exposes GetByTagAsync/
-    /// GetByUserIdAsync (Tier 2) -- there is no "get all assets" stored procedure, and adding
-    /// one is out of scope for this Tier 3 pass (would require touching TopSupport.Database/
-    /// TopSupport.Services). userId is therefore required; see the Tier 3 report's gaps
-    /// section re: DevicePanel, which would need a full asset list or a by-tag ticket query.
-    /// </summary>
+    /// <summary>One user's assets (there is no "all assets" lookup).</summary>
     [HttpGet("assets")]
-    public async Task<ActionResult<IReadOnlyList<AssetDto>>> GetAssets([FromQuery] string userId, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<AssetDto>>> GetAssets([FromQuery] string? userId, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(userId))
-        {
-            return BadRequest(new { message = "userId is required." });
-        }
+        if (string.IsNullOrEmpty(userId)) throw new ValidationException("userId", "Choose a user.");
 
         if (User.IsEndUser() && userId != User.AccountId()) return Forbid();
 

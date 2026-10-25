@@ -4,7 +4,6 @@
 @using TopSupport.Models.Admin
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ToastState Toasts
 
 @* Port of PAGES.security / ACT['sec-set'] / ACT['sec-save'] in topsupport-app.js. Like the demo,
@@ -103,7 +102,7 @@
         _saving = true;
         try
         {
-            var outcome = await Api.SaveSecuritySettingsAsync(Session.AccountId, _form);
+            var outcome = await Api.SaveSecuritySettingsAsync(_form);
             if (outcome.Error is not null)
             {
                 Toasts.Error(outcome.Error);

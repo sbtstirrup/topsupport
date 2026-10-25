@@ -3,7 +3,6 @@
 @using TopSupport.Models.Admin
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ToastState Toasts
 @inject NavigationManager Nav
 
@@ -70,7 +69,7 @@
         _saving = true;
         try
         {
-            var outcome = await Api.SaveSiteSettingsAsync(Session.AccountId, _form);
+            var outcome = await Api.SaveSiteSettingsAsync(_form);
             if (outcome.Error is not null)
             {
                 Toasts.Error(outcome.Error);

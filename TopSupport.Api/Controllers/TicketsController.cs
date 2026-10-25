@@ -16,9 +16,8 @@ namespace TopSupport.Api.Controllers;
 /// <para>
 /// Read/create/user-reply/attachment/topic/field-schema/nav-count endpoints are open to any
 /// signed-in account, with end users limited to their own tickets (404 for anyone else's) and
-/// never shown internal notes; everything else is agents and admins only. Every actor
-/// (ChangedBy, AssignedBy, AgentId, UserId, CreatedBy, uploadedBy...) comes from the token —
-/// the matching request fields are still accepted but ignored.
+/// never shown internal notes; everything else is agents and admins only. The acting account
+/// always comes from the token; no request carries one.
 /// </para>
 /// </summary>
 [ApiController]
@@ -33,9 +32,9 @@ public class TicketsController : ControllerBase
     public TicketsController(TicketService ticketService, TicketFieldOptionsResolver optionsResolver, QueueService queueService, TicketAttachmentService attachments)
     {
         _ticketService = ticketService;
-        _attachments = attachments;
         _optionsResolver = optionsResolver;
         _queueService = queueService;
+        _attachments = attachments;
     }
 
     [HttpGet("{id}")]
@@ -52,8 +51,7 @@ public class TicketsController : ControllerBase
     {
         if (User.IsEndUser() && requesterUserId != User.AccountId()) return Forbid();
 
-        var tickets = await _ticketService.GetMyTicketsAsync(requesterUserId, cancellationToken);
-        return Ok(tickets);
+        return Ok(await _ticketService.GetMyTicketsAsync(requesterUserId, cancellationToken));
     }
 
     [HttpGet("topics")]
@@ -71,20 +69,16 @@ public class TicketsController : ControllerBase
         if (TicketTopics.Find(topic) is null) return NotFound();
         if (User.IsEndUser() && affectedUserId != User.AccountId()) affectedUserId = null;
 
-        var fields = await _optionsResolver.ResolveAsync(topic, affectedUserId, new Dictionary<string, object?>(), cancellationToken);
-        return Ok(fields);
+        return Ok(await _optionsResolver.ResolveAsync(topic, affectedUserId, new Dictionary<string, object?>(), cancellationToken));
     }
-
-    /// <summary>CreatedBy is ignored (the creator is the signed-in account).</summary>
-    public record CreateTicketApiRequest(CreateTicketRequest Request, TicketActorRef CreatedBy);
 
     /// <summary>End users may only raise tickets as the requester themselves; agents may raise on behalf of anyone.</summary>
     [HttpPost]
-    public async Task<ActionResult<TicketDto>> Create(CreateTicketApiRequest body, CancellationToken cancellationToken)
+    public async Task<ActionResult<TicketDto>> Create(CreateTicketRequest request, CancellationToken cancellationToken)
     {
-        if (User.IsEndUser() && body.Request.RequesterUserId != User.AccountId()) return Forbid();
+        if (User.IsEndUser() && request.RequesterUserId != User.AccountId()) return Forbid();
 
-        var ticket = await _ticketService.CreateTicketAsync(body.Request, User.Actor(), cancellationToken);
+        var ticket = await _ticketService.CreateTicketAsync(request, User.Actor(), cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, User.ForCaller(ticket));
     }
 
@@ -95,174 +89,89 @@ public class TicketsController : ControllerBase
         if (!User.IsEndUser()) return Forbid();
         if (await _ticketService.GetTicketAsync(id, cancellationToken) is not { } existing || !User.IsOwnTicket(existing)) return NotFound();
 
-        request.UserId = User.AccountId();
-        try
-        {
-            return Ok(User.ForCaller(await _ticketService.AddUserReplyAsync(id, request, cancellationToken)));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        return Ok(User.ForCaller(await _ticketService.AddUserReplyAsync(id, User.AccountId(), request, cancellationToken)));
     }
 
     [HttpPost("{id}/replies/agent")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketDto>> AddAgentReply(string id, AddAgentReplyRequest request, CancellationToken cancellationToken)
-    {
-        request.AgentId = User.AccountId();
-        try
-        {
-            return Ok(await _ticketService.AddAgentReplyAsync(id, request, cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _ticketService.AddAgentReplyAsync(id, User.AccountId(), request, cancellationToken));
 
-    public record ChangeStatusRequest(string Status, TicketActorRef ChangedBy);
+    public record ChangeStatusRequest(string Status);
 
     [HttpPut("{id}/status")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketDto>> ChangeStatus(string id, ChangeStatusRequest request, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _ticketService.ChangeStatusAsync(id, request.Status, User.Actor(), cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _ticketService.ChangeStatusAsync(id, request.Status, User.Actor(), cancellationToken));
 
-    public record ChangePriorityRequest(string Priority, TicketActorRef ChangedBy);
+    public record ChangePriorityRequest(string Priority);
 
     [HttpPut("{id}/priority")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketDto>> ChangePriority(string id, ChangePriorityRequest request, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _ticketService.ChangePriorityAsync(id, request.Priority, User.Actor(), cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _ticketService.ChangePriorityAsync(id, request.Priority, User.Actor(), cancellationToken));
 
-    public record ChangeTopicRequest(string Topic, TicketActorRef ChangedBy);
+    public record ChangeTopicRequest(string Topic);
 
     [HttpPut("{id}/topic")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketDto>> ChangeTopic(string id, ChangeTopicRequest request, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _ticketService.ChangeTopicAsync(id, request.Topic, User.Actor(), cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+        => Ok(await _ticketService.ChangeTopicAsync(id, request.Topic, User.Actor(), cancellationToken));
 
-    public record ChangePropertiesRequest(string Status, string Priority, string Topic, TicketActorRef ChangedBy);
+    public record ChangePropertiesRequest(string Status, string Priority, string Topic);
 
     [HttpPut("{id}/properties")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketDto>> ChangeProperties(string id, ChangePropertiesRequest request, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _ticketService.ChangePropertiesAsync(id, request.Status, request.Priority, request.Topic, User.Actor(), cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
-
-    public record AssignRequest(AssignTicketRequest Assignment, TicketActorRef AssignedBy);
+        => Ok(await _ticketService.ChangePropertiesAsync(id, request.Status, request.Priority, request.Topic, User.Actor(), cancellationToken));
 
     [HttpPut("{id}/assign")]
     [Authorize(Policy = Policies.Agent)]
-    public async Task<ActionResult<TicketDto>> Assign(string id, AssignRequest request, CancellationToken cancellationToken)
-    {
-        try
+    public async Task<ActionResult<TicketDto>> Assign(string id, AssignTicketRequest request, CancellationToken cancellationToken)
+        => Ok(request.Kind switch
         {
-            var ticket = request.Assignment?.Kind switch
-            {
-                "agent" => await _ticketService.AssignToAgentAsync(id, request.Assignment.Id, User.Actor(), cancellationToken),
-                "team" => await _ticketService.AssignToTeamAsync(id, request.Assignment.Id, User.Actor(), cancellationToken),
-                _ => throw new ValidationException("kind", "Choose an agent or a team.")
-            };
-            return Ok(ticket);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+            "agent" => await _ticketService.AssignToAgentAsync(id, request.Id, User.Actor(), cancellationToken),
+            "team" => await _ticketService.AssignToTeamAsync(id, request.Id, User.Actor(), cancellationToken),
+            _ => throw new ValidationException("kind", "Choose an agent or a team.")
+        });
 
-    /// <summary>AgentId is ignored: the signed-in agent claims the ticket.</summary>
-    public record ClaimRequest(string AgentId);
-
+    /// <summary>The signed-in agent claims the ticket.</summary>
     [HttpPost("{id}/claim")]
     [Authorize(Policy = Policies.Agent)]
-    public async Task<ActionResult<TicketDto>> Claim(string id, ClaimRequest request, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return Ok(await _ticketService.ClaimAsync(id, User.AccountId(), cancellationToken));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+    public async Task<ActionResult<TicketDto>> Claim(string id, CancellationToken cancellationToken)
+        => Ok(await _ticketService.ClaimAsync(id, User.AccountId(), cancellationToken));
 
-    public record BulkStatusApiRequest(BulkStatusRequest Request, TicketActorRef ChangedBy);
+    // TicketService validates the whole selection (<= 100 distinct, existing ids) before changing any.
 
     [HttpPost("bulk/status")]
     [Authorize(Policy = Policies.Agent)]
-    public async Task<IActionResult> BulkStatus(BulkStatusApiRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> BulkStatus(BulkStatusRequest request, CancellationToken cancellationToken)
     {
-        // TicketService validates the whole selection (<= 100 distinct, existing ids) before changing any.
-        await _ticketService.BulkChangeStatusAsync(body.Request?.TicketIds!, body.Request?.Status ?? string.Empty, User.Actor(), cancellationToken);
+        await _ticketService.BulkChangeStatusAsync(request.TicketIds, request.Status, User.Actor(), cancellationToken);
         return Ok();
     }
-
-    public record BulkPriorityApiRequest(BulkPriorityRequest Request, TicketActorRef ChangedBy);
 
     [HttpPost("bulk/priority")]
     [Authorize(Policy = Policies.Agent)]
-    public async Task<IActionResult> BulkPriority(BulkPriorityApiRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> BulkPriority(BulkPriorityRequest request, CancellationToken cancellationToken)
     {
-        await _ticketService.BulkChangePriorityAsync(body.Request?.TicketIds!, body.Request?.Priority ?? string.Empty, User.Actor(), cancellationToken);
+        await _ticketService.BulkChangePriorityAsync(request.TicketIds, request.Priority, User.Actor(), cancellationToken);
         return Ok();
     }
-
-    public record BulkAssignApiRequest(BulkAssignRequest Request, TicketActorRef AssignedBy);
 
     [HttpPost("bulk/assign")]
     [Authorize(Policy = Policies.Agent)]
-    public async Task<IActionResult> BulkAssign(BulkAssignApiRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> BulkAssign(BulkAssignRequest request, CancellationToken cancellationToken)
     {
-        await _ticketService.BulkAssignAsync(body.Request?.TicketIds!, body.Request?.Kind ?? string.Empty, body.Request?.Id ?? string.Empty, User.Actor(), cancellationToken);
+        await _ticketService.BulkAssignAsync(request.TicketIds, request.Kind, request.Id, User.Actor(), cancellationToken);
         return Ok();
     }
 
-    public record BulkCloseApiRequest(BulkCloseRequest Request, TicketActorRef ChangedBy);
-
     [HttpPost("bulk/close")]
     [Authorize(Policy = Policies.Agent)]
-    public async Task<IActionResult> BulkClose(BulkCloseApiRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> BulkClose(BulkCloseRequest request, CancellationToken cancellationToken)
     {
-        var closed = await _ticketService.BulkCloseAsync(
-            body.Request?.TicketIds!, body.Request?.Status ?? string.Empty, body.Request?.Note, User.Actor(), cancellationToken);
+        var closed = await _ticketService.BulkCloseAsync(request.TicketIds, request.Status, request.Note, User.Actor(), cancellationToken);
         return Ok(new { closed });
     }
 
@@ -272,10 +181,7 @@ public class TicketsController : ControllerBase
     [HttpPost("{id}/tasks")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketTaskDto>> AddTask(string id, AddTaskRequest request, CancellationToken cancellationToken)
-    {
-        var task = await _ticketService.AddTaskAsync(id, request.Text, request.AssigneeAgentId, request.Due, User.Actor(), cancellationToken);
-        return Ok(task);
-    }
+        => Ok(await _ticketService.AddTaskAsync(id, request.Text, request.AssigneeAgentId, request.Due, User.Actor(), cancellationToken));
 
     public record SetTaskDoneRequest(bool Done);
 
@@ -283,9 +189,7 @@ public class TicketsController : ControllerBase
     [HttpPut("{id}/tasks/{taskId}/done")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketTaskDto>> SetTaskDone(string id, string taskId, SetTaskDoneRequest request, CancellationToken cancellationToken)
-    {
-        return Ok(await _ticketService.SetTaskDoneAsync(id, taskId, request.Done, User.Actor(), cancellationToken));
-    }
+        => Ok(await _ticketService.SetTaskDoneAsync(id, taskId, request.Done, User.Actor(), cancellationToken));
 
     [HttpGet("{id}/attachments")]
     public async Task<ActionResult<IReadOnlyList<TicketAttachmentDto>>> GetAttachments(string id, CancellationToken cancellationToken)
@@ -305,8 +209,7 @@ public class TicketsController : ControllerBase
     [HttpPost("{id}/attachments")]
     [RequestSizeLimit(11 * 1024 * 1024)]
     public async Task<ActionResult<TicketAttachmentDto>> UploadAttachment(
-        string id, IFormFile? file, [FromForm] string? timelineEntryId,
-        CancellationToken cancellationToken)
+        string id, IFormFile? file, [FromForm] string? timelineEntryId, CancellationToken cancellationToken)
     {
         if (User.IsEndUser() && (await _ticketService.GetTicketAsync(id, cancellationToken) is not { } ticket || !User.IsOwnTicket(ticket)))
         {
@@ -322,18 +225,15 @@ public class TicketsController : ControllerBase
         return Ok(await _attachments.AddAsync(id, timelineEntryId, file.FileName, stream.ToArray(), User.Actor(), cancellationToken));
     }
 
-    /// <summary>ActingAgentId ("mine" queue / "assigned to me" filter) is always the signed-in agent.</summary>
+    /// <summary>The "mine" queue and the "assigned to me" filter are the signed-in agent's.</summary>
     [HttpGet("queue")]
     [Authorize(Policy = Policies.Agent)]
     public async Task<ActionResult<TicketQueuePageResult>> Queue([FromQuery] TicketQueueRequest request, CancellationToken cancellationToken)
-    {
-        request.ActingAgentId = User.AccountId();
-        return Ok(await _queueService.SearchAsync(request, cancellationToken));
-    }
+        => Ok(await _queueService.SearchAsync(request, User.AccountId(), cancellationToken));
 
     /// <summary>
-    /// Sidebar badges for the signed-in account; the userId/agentId query values are ignored. End
-    /// users get only their own MyOpenTickets count, agents the queue counts.
+    /// Sidebar badges for the signed-in account. End users get only their own MyOpenTickets count,
+    /// agents the queue counts.
     /// </summary>
     [HttpGet("nav-counts")]
     public async Task<ActionResult<TicketNavCountsDto>> NavCounts(CancellationToken cancellationToken)

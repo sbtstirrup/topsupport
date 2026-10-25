@@ -131,7 +131,7 @@
     private async Task RefreshNavAsync()
     {
         _navRows = Session.Role is { } role
-            ? await NavProvider.GetNavRowsAsync(role, Session.AccountId)
+            ? await NavProvider.GetNavRowsAsync(role)
             : Array.Empty<NavRow>();
         await InvokeAsync(StateHasChanged);
     }

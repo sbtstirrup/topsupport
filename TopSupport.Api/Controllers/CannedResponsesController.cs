@@ -25,7 +25,7 @@ public class CannedResponsesController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<CannedResponseDto>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _cannedResponses.GetAllAsync(cancellationToken));
 
-    // Mutations attribute the audit entry to the signed-in agent; any ?actorId= the caller sends is ignored.
+    // Mutations attribute the audit entry to the signed-in agent.
     // Invalid input throws ValidationException, which ApiExceptionHandler turns into a 400.
 
     [HttpPost]
@@ -43,8 +43,8 @@ public class CannedResponsesController : ControllerBase
     public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
         => await _cannedResponses.DeleteAsync(id, User.AccountId(), cancellationToken) ? Ok() : NotFound();
 
-    /// <summary>AgentId is ignored: placeholders are filled for the signed-in agent.</summary>
-    public record PreviewRequest(string? TicketId, string? AgentId);
+    /// <summary>Placeholders are filled for the signed-in agent.</summary>
+    public record PreviewRequest(string? TicketId);
 
     [HttpPost("{id}/preview")]
     public async Task<ActionResult<object>> Preview(string id, PreviewRequest request, CancellationToken cancellationToken)

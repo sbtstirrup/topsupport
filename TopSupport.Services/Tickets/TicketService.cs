@@ -177,7 +177,7 @@ public class TicketService
     /// AwaitingUser -> "Status changed from Awaiting User to Open by X". Any other status is
     /// left unchanged.
     /// </summary>
-    public async Task<TicketDto> AddUserReplyAsync(string ticketId, AddUserReplyRequest request, CancellationToken cancellationToken = default)
+    public async Task<TicketDto> AddUserReplyAsync(string ticketId, string userId, AddUserReplyRequest request, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         if (ticket.Status == TicketStatus.Closed)
@@ -185,7 +185,7 @@ public class TicketService
             throw new ValidationException("", "This ticket is closed. You can't reply to it.");
         }
 
-        var by = new TicketActorRef { Type = TicketActorTypes.User, Id = request.UserId };
+        var by = new TicketActorRef { Type = TicketActorTypes.User, Id = userId };
         var now = _time.GetUtcNow();
 
         await AppendReplyAsync(ticket, by, request.Html, now, isNote: false, cancellationToken);
@@ -213,7 +213,7 @@ public class TicketService
     /// changes status quietly (no extra audit-style event beyond the status-change event
     /// itself) afterward, matching ACT['agent-reply'].
     /// </summary>
-    public async Task<TicketDto> AddAgentReplyAsync(string ticketId, AddAgentReplyRequest request, CancellationToken cancellationToken = default)
+    public async Task<TicketDto> AddAgentReplyAsync(string ticketId, string agentId, AddAgentReplyRequest request, CancellationToken cancellationToken = default)
     {
         var ticket = await RequireTicketAsync(ticketId, cancellationToken);
         if (ticket.Status == TicketStatus.Closed)
@@ -228,7 +228,7 @@ public class TicketService
             ? ParseDefined<TicketStatus>(request.StatusAfterSending, "status")
             : (TicketStatus?)null;
 
-        var by = new TicketActorRef { Type = TicketActorTypes.Agent, Id = request.AgentId };
+        var by = new TicketActorRef { Type = TicketActorTypes.Agent, Id = agentId };
         var now = _time.GetUtcNow();
 
         await AppendReplyAsync(ticket, by, request.Html, now, request.IsNote, cancellationToken);

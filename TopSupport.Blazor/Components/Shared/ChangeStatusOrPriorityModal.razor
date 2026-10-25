@@ -3,7 +3,6 @@
    content -- ModalHost.razor already supplies the .modal-back/.modal chrome. *@
 @using TopSupport.Models.Tickets
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ModalState Modal
 @inject ToastState Toasts
 
@@ -69,15 +68,13 @@
         _saving = true;
         try
         {
-            var changedBy = new TicketActorRef { Type = Session.Role == AppRole.User ? "user" : "agent", Id = Session.AccountId };
-
             if (Field == StatusOrPriority.Status)
             {
-                await Api.BulkChangeStatusAsync(TicketIds, _selected, changedBy);
+                await Api.BulkChangeStatusAsync(TicketIds, _selected);
             }
             else
             {
-                await Api.BulkChangePriorityAsync(TicketIds, _selected, changedBy);
+                await Api.BulkChangePriorityAsync(TicketIds, _selected);
             }
 
             await OnApplied.InvokeAsync();

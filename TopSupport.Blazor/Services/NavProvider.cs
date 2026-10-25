@@ -26,19 +26,13 @@ public class NavProvider
         _api = api;
     }
 
-    /// <summary>
-    /// actorId is the signed-in account's user id (role == User) or agent id (role == Agent/
-    /// Admin) -- whichever GetNavCountsAsync needs to compute MyOpenTickets/QueueMine. Pass
-    /// null if unknown (counts are simply omitted/zero in that case).
-    /// </summary>
-    public async Task<IReadOnlyList<NavRow>> GetNavRowsAsync(AppRole role, string? actorId, CancellationToken cancellationToken = default)
+    /// <summary>The nav for <paramref name="role"/>, with the signed-in account's badge counts.</summary>
+    public async Task<IReadOnlyList<NavRow>> GetNavRowsAsync(AppRole role, CancellationToken cancellationToken = default)
     {
         TicketNavCountsDtoOrDefault counts;
         try
         {
-            var userId = role == AppRole.User ? actorId : null;
-            var agentId = role is AppRole.Agent or AppRole.Admin ? actorId : null;
-            var dto = await _api.GetNavCountsAsync(userId, agentId, cancellationToken);
+            var dto = await _api.GetNavCountsAsync(cancellationToken);
             counts = new TicketNavCountsDtoOrDefault(dto);
         }
         catch

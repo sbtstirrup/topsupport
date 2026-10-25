@@ -13,9 +13,9 @@ namespace TopSupport.Api.Data;
 /// </summary>
 public class TicketRepository : ITicketRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public TicketRepository(IDbExecutor db)
+    public TicketRepository(DbExecutor db)
     {
         _db = db;
     }

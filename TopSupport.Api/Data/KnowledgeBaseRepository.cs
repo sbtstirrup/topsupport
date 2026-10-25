@@ -10,9 +10,9 @@ namespace TopSupport.Api.Data;
 /// </summary>
 public class KnowledgeBaseRepository : IKnowledgeBaseRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public KnowledgeBaseRepository(IDbExecutor db)
+    public KnowledgeBaseRepository(DbExecutor db)
     {
         _db = db;
     }

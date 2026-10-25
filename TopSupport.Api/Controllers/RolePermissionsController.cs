@@ -26,8 +26,7 @@ public class RolePermissionsController : ControllerBase
     [HttpPut]
     public async Task<IActionResult> Set(SetRolePermissionRequest request, CancellationToken cancellationToken)
     {
-        request.ActorId = User.AccountId();
-        await _service.SetAsync(request, cancellationToken);
+        await _service.SetAsync(request, User.AccountId(), cancellationToken);
         return Ok();
     }
 }

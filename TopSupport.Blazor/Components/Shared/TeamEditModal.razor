@@ -139,7 +139,6 @@
         _saving = true;
         try
         {
-            _form.ActorId = Session.AccountId;
             var result = await Api.SaveTeamAsync(_form);
             if (!result.Succeeded)
             {

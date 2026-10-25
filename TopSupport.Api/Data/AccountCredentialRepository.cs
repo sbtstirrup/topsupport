@@ -5,9 +5,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IAccountCredentialRepository.</summary>
 public class AccountCredentialRepository : IAccountCredentialRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public AccountCredentialRepository(IDbExecutor db)
+    public AccountCredentialRepository(DbExecutor db)
     {
         _db = db;
     }

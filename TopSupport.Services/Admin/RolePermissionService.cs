@@ -24,7 +24,7 @@ public class RolePermissionService
         => _repository.GetAllAsync(cancellationToken);
 
     /// <summary>Throws ValidationException for an unknown department, role or permission.</summary>
-    public async Task SetAsync(SetRolePermissionRequest request, CancellationToken cancellationToken = default)
+    public async Task SetAsync(SetRolePermissionRequest request, string actorId, CancellationToken cancellationToken = default)
     {
         if (!TicketTopics.DEPTS.Contains(request.Department)) throw new ValidationException("department", $"Unknown department \"{request.Department}\".");
         if (!AgentRoles.All.Contains(request.Role)) throw new ValidationException("role", $"Unknown role \"{request.Role}\".");
@@ -32,7 +32,7 @@ public class RolePermissionService
         if (permission.Key is null) throw new ValidationException("permission", $"Unknown permission \"{request.Permission}\".");
 
         await _repository.SetAsync(request.Department, request.Role, permission.Key, request.Allowed, cancellationToken);
-        await _audit.LogAsync(request.ActorId,
+        await _audit.LogAsync(actorId,
             "Changed permission \"" + permission.Label + "\" for " + request.Role + " role",
             request.Department, AuditCategories.Permission, cancellationToken);
     }

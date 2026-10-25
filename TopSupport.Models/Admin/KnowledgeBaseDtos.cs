@@ -35,10 +35,9 @@ public class KnowledgeBaseDto
     public List<KbArticleDto> Articles { get; set; } = new();
 }
 
-/// <summary>Body of POST/PUT api/kb/articles -- the S.forms.ka fields plus the acting account for the audit.</summary>
+/// <summary>Body of POST/PUT api/kb/articles -- the S.forms.ka fields.</summary>
 public class SaveKbArticleRequest
 {
-    public string ActorId { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string CategoryId { get; set; } = string.Empty;
     public string Status { get; set; } = KbArticleStatuses.Draft;

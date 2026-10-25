@@ -6,7 +6,6 @@
 @implements IAsyncDisposable
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ToastState Toasts
 @inject IJSRuntime JS
 
@@ -291,7 +290,7 @@
         {
             if (_isNew)
             {
-                var created = await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body }, Session.AccountId);
+                var created = await Api.CreateCannedResponseAsync(new CannedResponseDto { Title = title, Body = _body });
                 await LoadAsync();
                 var match = _responses.FirstOrDefault(c => c.Id == created.Id);
                 if (match is not null) Pick(match);
@@ -299,7 +298,7 @@
             else
             {
                 var updated = new CannedResponseDto { Id = _selectedId, Title = title, Body = _body, SortOrder = _responses.FirstOrDefault(c => c.Id == _selectedId)?.SortOrder ?? 0 };
-                await Api.UpdateCannedResponseAsync(updated, Session.AccountId);
+                await Api.UpdateCannedResponseAsync(updated);
                 await LoadAsync();
                 var match = _responses.FirstOrDefault(c => c.Id == _selectedId);
                 if (match is not null) Pick(match);
@@ -333,7 +332,7 @@
         _confirmingDelete = false;
         try
         {
-            await Api.DeleteCannedResponseAsync(_selectedId, Session.AccountId);
+            await Api.DeleteCannedResponseAsync(_selectedId);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {

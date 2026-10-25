@@ -138,7 +138,6 @@
         {
             var result = await Api.SaveKbArticleAsync(IsNew ? null : Id, new SaveKbArticleRequest
             {
-                ActorId = Session.AccountId,
                 Title = _title,
                 CategoryId = _categoryId,
                 Status = _status,

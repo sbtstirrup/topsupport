@@ -7,9 +7,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IAuditRepository, calling usp_Audit_Insert/GetRecent.</summary>
 public class AuditRepository : IAuditRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public AuditRepository(IDbExecutor db)
+    public AuditRepository(DbExecutor db)
     {
         _db = db;
     }

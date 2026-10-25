@@ -11,9 +11,9 @@ namespace TopSupport.Api.Data;
 /// </summary>
 public class TeamRepository : ITeamRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public TeamRepository(IDbExecutor db)
+    public TeamRepository(DbExecutor db)
     {
         _db = db;
     }

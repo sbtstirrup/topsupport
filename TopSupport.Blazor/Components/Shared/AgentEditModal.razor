@@ -130,7 +130,6 @@
         _saving = true;
         try
         {
-            _form.ActorId = Session.AccountId;
             _form.Active = _active == "yes";
             var result = await Api.SaveAgentAsync(_form);
             if (!result.Succeeded)

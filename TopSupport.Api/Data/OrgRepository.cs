@@ -8,9 +8,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IOrgRepository (usp_Org_* procs in 08_Admin_UsersOrgs.sql).</summary>
 public class OrgRepository : IOrgRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public OrgRepository(IDbExecutor db)
+    public OrgRepository(DbExecutor db)
     {
         _db = db;
     }

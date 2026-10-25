@@ -361,9 +361,7 @@
                 Fields = fields
             };
 
-            // Current agent is the creator, not the requester -- per plan, actor type "agent" with SessionState.AccountId.
-            var createdBy = new TicketActorRef { Type = "agent", Id = Session.AccountId };
-            var response = await Api.CreateTicketRawAsync(request, createdBy);
+            var response = await Api.CreateTicketRawAsync(request);
 
             // The Api is authoritative (unknown people, answers not in the list, bad dates...):
             // show its field errors the same way as the checks above.
@@ -390,7 +388,7 @@
             {
                 try
                 {
-                    await Api.UploadAttachmentAsync(ticket.Id, staged, "agent", Session.AccountId, createdEntryId);
+                    await Api.UploadAttachmentAsync(ticket.Id, staged, createdEntryId);
                 }
                 catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
                 {

@@ -4,7 +4,6 @@
 @using TopSupport.Models.People
 @inject PageHeadingState Heading
 @inject TopSupportApiClient Api
-@inject SessionState Session
 @inject ModalState Modal
 @inject ToastState Toasts
 @inject LookupDataService Lookup
@@ -215,7 +214,7 @@
 
     private async Task ResetAsync(AgentDto agent)
     {
-        var result = await Api.ResetAgentPasswordAsync(agent.Id, Session.AccountId);
+        var result = await Api.ResetAgentPasswordAsync(agent.Id);
         await ReloadAfterChangeAsync();
         Modal.Show(@<AgentTempPasswordModal Name="@result.Name" Username="@result.Username" Password="@result.TemporaryPassword" />);
     }
@@ -248,7 +247,7 @@
 
     private async Task ConfirmDeleteTeamAsync(TeamDto team)
     {
-        var result = await Api.DeleteTeamAsync(team.Id, Session.AccountId);
+        var result = await Api.DeleteTeamAsync(team.Id);
         if (result.Error is not null)
         {
             Toasts.Error(result.Error);

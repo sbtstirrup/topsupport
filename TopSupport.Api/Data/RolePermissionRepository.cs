@@ -6,9 +6,9 @@ namespace TopSupport.Api.Data;
 /// <summary>ADO.NET implementation of IRolePermissionRepository, calling usp_RolePermission_GetAll/Set.</summary>
 public class RolePermissionRepository : IRolePermissionRepository
 {
-    private readonly IDbExecutor _db;
+    private readonly DbExecutor _db;
 
-    public RolePermissionRepository(IDbExecutor db)
+    public RolePermissionRepository(DbExecutor db)
     {
         _db = db;
     }

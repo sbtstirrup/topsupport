@@ -37,28 +37,10 @@ public class OrgsController : ControllerBase
         => Ok(await _orgs.GetOpenTicketsAsync(id, cancellationToken));
 
     [HttpPost]
-    public Task<ActionResult<OrgDto>> Create(SaveOrgRequest request, CancellationToken cancellationToken)
-    {
-        request.ActorId = User.AccountId();
-        return Run(() => _orgs.CreateAsync(request, cancellationToken));
-    }
+    public async Task<ActionResult<OrgDto>> Create(SaveOrgRequest request, CancellationToken cancellationToken)
+        => Ok(await _orgs.CreateAsync(request, User.AccountId(), cancellationToken));
 
     [HttpPut("{id}")]
-    public Task<ActionResult<OrgDto>> Update(string id, SaveOrgRequest request, CancellationToken cancellationToken)
-    {
-        request.ActorId = User.AccountId();
-        return Run(() => _orgs.UpdateAsync(id, request, cancellationToken));
-    }
-
-    private async Task<ActionResult<T>> Run<T>(Func<Task<T>> action)
-    {
-        try
-        {
-            return Ok(await action());
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
-    }
+    public async Task<ActionResult<OrgDto>> Update(string id, SaveOrgRequest request, CancellationToken cancellationToken)
+        => Ok(await _orgs.UpdateAsync(id, request, User.AccountId(), cancellationToken));
 }

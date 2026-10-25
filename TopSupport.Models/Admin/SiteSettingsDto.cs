@@ -8,10 +8,3 @@ public class SiteSettingsDto
     public string SigninTitle { get; set; } = "Sign in to TopSupport";
     public string SigninBody { get; set; } = "Use your TopCashback username and password.";
 }
-
-/// <summary>ACT['site-save'] payload. ActorId is the signed-in admin, for the audit trail.</summary>
-public class SaveSiteSettingsRequest
-{
-    public string ActorId { get; set; } = string.Empty;
-    public SiteSettingsDto Settings { get; set; } = new();
-}
