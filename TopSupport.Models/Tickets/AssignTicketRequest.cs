@@ -1,7 +1,7 @@
 namespace TopSupport.Models.Tickets;
 
 /// <summary>
-/// Input to ITicketService.AssignToAgentAsync/AssignToTeamAsync, mirroring the (kind, id)
+/// Input to TicketService.AssignToAgentAsync/AssignToTeamAsync, mirroring the (kind, id)
 /// pair assignTicket(t, kind, id) takes in topsupport-app.js.
 /// </summary>
 public class AssignTicketRequest

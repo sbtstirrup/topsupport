@@ -1,7 +1,7 @@
 namespace TopSupport.Models.Tickets;
 
 /// <summary>
-/// Input to ITicketService.CreateTicketAsync, mirroring the `data` object passed to
+/// Input to TicketService.CreateTicketAsync, mirroring the `data` object passed to
 /// createTicket(data) in topsupport-app.js: topic + subject + who's asking/affected + the
 /// topic's dynamic field answers. CreatedBy (who is actually submitting the form — the
 /// requester themselves, or an agent raising on their behalf) is passed separately to the

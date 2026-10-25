@@ -3,7 +3,7 @@ namespace TopSupport.Models.Tickets.FieldSchema;
 /// <summary>
 /// Flags the handful of fields in topicFields() whose option list depends on runtime data
 /// (the affected user's assets) rather than being static. Resolved server-side by
-/// ITicketFieldOptionsResolver before a field schema is sent to a client.
+/// TicketFieldOptionsResolver before a field schema is sent to a client.
 /// </summary>
 public enum TicketFieldOptionsSource
 {

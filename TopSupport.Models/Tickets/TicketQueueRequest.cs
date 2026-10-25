@@ -1,7 +1,7 @@
 namespace TopSupport.Models.Tickets;
 
 /// <summary>
-/// Request shape for IQueueService.SearchAsync, combining the 5 built-in queues (open/mine/
+/// Request shape for QueueService.SearchAsync, combining the 5 built-in queues (open/mine/
 /// overdue/answered/closed from the demo's QUEUES map) with free filtering/sorting/paging
 /// (BLANK_FILTERS/applyFilters/thSort/pager in topsupport-app.js).
 /// </summary>
@@ -30,7 +30,7 @@ public class TicketQueueRequest
     public int PageSize { get; set; } = 15;
 }
 
-/// <summary>Paged result returned by IQueueService.SearchAsync.</summary>
+/// <summary>Paged result returned by QueueService.SearchAsync.</summary>
 public class TicketQueuePageResult
 {
     public List<TicketDto> Items { get; set; } = new();

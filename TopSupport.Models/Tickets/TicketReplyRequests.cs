@@ -1,6 +1,6 @@
 namespace TopSupport.Models.Tickets;
 
-/// <summary>Input to ITicketService.AddUserReplyAsync, mirroring ACT['user-reply'] in topsupport-app.js.</summary>
+/// <summary>Input to TicketService.AddUserReplyAsync, mirroring ACT['user-reply'] in topsupport-app.js.</summary>
 public class AddUserReplyRequest
 {
     public string UserId { get; set; } = string.Empty;
@@ -10,7 +10,7 @@ public class AddUserReplyRequest
 }
 
 /// <summary>
-/// Input to ITicketService.AddAgentReplyAsync, mirroring ACT['agent-reply']: a public reply
+/// Input to TicketService.AddAgentReplyAsync, mirroring ACT['agent-reply']: a public reply
 /// or an internal note, optionally changing status quietly afterward (the reply box's
 /// "status after sending" picker).
 /// </summary>

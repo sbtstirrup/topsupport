@@ -3,7 +3,7 @@ namespace TopSupport.Models.Tickets.FieldSchema;
 /// <summary>
 /// Per-topic dynamic field lists, hand-ported field-for-field from topicFields() in
 /// topsupport-app.js (lines ~879-951). This is the single source of truth both the Blazor
-/// forms and ITicketFormValidator consume — see the plan's "Key shared-contract decision"
+/// forms and TicketFormValidator consume — see the plan's "Key shared-contract decision"
 /// section for why this lives once, in C#, instead of being duplicated per-language.
 ///
 /// Fields present in every topic's form, matching the demo's shared `impact`/`banner`/`files`
@@ -46,7 +46,7 @@ public static class TicketTopicFieldSchemas
     /// <summary>
     /// Returns the field list for one topic id, mirroring topicFields(tp, f, aff) in the demo.
     /// Fields whose options depend on runtime data are returned with OptionsSource set and
-    /// StaticOptions left null/empty — ITicketFieldOptionsResolver fills those in.
+    /// StaticOptions left null/empty — TicketFieldOptionsResolver fills those in.
     /// </summary>
     public static List<TicketFieldDescriptor> GetFields(string topic) => topic switch
     {

@@ -26,6 +26,7 @@
   <Project Path="TopSupport.Api/TopSupport.Api.csproj" />
   <Project Path="TopSupport.Blazor/TopSupport.Blazor.csproj" />
   <Project Path="TopSupport.Models/TopSupport.Models.csproj" />
+  <Project Path="TopSupport.Services.Tests/TopSupport.Services.Tests.csproj" />
   <Project Path="TopSupport.Services/TopSupport.Services.csproj" />
   <Project Path="TopSupport.Worker.Tests/TopSupport.Worker.Tests.csproj" />
   <Project Path="TopSupport.Worker/TopSupport.Worker.csproj" />
