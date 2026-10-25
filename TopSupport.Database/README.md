@@ -28,6 +28,7 @@ sqlcmd -S . -E -f 65001 -i Scripts/13_Auth_SignIn.sql
 sqlcmd -S . -E -f 65001 -i Scripts/14_Attachments.sql
 sqlcmd -S . -E -f 65001 -i Scripts/15_Worker.sql
 sqlcmd -S . -E -f 65001 -i Scripts/16_Dev_TestAccounts.sql
+sqlcmd -S . -E -f 65001 -i Scripts/17_Admin_WorkerMonitor.sql
 sqlcmd -S . -E -f 65001 -i Scripts/99_SeedData.sql
 ```
 
@@ -66,6 +67,7 @@ Every script is written to be safely re-run (`IF OBJECT_ID(...) IS NULL`, `CREAT
 | `14_Attachments.sql` | `usp_TicketAttachment_GetTicketId`: the ticket an attachment belongs to, so the download endpoint checks end-user visibility against that one ticket instead of loading all of the caller's tickets. |
 | `15_Worker.sql` | The `worker` schema for TopSupport.Worker (the Hangfire job runner): `NotificationLog` (unique on ticket, event key and recipient, so no email is sent twice), `JobCursor`, and the read procs each job uses, plus `usp_AutoClose_CloseTicket`. Hangfire creates its own tables in the `jobs` schema. See `TopSupport.Worker/README.md`. |
 | `16_Dev_TestAccounts.sql` | `usp_Account_ListForTesting`: the accounts the development-only test-account switcher lists. The Api only exposes it in Development with `Auth:TestAccountSwitcher:Enabled` on. |
+| `17_Admin_WorkerMonitor.sql` | Read-only procs for the admin Background Jobs page: the worker's servers, recurring jobs and recent runs (from Hangfire's `jobs` tables) and the emails in `worker.NotificationLog`. Run after `15_Worker.sql`. |
 | `99_SeedData.sql` | Full reference data ported from `buildSeed()` in the original `topsupport-app.js` demo: 12 users, 5 agents, 2 teams, 15 assets, 5 canned responses, and all 30 seed tickets with their complete timelines and leaver-checklist tasks. Also realigns `TicketNumberSeq` past the highest seeded ticket number so real ticket creation never collides with seed data. |
 
 ## Sign-in and the unused Identity tables

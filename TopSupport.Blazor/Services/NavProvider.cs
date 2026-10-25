@@ -70,6 +70,7 @@ public class NavProvider
                 NavRow.Link(new AppNavItem { Label = "Knowledge Base", Route = "/kb", Icon = "book", Roles = new[] { AppRole.Admin } }),
                 NavRow.Link(new AppNavItem { Label = "Site Pages", Route = "/site", Icon = "page", Roles = new[] { AppRole.Admin } }),
                 NavRow.Link(new AppNavItem { Label = "Audit Trail", Route = "/audit", Icon = "list", Roles = new[] { AppRole.Admin } }),
+                NavRow.Link(new AppNavItem { Label = "Background Jobs", Route = "/worker", Icon = "task", Roles = new[] { AppRole.Admin } }),
             }.Concat(WorkspaceNavRows(counts)).ToArray(),
             _ => Array.Empty<NavRow>()
         };

@@ -20,6 +20,7 @@
     <File Path="TopSupport.Database/Scripts/14_Attachments.sql" />
     <File Path="TopSupport.Database/Scripts/15_Worker.sql" />
     <File Path="TopSupport.Database/Scripts/16_Dev_TestAccounts.sql" />
+    <File Path="TopSupport.Database/Scripts/17_Admin_WorkerMonitor.sql" />
     <File Path="TopSupport.Database/Scripts/99_SeedData.sql" />
   </Folder>
   <Project Path="TopSupport.Api/TopSupport.Api.csproj" />

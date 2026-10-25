@@ -57,6 +57,8 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IAgentAdminService, AgentAdminService>();
 builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
+builder.Services.AddScoped<IWorkerMonitorRepository, WorkerMonitorRepository>();
+builder.Services.AddScoped<IWorkerMonitorService, WorkerMonitorService>();
 
 // Admin: Users and Organisations.
 builder.Services.AddScoped<IUserAdminRepository, UserAdminRepository>();
