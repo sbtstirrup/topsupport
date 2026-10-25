@@ -24,6 +24,7 @@ public class KnowledgeBaseRepository : IKnowledgeBaseRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Kb_GetAll",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -55,6 +56,7 @@ public class KnowledgeBaseRepository : IKnowledgeBaseRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_KbArticle_GetPopular",
             cmd => cmd.Parameters.AddWithValue("@Top", top),
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -80,6 +82,7 @@ public class KnowledgeBaseRepository : IKnowledgeBaseRepository
                 cmd.Parameters.AddWithValue("@Status", article.Status);
                 cmd.Parameters.AddWithValue("@Body", article.Body);
             },
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))

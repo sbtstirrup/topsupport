@@ -68,6 +68,7 @@ public class TicketAttachmentRepository : ITicketAttachmentRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_TicketAttachment_GetMetadataByTicket",
             cmd => cmd.Parameters.AddWithValue("@TicketId", ticketId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -86,6 +87,7 @@ public class TicketAttachmentRepository : ITicketAttachmentRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_TicketAttachment_GetContent",
             cmd => cmd.Parameters.AddWithValue("@AttachmentId", attachmentId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -110,6 +112,7 @@ public class TicketAttachmentRepository : ITicketAttachmentRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_TicketAttachment_GetTicketId",
             cmd => cmd.Parameters.AddWithValue("@AttachmentId", attachmentId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))

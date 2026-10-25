@@ -27,6 +27,7 @@ public class AgentRepository : IAgentRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Agent_GetById",
             cmd => cmd.Parameters.AddWithValue("@Id", id),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -62,6 +63,7 @@ public class AgentRepository : IAgentRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Agent_GetAllActive",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

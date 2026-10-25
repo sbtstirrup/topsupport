@@ -19,6 +19,7 @@ public class DashboardRepository : IDashboardRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Dashboard_GetTicketClosedAt",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

@@ -27,6 +27,7 @@ public class TicketRepository : ITicketRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Ticket_GetById",
             cmd => cmd.Parameters.AddWithValue("@TicketId", ticketId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -77,6 +78,7 @@ public class TicketRepository : ITicketRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Ticket_GetByRequesterOrAffected",
             cmd => cmd.Parameters.AddWithValue("@UserId", userId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -175,6 +177,7 @@ public class TicketRepository : ITicketRepository
                 cmd.Parameters.AddWithValue("@ExpectedAgentId", (object?)expectedAgentId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Updated", updated);
             },
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -191,6 +194,7 @@ public class TicketRepository : ITicketRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Ticket_NextNumber",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -259,6 +263,7 @@ public class TicketRepository : ITicketRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Ticket_GetActiveForQueue",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -297,6 +302,7 @@ public class TicketRepository : ITicketRepository
                 cmd.Parameters.AddWithValue("@SearchText", searchText is null ? DBNull.Value
                     : (object)searchText.Replace("[", "[[]").Replace("%", "[%]").Replace("_", "[_]"));
             },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

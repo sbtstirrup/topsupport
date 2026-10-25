@@ -64,13 +64,14 @@ public class KnowledgeBaseService
     }
 
     /// <summary>Returns false when there was no such article.</summary>
-    public async Task<bool> DeleteArticleAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteArticleAsync(string id, string actorId, CancellationToken cancellationToken = default)
     {
-        var kb = await _repository.GetAllAsync(cancellationToken);
-        if (!kb.Articles.Any(a => a.Id == id)) return false;
+        var article = (await _repository.GetAllAsync(cancellationToken)).Articles.FirstOrDefault(a => a.Id == id);
+        if (article is null) return false;
 
-        // ACT['ka-del'] writes no audit entry, so neither does this.
+        // The demo's ACT['ka-del'] writes no audit entry; a delete should leave a trail, so this does.
         await _repository.DeleteArticleAsync(id, cancellationToken);
+        await _audit.LogAsync(actorId, "Deleted knowledge base article", article.Title, AuditCategories.Permission, cancellationToken);
         return true;
     }
 }

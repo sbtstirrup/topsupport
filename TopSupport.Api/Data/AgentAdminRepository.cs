@@ -29,6 +29,7 @@ public class AgentAdminRepository : IAgentAdminRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_AdminAgent_GetAll",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -78,6 +79,7 @@ public class AgentAdminRepository : IAgentAdminRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_AdminTeam_GetAll",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -114,6 +116,7 @@ public class AgentAdminRepository : IAgentAdminRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_AdminAgent_GetActiveTicketCounts",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -144,6 +147,7 @@ public class AgentAdminRepository : IAgentAdminRepository
                 cmd.Parameters.AddWithValue("@Email", email);
                 cmd.Parameters.AddWithValue("@Username", username);
             },
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -193,6 +197,7 @@ public class AgentAdminRepository : IAgentAdminRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_AdminTeam_CountTickets",
             cmd => cmd.Parameters.AddWithValue("@Id", teamId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))

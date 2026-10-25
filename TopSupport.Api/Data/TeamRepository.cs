@@ -25,6 +25,7 @@ public class TeamRepository : ITeamRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Team_GetById",
             cmd => cmd.Parameters.AddWithValue("@Id", id),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -52,6 +53,7 @@ public class TeamRepository : ITeamRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Team_GetAll",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

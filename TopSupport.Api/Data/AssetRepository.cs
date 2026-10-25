@@ -21,6 +21,7 @@ public class AssetRepository : IAssetRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Asset_GetByTag",
             cmd => cmd.Parameters.AddWithValue("@Tag", tag),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -39,6 +40,7 @@ public class AssetRepository : IAssetRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Asset_GetByUserId",
             cmd => cmd.Parameters.AddWithValue("@UserId", userId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

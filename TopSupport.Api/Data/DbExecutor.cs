@@ -15,9 +15,9 @@ public class DbExecutor : IDbExecutor
     public async Task ExecuteReaderAsync(
         string storedProcedureName,
         Action<SqlCommand> configureParameters,
+        CancellationToken cancellationToken,
         params Func<SqlDataReader, CancellationToken, Task>[] readSets)
     {
-        var cancellationToken = CancellationToken.None;
         await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandType = CommandType.StoredProcedure;

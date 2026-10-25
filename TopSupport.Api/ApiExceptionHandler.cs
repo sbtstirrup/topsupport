@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using TopSupport.Api.Auth;
 using TopSupport.Services;
 using TopSupport.Services.Tickets;
 
@@ -39,14 +40,16 @@ public sealed class ApiExceptionHandler : IExceptionHandler
             _ => new ProblemDetails { Status = StatusCodes.Status500InternalServerError, Title = "Something went wrong" }
         };
 
+        // This runs after the request's AccountId log scope has closed, so the account is logged here.
+        var accountId = httpContext.User.FindFirst(JwtTokenService.AccountIdClaim)?.Value ?? "none";
         if (problem.Status == StatusCodes.Status500InternalServerError)
         {
-            _logger.LogError(exception, "Unhandled exception for {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+            _logger.LogError(exception, "Unhandled exception for {Method} {Path} (account {AccountId})", httpContext.Request.Method, httpContext.Request.Path, accountId);
         }
         else if (exception is KeyNotFoundException)
         {
             // The message names what wasn't found (e.g. "Ticket 'T060099' was not found."); it isn't sent to the caller.
-            _logger.LogInformation("404 for {Method} {Path}: {Message}", httpContext.Request.Method, httpContext.Request.Path, exception.Message);
+            _logger.LogInformation("404 for {Method} {Path} (account {AccountId}): {Message}", httpContext.Request.Method, httpContext.Request.Path, accountId, exception.Message);
         }
 
         httpContext.Response.StatusCode = problem.Status!.Value;

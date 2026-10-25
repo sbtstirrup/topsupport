@@ -24,6 +24,7 @@ public class CannedResponseRepository : ICannedResponseRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_CannedResponse_GetAll",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

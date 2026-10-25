@@ -19,6 +19,7 @@ public class AppSettingsRepository : IAppSettingsRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_AppSettings_GetByPrefix",
             cmd => cmd.Parameters.AddWithValue("@Prefix", prefix),
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

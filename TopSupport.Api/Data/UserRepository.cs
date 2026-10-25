@@ -21,6 +21,7 @@ public class UserRepository : IUserRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_User_GetById",
             cmd => cmd.Parameters.AddWithValue("@Id", id),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -39,6 +40,7 @@ public class UserRepository : IUserRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_User_GetAllActive",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

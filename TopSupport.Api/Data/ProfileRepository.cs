@@ -20,6 +20,7 @@ public class ProfileRepository : IProfileRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Profile_Get",
             cmd => cmd.Parameters.AddWithValue("@AccountId", accountId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))

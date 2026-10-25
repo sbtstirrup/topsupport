@@ -21,6 +21,7 @@ public class AuditRepository : IAuditRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Audit_GetRecent",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

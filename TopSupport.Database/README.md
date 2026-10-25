@@ -80,9 +80,16 @@ the account id, name and role. Every other Api endpoint requires that token, and
 agent endpoints require the role. The Blazor app keeps the token in its encrypted, HttpOnly auth
 cookie and sends it on every Api call.
 
-The token signing key is the Api's `Auth:SigningKey` setting. `appsettings.Development.json`
-has a development-only key; any other environment must supply its own (at least 32 bytes) through
-user secrets, an environment variable (`Auth__SigningKey`) or a key vault, or the Api won't start.
+The token signing key is the Api's `Auth:SigningKey` setting (at least 32 bytes). It is never in a
+config file: without one the Api won't start. For development, set it once per machine in user
+secrets, from the `TopSupport.Api` folder (PowerShell):
+
+```powershell
+dotnet user-secrets set "Auth:SigningKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)))
+```
+
+Any other environment supplies it through an environment variable (`Auth__SigningKey`) or a key
+vault. Changing the key signs everyone out (their tokens no longer verify).
 
 `01_Schema_Identity.sql` still creates the hand-rolled `AspNetUsers`/`AspNetRoles` tables from the
 first skeleton pass, but nothing uses them any more.

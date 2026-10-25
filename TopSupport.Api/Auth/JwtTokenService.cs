@@ -16,16 +16,18 @@ public sealed class JwtTokenService
 
     private readonly AuthOptions _options;
     private readonly SymmetricSecurityKey _key;
+    private readonly TimeProvider _time;
 
-    public JwtTokenService(IOptions<AuthOptions> options)
+    public JwtTokenService(IOptions<AuthOptions> options, TimeProvider time)
     {
         _options = options.Value;
+        _time = time;
         _key = CreateKey(_options);
     }
 
     public (string Token, DateTimeOffset ExpiresAt) Issue(SignInResult account)
     {
-        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(_options.TokenLifetimeMinutes);
+        var expiresAt = _time.GetUtcNow().AddMinutes(_options.TokenLifetimeMinutes);
         var token = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
         {
             Issuer = _options.Issuer,

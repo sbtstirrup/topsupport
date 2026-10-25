@@ -23,6 +23,7 @@ public class WorkerMonitorRepository : IWorkerMonitorRepository
         await _db.ExecuteReaderAsync(
             "worker.usp_Monitor_GetJobs",
             cmd => cmd.Parameters.AddWithValue("@Top", recentRuns),
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -89,6 +90,7 @@ public class WorkerMonitorRepository : IWorkerMonitorRepository
                 cmd.Parameters.AddWithValue("@PageSize", pageSize);
                 cmd.Parameters.Add("@NowUtc", SqlDbType.DateTimeOffset).Value = nowUtc;
             },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

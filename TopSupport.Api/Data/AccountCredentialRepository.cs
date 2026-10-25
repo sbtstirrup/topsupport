@@ -19,6 +19,7 @@ public class AccountCredentialRepository : IAccountCredentialRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Account_GetPasswordHash",
             cmd => cmd.Parameters.AddWithValue("@AccountId", accountId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -48,6 +49,7 @@ public class AccountCredentialRepository : IAccountCredentialRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Account_GetByUsername",
             cmd => cmd.Parameters.AddWithValue("@Username", username),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -77,6 +79,7 @@ public class AccountCredentialRepository : IAccountCredentialRepository
                 cmd.Parameters.AddWithValue("@AccountId", accountId);
                 cmd.Parameters.AddWithValue("@LockAfter", lockAfter);
             },
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct)) justLocked = (bool)reader["JustLocked"];
@@ -92,6 +95,7 @@ public class AccountCredentialRepository : IAccountCredentialRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Account_GetStatus",
             cmd => cmd.Parameters.AddWithValue("@AccountId", accountId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -114,6 +118,7 @@ public class AccountCredentialRepository : IAccountCredentialRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Account_ListForTesting",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

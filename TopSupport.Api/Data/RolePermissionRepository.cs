@@ -20,6 +20,7 @@ public class RolePermissionRepository : IRolePermissionRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_RolePermission_GetAll",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))

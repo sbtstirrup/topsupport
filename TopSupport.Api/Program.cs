@@ -11,13 +11,23 @@ using TopSupport.Services.Tickets;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Structured logs with scopes, so every line carries the request's TraceId (the Blazor app's
+// HttpClient sends it as traceparent, so it matches the Blazor app's logs and the traceId in
+// error responses) and, once signed in, the AccountId. JSON outside Development.
+builder.Logging.ClearProviders();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Logging.AddSimpleConsole(o => { o.IncludeScopes = true; o.SingleLine = true; });
+}
+else
+{
+    builder.Logging.AddJsonConsole(o => o.IncludeScopes = true);
+}
 
 builder.Services.AddControllers();
 
-// Unhandled exceptions become ProblemDetails with no stack trace or SQL text (OWASP A05).
-// Services throw ArgumentException for bad input (e.g. an unknown ticket status) and
-// KeyNotFoundException for a missing record; anything else is a generic 500.
+// Unhandled exceptions become ProblemDetails with no stack trace or SQL text (OWASP A05):
+// ValidationException -> 400, KeyNotFoundException -> 404, anything else a logged 500.
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -123,6 +133,18 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Only reads stop when the caller goes away. A change runs to completion: abandoning it between
+// its steps (e.g. a ticket's insert and its timeline events) would leave it half-written.
+app.Use((context, next) =>
+{
+    if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method))
+    {
+        context.RequestAborted = CancellationToken.None;
+    }
+
+    return next(context);
+});
+
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
@@ -137,6 +159,16 @@ else
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
+
+// Every log line for a signed-in request names the account (an id, never a name or email).
+app.Use(async (context, next) =>
+{
+    using var scope = context.User.FindFirst(JwtTokenService.AccountIdClaim) is { } accountId
+        ? app.Logger.BeginScope(new Dictionary<string, object> { ["AccountId"] = accountId.Value })
+        : null;
+    await next(context);
+});
+
 app.UseAuthorization();
 
 app.MapControllers();

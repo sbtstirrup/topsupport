@@ -22,6 +22,7 @@ public class UserAdminRepository : IUserAdminRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_AdminUser_GetList",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -42,6 +43,7 @@ public class UserAdminRepository : IUserAdminRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_User_GetAll",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -67,6 +69,7 @@ public class UserAdminRepository : IUserAdminRepository
                 cmd.Parameters.AddWithValue("@Email", email);
                 cmd.Parameters.AddWithValue("@Username", username);
             },
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))

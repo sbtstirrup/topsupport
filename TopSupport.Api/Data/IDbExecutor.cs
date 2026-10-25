@@ -15,6 +15,7 @@ public interface IDbExecutor
     Task ExecuteReaderAsync(
         string storedProcedureName,
         Action<SqlCommand> configureParameters,
+        CancellationToken cancellationToken,
         params Func<SqlDataReader, CancellationToken, Task>[] readSets);
 
     /// <summary>Executes a stored procedure that returns no result set (e.g. an insert/update).</summary>

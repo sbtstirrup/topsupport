@@ -46,7 +46,7 @@ public class KnowledgeBaseController : ControllerBase
     [HttpDelete("articles/{id}")]
     [Authorize(Policy = Policies.Admin)]
     public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
-        => await _kb.DeleteArticleAsync(id, cancellationToken) ? Ok() : NotFound();
+        => await _kb.DeleteArticleAsync(id, User.AccountId(), cancellationToken) ? Ok() : NotFound();
 
     private async Task<ActionResult<KbArticleDto>> SaveAsync(string? id, SaveKbArticleRequest request, CancellationToken cancellationToken)
     {

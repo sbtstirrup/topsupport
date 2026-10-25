@@ -22,6 +22,7 @@ public class OrgRepository : IOrgRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Org_GetList",
             _ => { },
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
@@ -46,6 +47,7 @@ public class OrgRepository : IOrgRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Org_GetById",
             cmd => cmd.Parameters.AddWithValue("@Id", id),
+            cancellationToken,
             async (reader, ct) =>
             {
                 if (await reader.ReadAsync(ct))
@@ -65,6 +67,7 @@ public class OrgRepository : IOrgRepository
         await _db.ExecuteReaderAsync(
             "dbo.usp_Org_GetOpenTicketIds",
             cmd => cmd.Parameters.AddWithValue("@OrgId", orgId),
+            cancellationToken,
             async (reader, ct) =>
             {
                 while (await reader.ReadAsync(ct))
