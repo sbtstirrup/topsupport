@@ -96,11 +96,7 @@
         var minLength = ParseNonNegative("minLength", _minLength);
         var expiryDays = ParseNonNegative("expiryDays", _expiryDays);
         var history = ParseNonNegative("history", _history);
-        if (!_errors.ContainsKey("minLength") && minLength < 8)
-        {
-            _errors["minLength"] = "Minimum length must be at least 8.";
-        }
-
+        // Only the parsing is checked here; the Api checks the ranges and returns field errors.
         if (_errors.Count > 0) return;
 
         _form.MinLength = minLength;
@@ -111,14 +107,23 @@
         try
         {
             var outcome = await Api.SaveSecuritySettingsAsync(_form);
-            if (outcome.Error is not null)
+            if (outcome.Errors.Count > 0)
             {
-                Toasts.Error(outcome.Error);
+                // The session/lockout/2FA settings have no editor here, so their errors can only be a toast.
+                foreach (var (key, error) in outcome.Errors)
+                {
+                    if (key is "minLength" or "expiryDays" or "history") _errors[key] = error;
+                    else Toasts.Error(error);
+                }
                 return;
             }
 
             await LoadAsync();
             Toasts.Show(outcome.Changed > 0 ? $"Security settings saved ({outcome.Changed} changed)." : "No changes to save.");
+        }
+        catch (HttpRequestException ex)
+        {
+            Toasts.Error(ApiProblemException.UserMessage(ex));
         }
         finally
         {

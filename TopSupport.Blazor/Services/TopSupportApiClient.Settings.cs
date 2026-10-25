@@ -3,8 +3,8 @@ using TopSupport.Models.Admin;
 
 namespace TopSupport.Blazor.Services;
 
-/// <summary>Result of a settings save: Error is the demo's error-toast text when the Api rejected it (400).</summary>
-public record SettingsSaveOutcome(int Changed, string? Error);
+/// <summary>Result of a security settings save: how many settings changed, or the Api's field errors (400).</summary>
+public record SecuritySaveOutcome(int Changed, IReadOnlyDictionary<string, string> Errors);
 
 public partial class TopSupportApiClient
 {
@@ -13,34 +13,33 @@ public partial class TopSupportApiClient
     public async Task<SecuritySettingsDto> GetSecuritySettingsAsync(CancellationToken cancellationToken = default)
         => await GetRequiredAsync<SecuritySettingsDto>("api/settings/security", cancellationToken);
 
-    public async Task<SettingsSaveOutcome> SaveSecuritySettingsAsync(SecuritySettingsDto settings, CancellationToken cancellationToken = default)
+    public async Task<SecuritySaveOutcome> SaveSecuritySettingsAsync(SecuritySettingsDto settings, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync("api/settings/security", settings, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
-            return new SettingsSaveOutcome(0, await ReadSettingsErrorAsync(response, cancellationToken));
+            return new SecuritySaveOutcome(0, await ReadValidationErrorsAsync(response, cancellationToken));
         }
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        var result = await response.Content.ReadFromJsonAsync<SaveSecuritySettingsResult>(cancellationToken);
-        return new SettingsSaveOutcome(result?.Changed ?? 0, null);
+        var result = await response.Content.ReadFromJsonAsync<SaveSecuritySettingsResult>(cancellationToken)
+            ?? throw EmptyBody(response);
+        return new SecuritySaveOutcome(result.Changed, new Dictionary<string, string>());
     }
 
     public async Task<SiteSettingsDto> GetSiteSettingsAsync(CancellationToken cancellationToken = default)
         => await GetRequiredAsync<SiteSettingsDto>("api/settings/site", cancellationToken);
 
-    public async Task<SettingsSaveOutcome> SaveSiteSettingsAsync(SiteSettingsDto settings, CancellationToken cancellationToken = default)
+    /// <summary>The Api's field errors from a 400 (key "" for one about no single field); empty when saved.</summary>
+    public async Task<IReadOnlyDictionary<string, string>> SaveSiteSettingsAsync(SiteSettingsDto settings, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PutAsJsonAsync("api/settings/site", settings, cancellationToken);
         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
         {
-            return new SettingsSaveOutcome(0, await ReadSettingsErrorAsync(response, cancellationToken));
+            return await ReadValidationErrorsAsync(response, cancellationToken);
         }
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return new SettingsSaveOutcome(0, null);
+        return new Dictionary<string, string>();
     }
-
-    private static async Task<string> ReadSettingsErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
-        => string.Join(" ", (await ReadValidationErrorsAsync(response, cancellationToken)).Values);
 
     // ---------------- My Profile (ProfileController) ----------------
 

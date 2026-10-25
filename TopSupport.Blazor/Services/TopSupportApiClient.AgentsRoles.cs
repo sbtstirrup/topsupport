@@ -34,7 +34,7 @@ public partial class TopSupportApiClient
     {
         var response = await _httpClient.PostAsync($"api/admin/agents/{Uri.EscapeDataString(agentId)}/reset-password", null, cancellationToken);
         await EnsureSuccessWithMessageAsync(response, cancellationToken);
-        return (await response.Content.ReadFromJsonAsync<AgentPasswordResetResult>(cancellationToken))!;
+        return await response.Content.ReadFromJsonAsync<AgentPasswordResetResult>(cancellationToken) ?? throw EmptyBody(response);
     }
 
     public async Task<AgentAdminSaveResult> SaveTeamAsync(TeamSaveRequest request, CancellationToken cancellationToken = default)
